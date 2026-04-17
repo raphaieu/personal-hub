@@ -159,15 +159,15 @@ Recebe payload da Evolution, extrai tipo/conteúdo, identifica a source, loga e 
 
 **Regras de roteamento:**
 1. `fromMe = true` + JID terminando em `@s.whatsapp.net` → `ProcessarMensagemPessoal`
-2. JID em `monitored_sources` com `tipo = contact` → `ProcessarMensagemContato`
-3. JID em `monitored_sources` com `tipo = group` → `ProcessarMensagemGrupo`
+2. JID em `monitored_sources` com `kind = contact` → `ProcessarMensagemContato`
+3. JID em `monitored_sources` com `kind = group` → `ProcessarMensagemGrupo`
 4. Qualquer outro → loga e ignora silenciosamente
 
 ### `NeuronAIService`
 Wrapper sobre NeuronAI. Métodos:
 - `classificarIntencaoPessoal(tipo, conteudo)` → `{intencao, sentimento, categoria, confianca}`
 - `classificarIntencaoContato(conteudo, permissoes)` → `{intencao, confianca}`
-- `gerarRespostaFatura(fatura)` → string formatada para WhatsApp
+- `buildInvoiceReply(Invoice $invoice)` → string formatada para WhatsApp
 
 **Provider config:**
 - Primário: Groq via `OpenAILike` (url: `https://api.groq.com/openai/v1`, model: `llama-3.3-70b-versatile`)
@@ -190,13 +190,13 @@ Métodos:
 - `sendMedia(jid, url, caption, mediaType)` → void
 - `sendDocument(jid, path, filename, caption)` → void
 
-### `FaturaService`
-Orquestra o ciclo de vida de uma fatura.
+### `InvoiceService`
+Orquestra o ciclo de vida de uma fatura no banco (`invoices`).
 
 Métodos:
-- `processarResultadoScrape(array $resultado, Conta $conta)` → upsert fatura, upload PDF, trigger notificação
-- `uploadPdf(string $localPath, Conta $conta, string $referencia)` → path no MinIO
-- `notificarGrupoCasa(Fatura $fatura)` → formata mensagem e chama EvolutionService
+- `processScrapeResult(array $payload, UtilityAccount $account)` → upsert invoice, upload PDF, trigger notificação
+- `uploadPdf(string $localPath, UtilityAccount $account, string $billingReference)` → path no MinIO
+- `notifyHomeGroup(Invoice $invoice)` → formata mensagem e chama EvolutionService
 
 ---
 
@@ -232,14 +232,14 @@ $schedule->job(new NotificarVencimento())->dailyAt('09:30');
 1. Busca conta ativa no banco
 2. Calcula se hoje está dentro da janela `(dia_vencimento - dias_antecedencia)` a `(dia_vencimento + 30)`
 3. Se sim → chama `PlaywrightService::scrapeEmbasa/Coelba()`
-4. Chama `FaturaService::processarResultadoScrape()`
-5. Atualiza `ultimo_scrape_at`
+4. Chama `InvoiceService::processScrapeResult()`
+5. Atualiza `utility_accounts.last_scraped_at`
 
 **Lógica do `NotificarVencimento`:**
-1. Busca faturas com status != pago e vencimento nos próximos N dias
-2. Para cada uma, verifica se já notificou hoje (`notificado_at`)
+1. Busca invoices com status != pago e vencimento nos próximos N dias
+2. Para cada uma, verifica se já notificou hoje (`last_notified_at`)
 3. Se não → monta mensagem → `EvolutionService::sendText(grupo_da_casa)`
-4. Atualiza `notificado_at`
+4. Atualiza `last_notified_at`
 
 ---
 
@@ -413,9 +413,9 @@ app/
   Http/Controllers/
     WebhookController.php
     DashboardController.php
-    ContaController.php
-    FaturaController.php
-    LembreteController.php
+    UtilityAccountController.php
+    InvoiceController.php
+    ReminderController.php
     MonitoredSourceController.php
   Jobs/
     ProcessarMensagemPessoal.php
@@ -427,26 +427,31 @@ app/
     EnriquecerUrlLembrete.php
   Models/
     MonitoredSource.php
-    Conta.php
-    Fatura.php
-    MensagemLog.php
-    Lembrete.php
+    UtilityAccount.php
+    Invoice.php
+    MessageLog.php
+    MessageAttachment.php
+    Reminder.php
   Services/
     WebhookRouterService.php
     NeuronAIService.php
     PlaywrightService.php
     EvolutionService.php
-    FaturaService.php
+    InvoiceService.php
 
 database/
   migrations/
     ..._create_monitored_sources_table.php
-    ..._create_contas_table.php
-    ..._create_faturas_table.php
-    ..._create_mensagens_log_table.php
-    ..._create_lembretes_table.php
+    ..._create_utility_accounts_table.php
+    ..._create_invoices_table.php
+    ..._create_message_logs_table.php
+    ..._create_message_attachments_table.php
+    ..._create_reminders_table.php
+    ..._add_hub_fields_to_users_table.php
+    ..._create_monitored_source_user_table.php
   seeders/
-    InitialDataSeeder.php  ← seeds contas Embasa/Coelba e source 'self'
+    SuperAdminUserSeeder.php
+    InitialDataSeeder.php  ← (futuro) utility accounts Embasa/Coelba + source self
 
 playwright/
   server.js

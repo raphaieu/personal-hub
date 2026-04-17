@@ -54,7 +54,7 @@ Versões abaixo refletem o **ambiente de desenvolvimento local** atual (Node 24,
 ### Credenciais e segurança
 - **Nunca** salvar CPF, senha ou API keys no banco de dados
 - Credenciais das concessionárias vêm **exclusivamente do `.env`**
-- O campo `credenciais` na tabela `contas` é apenas referência (ex: qual ENV var usar)
+- O campo de credenciais na tabela `utility_accounts` (quando existir) é apenas referência (ex.: qual ENV var usar)
 - WHATSAPP_GRUPO_CASA_JID deve estar no `.env`, nunca hardcoded
 
 ### Filas e Jobs
