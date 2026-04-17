@@ -87,6 +87,8 @@ Um hub pessoal que:
 
 ## Funcionalidades — Pós-MVP
 
+Roadmap detalhado de **monitoramento profundo de grupos**, **transcrição**, **armazenamento por fonte no MinIO** e **dashboard com permissões por grupo** está em [docs/v2.md](docs/v2.md). Atualize esse arquivo quando novas ideias surgirem no desenvolvimento da base.
+
 - RAG sobre histórico de faturas e lembretes (pgvector)
 - OCR em imagens recebidas via WhatsApp
 - Código PIX copiável enviado junto com o lembrete de vencimento

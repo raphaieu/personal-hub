@@ -14,6 +14,7 @@ captura de lembretes pessoais, e base para futuros projetos pessoais integrados.
 **Documentos de referência obrigatórios:**
 - `PRD.md` — requisitos de produto
 - `SPEC.md` — especificação técnica completa (leia antes de implementar qualquer coisa)
+- `docs/v2.md` — backlog e decisões da evolução V2 (grupos, permissões, pipelines AI); não duplicar no SPEC além do schema acordado
 
 ---
 
