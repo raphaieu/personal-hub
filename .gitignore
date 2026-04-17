@@ -1,0 +1,45 @@
+# Dependências
+/node_modules
+/playwright/node_modules
+/vendor
+
+# Build e assets
+/public/build
+/public/hot
+
+# Cache e arquivos temporários
+/.phpunit.cache
+/.phpunit.result.cache
+/playwright/downloads
+/storage/pail
+*.log
+npm-debug.log
+yarn-error.log
+
+# Arquivos de ambiente
+.env
+.env.backup
+.env.production
+
+# Diretórios de IDEs e editores
+/.idea
+/.vscode
+/.cursor
+/.fleet
+/.nova
+/.zed
+.phpactor.json
+_ide_helper.php
+
+# Arquivos do Laravel/Homestead
+Homestead.json
+Homestead.yaml
+/storage/*.key
+/public/storage
+
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db
+
+# Outros
+auth.json

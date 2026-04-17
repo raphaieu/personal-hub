@@ -1,0 +1,97 @@
+# name: Deploy Raphael Hub to VPS
+
+# on:
+#   push:
+#     branches:
+#       - main
+
+# jobs:
+#   deploy:
+#     runs-on: ubuntu-latest
+
+#     steps:
+#       - name: Checkout do código
+#         uses: actions/checkout@v4
+
+#       - name: Configurar chave SSH
+#         run: |
+#           mkdir -p ~/.ssh
+#           printf "%s" "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+#           chmod 600 ~/.ssh/id_ed25519
+#           ssh-keyscan -H ${{ vars.VPS_HOST }} >> ~/.ssh/known_hosts
+
+#       - name: Sincronizar arquivos (ignora .env e vendor)
+#         run: |
+#           rsync -avz \
+#             --exclude='.env' \
+#             --exclude='vendor' \
+#             --exclude='node_modules' \
+#             --exclude='.git' \
+#             --exclude='playwright/node_modules' \
+#             --delete \
+#             -e "ssh -i ~/.ssh/id_ed25519" \
+#             ./ deploy@${{ vars.VPS_HOST }}:/home/deploy/raphael-hub
+
+#       - name: Executar deploy remoto
+#         run: |
+#           ssh -i ~/.ssh/id_ed25519 deploy@${{ vars.VPS_HOST }} << 'EOF'
+#             set -e
+
+#             cd /home/deploy/raphael-hub
+
+#             # Sinaliza Horizon para encerrar workers graciosamente
+#             docker compose exec -T horizon php artisan horizon:terminate || true
+#             sleep 5
+
+#             # Instala dependências PHP
+#             composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
+
+#             # Instala dependências Node do Playwright
+#             cd playwright && npm install && cd ..
+
+#             # Permissões
+#             chown -R deploy:deploy .
+#             chmod -R ug+rwx storage bootstrap/cache
+
+#             # Para o nginx antes de recriar (evita conflito de porta)
+#             docker stop raphael-nginx && docker rm raphael-nginx || true
+
+#             # Rebuild e recria todos os containers
+#             docker compose up -d --build --force-recreate --remove-orphans
+
+#             # Aguarda containers ficarem prontos
+#             sleep 30
+
+#             # Migrations
+#             docker compose exec -T app php artisan migrate --force
+
+#             # Cache do Laravel
+#             docker compose exec -T app php artisan config:cache
+#             docker compose exec -T app php artisan route:cache
+#             docker compose exec -T app php artisan view:cache
+
+#             # Publica assets do Horizon
+#             docker compose exec -T app php artisan horizon:publish
+
+#             # Verifica status
+#             echo "=== Containers ==="
+#             docker compose ps
+
+#             echo "=== PostgreSQL ==="
+#             docker compose exec -T postgres pg_isready -U raphael_app || echo "Postgres ainda iniciando"
+
+#             echo "=== Redis ==="
+#             docker compose exec -T redis redis-cli ping || echo "Redis não respondeu"
+
+#             echo "=== Horizon ==="
+#             docker compose exec -T horizon php artisan horizon:status || echo "Horizon ainda iniciando"
+
+#             # Limpeza de imagens antigas
+#             docker system prune -af --volumes=false || true
+
+#             echo "==============================="
+#             echo "Deploy concluído!"
+#             echo "App: https://api.raphael-martins.com"
+#             echo "Horizon: https://api.raphael-martins.com/horizon"
+#             echo "==============================="
+#           EOF
