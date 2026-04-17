@@ -58,47 +58,96 @@ Para o mapa tabular **`APP_*` / `DB_*` / `REDIS_*` / mail** (produção vs hub.t
 
 ## Banco de Dados
 
+**Convenção:** nomes de **tabelas e colunas em inglês** no PostgreSQL (alinhado ao código Laravel). Labels e mensagens de usuário continuam em pt-BR na aplicação. Campos pensados para **V2** estão no mesmo schema; backlog em [docs/v2.md](docs/v2.md).
+
 ### Tabelas
+
+#### `users` (extensão além do Breeze)
+```
+global_role: super_admin | member (default member)
+```
+Seed opcional via `SuperAdminUserSeeder` (`HUB_SEED_*` no `.env`; senha nunca no repositório).
 
 #### `monitored_sources`
 ```
-id, tipo (self|contact|group), identificador (JID único), apelido,
-permissoes (json array), ativo (bool), notas, timestamps
+id, kind (self|contact|group), identifier (unique JID), label,
+permissions (json nullable), is_active (bool), notes,
+media_storage_prefix (nullable), timestamps
 ```
 
-#### `contas`
+#### `monitored_source_user` (pivot — V2 / multi-admin de grupo)
 ```
-id, tipo (embasa|coelba), matricula, apelido, dia_vencimento (int),
-dias_antecedencia (int, default 5), ativo (bool),
-ultimo_scrape_at (timestamp), timestamps
-```
-
-#### `faturas`
-```
-id, conta_id (FK), referencia (05/2026), vencimento (date),
-valor_total (decimal), valor_agua, valor_esgoto, valor_servico,
-consumo_m3 (int), status (pendente|a_vencer|vencida|processando|pago),
-data_pagamento (date), pdf_path (string), dados_raw (json),
-scraped_at (timestamp), notificado_at (timestamp), timestamps
-UNIQUE: conta_id + referencia
+id, user_id (FK), monitored_source_id (FK), role (group_admin|viewer), timestamps
+UNIQUE: user_id + monitored_source_id
 ```
 
-#### `mensagens_log`
+#### `utility_accounts`
+Contas de concessionárias (água/luz).
+
 ```
-id, source_id (FK nullable), identificador (JID), direcao (entrada|saida),
-tipo (texto|url|imagem|audio|documento|outro), conteudo (text),
-intencao (string), sentimento (string), confianca (float),
-metadata (json), processado (bool),
-evolution_message_id (string unique), timestamps
+id, kind (embasa|coelba), account_ref, label, due_day (int),
+reminder_lead_days (int, default 5), is_active (bool),
+last_scraped_at (timestamp nullable), timestamps
 ```
 
-#### `lembretes`
+#### `invoices`
 ```
-id, tipo (texto|url|imagem|audio|documento),
-conteudo (text), arquivo_path (string),
-url_titulo, url_descricao, url_imagem,
-categoria (string), arquivado (bool),
-mensagem_id (FK nullable), timestamps
+id, utility_account_id (FK), billing_reference (ex.: 05/2026), due_date,
+amount_total, amount_water, amount_sewage, amount_service,
+water_consumption_m3 (nullable), status,
+payment_date (nullable), pdf_path, raw_payload (json),
+scraped_at, last_notified_at, timestamps
+UNIQUE: utility_account_id + billing_reference
+```
+
+#### `message_logs`
+Registro de mensagens processadas (grupo/DM): remetente, conversa, tipo extensível, menções.
+
+```
+id, monitored_source_id (FK nullable),
+
+chat_jid, sender_jid (nullable),
+
+direction — inbound | outbound,
+
+message_type — text, audio, image, etc. (string extensível),
+
+body, mentions (json),
+quoted_evolution_message_id,
+
+intent, sentiment, confidence, category,
+
+metadata (json),
+is_processed (bool),
+
+transcription_text, transcription_provider, transcribed_at,
+vision_summary, vision_provider,
+
+ai_pipeline_status,
+evolution_message_id (unique nullable),
+
+timestamps
+```
+
+Índices: `(monitored_source_id, created_at)`, `(chat_jid, created_at)`, `sender_jid`.
+
+#### `message_attachments`
+Mídia/arquivos ligados a `message_logs`; objeto no MinIO usando `media_storage_prefix` da fonte quando aplicável.
+
+```
+id, message_log_id (FK),
+kind, original_file_name, mime_type,
+storage_path, file_bytes,
+duration_seconds, width, height,
+sha256, metadata (json), timestamps
+```
+
+#### `reminders`
+```
+id, kind (text|url|image|audio|document), body, file_path,
+url_title, url_description, url_image,
+category, is_archived,
+message_log_id (FK nullable), timestamps
 ```
 
 ---
