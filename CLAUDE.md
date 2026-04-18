@@ -61,6 +61,8 @@ Versões abaixo refletem o **ambiente de desenvolvimento local** atual (Node 24,
 - Fila `scraping` para Jobs do Playwright (timeout longo: 120s)
 - Fila `notifications` para Jobs de WhatsApp
 - Fila `default` para o resto
+- Produção/dev com Redis: rodar **`php artisan horizon`** (workers para `default`+`notifications` e supervisor dedicado para `scraping`). Scripts Composer: `composer dev:horizon` em um terminal separado do `composer dev`.
+- Scheduler: **`php artisan schedule:work`** em dev (`composer dev:schedule`), ou cron em produção com `schedule:run` a cada minuto. Tasks novas ficam em `bootstrap/app.php` (`withSchedule`).
 - Sempre implementar `failed()` nos Jobs para logar erros
 - `$tries = 3` como padrão
 
