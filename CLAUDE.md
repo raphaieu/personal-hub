@@ -86,6 +86,8 @@ O webhook da Evolution deve ser configurado para apontar para:
 
 Evento necessário habilitado na instância: `messages.upsert`
 
+**Auth do webhook:** com `EVOLUTION_WEBHOOK_SECRET`, o Laravel compara com o campo **`apikey` no JSON do body** (a Evolution envia assim no `webhookData`) e, se existirem, com headers `apikey` / `Authorization: Bearer` / `x-api-key`. Use o **mesmo valor do token da instância** do dashboard em `EVOLUTION_WEBHOOK_SECRET` (ou o que vier no body em produção).
+
 ### JIDs Evolution
 - Número individual: `5511948863848@s.whatsapp.net`
 - Grupo: `120363XXXXXXXX@g.us`
