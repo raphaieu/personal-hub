@@ -204,9 +204,9 @@ Métodos:
 
 | Job | Fila | Trigger |
 |---|---|---|
-| `ProcessarMensagemPessoal` | `default` | Webhook isFromMe |
-| `ProcessarMensagemContato` | `default` | Webhook contato monitorado |
-| `ProcessarMensagemGrupo` | `default` | Webhook grupo monitorado |
+| `ProcessPersonalWhatsAppMessage` | `default` | Webhook isFromMe |
+| `ProcessContactWhatsAppMessage` | `default` | Webhook contato monitorado |
+| `ProcessGroupWhatsAppMessage` | `default` | Webhook grupo monitorado |
 | `ScrapeConta` | `scraping` | Schedule ou on-demand |
 | `EnriquecerUrlLembrete` | `default` | Após salvar lembrete de URL |
 | `NotificarVencimento` | `notifications` | Schedule diário |
@@ -418,9 +418,9 @@ app/
     ReminderController.php
     MonitoredSourceController.php
   Jobs/
-    ProcessarMensagemPessoal.php
-    ProcessarMensagemContato.php
-    ProcessarMensagemGrupo.php
+    ProcessPersonalWhatsAppMessage.php
+    ProcessContactWhatsAppMessage.php
+    ProcessGroupWhatsAppMessage.php
     ScrapeConta.php
     VerificarStatusFaturas.php
     NotificarVencimento.php

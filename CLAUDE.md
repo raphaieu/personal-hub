@@ -232,13 +232,13 @@ Use a **tabela** da seção **Desenvolvimento local com infra externa** para ali
 2. Migrations + Models + Seeders
 3. `EvolutionService` — envio de mensagens
 4. `WebhookController` + `WebhookRouterService` — roteamento
-5. `ProcessarMensagemPessoal` Job — isFromMe
+5. `ProcessPersonalWhatsAppMessage` Job — isFromMe
 6. `NeuronAIService` — classificação de intenção
 7. Playwright server.js + scraper Embasa
 8. Playwright scraper Coelba + CapSolver
 9. `PlaywrightService` + `FaturaService` — Laravel
 10. `ScrapeConta` Job + Schedule
 11. `NotificarVencimento` Job
-12. `ProcessarMensagemContato` Job — resposta para o pai
+12. `ProcessContactWhatsAppMessage` Job — resposta para o pai
 13. Dashboard Blade + Livewire
 14. CI/CD GitHub Actions
