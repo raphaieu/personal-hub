@@ -39,9 +39,9 @@ Um hub pessoal que:
 ## Funcionalidades — MVP
 
 ### F1 — Webhook WhatsApp (Evolution API)
-- Recebe todos os eventos do número pessoal do Raphael
-- Filtra por origem: `isFromMe`, contato monitorado, grupo monitorado, ignora o resto
-- Loga todas as mensagens recebidas/processadas
+- Endpoint `POST /webhook/whatsapp`; na instância Evolution habilitar pelo menos `MESSAGES_UPSERT` (e opcionalmente `SEND_MESSAGE`); o backend normaliza nomes de evento.
+- Filtra por origem: DM consigo (`fromMe` + `@s.whatsapp.net`), grupo “notas solo” configurado (`WHATSAPP_NOTAS_GRUPO_JID` → mesmo fluxo que mensagem pessoal), contato/grupo monitorados em `monitored_sources`, ignora o restante.
+- Persiste em `message_logs` e despacha jobs (`ProcessPersonalWhatsAppMessage`, etc.). Detalhes em `SPEC.md` → `WebhookRouterService`.
 
 ### F2 — Mensagens pessoais (isFromMe)
 - Texto simples → salva como lembrete, categoriza com AI

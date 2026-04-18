@@ -155,13 +155,16 @@ message_log_id (FK nullable), timestamps
 ## Serviços Laravel
 
 ### `WebhookRouterService`
-Recebe payload da Evolution, extrai tipo/conteúdo, identifica a source, loga e despacha o Job correto.
+Recebe payload da Evolution, extrai tipo/conteúdo, identifica a source e despacha o Job correto.
 
-**Regras de roteamento:**
-1. `fromMe = true` + JID terminando em `@s.whatsapp.net` → `ProcessarMensagemPessoal`
-2. JID em `monitored_sources` com `kind = contact` → `ProcessarMensagemContato`
-3. JID em `monitored_sources` com `kind = group` → `ProcessarMensagemGrupo`
-4. Qualquer outro → loga e ignora silenciosamente
+**Eventos HTTP tratados como mensagem:** `messages.upsert` e `send.message` (aliases normalizados: `MESSAGES_UPSERT`, `SEND_MESSAGE`, `messages_upsert`, etc.).
+
+**Regras de roteamento (ordem):**
+1. `fromMe = true` + JID terminando em `@s.whatsapp.net` → `ProcessPersonalWhatsAppMessage`
+2. `chat_jid` igual a `config('services.whatsapp.notes_solo_group_jid')` (tipicamente `WHATSAPP_NOTAS_GRUPO_JID`) → `ProcessPersonalWhatsAppMessage` — grupo “só você” para notas/mídia; `monitored_source_id` segue o registro `group` no banco quando existir
+3. JID em `monitored_sources` com `kind = contact` → `ProcessContactWhatsAppMessage`
+4. JID em `monitored_sources` com `kind = group` (e não coberto pelo item 2) → `ProcessGroupWhatsAppMessage`
+5. Qualquer outro → persiste `message_logs` com rota ignorada e sem job
 
 ### `NeuronAIService`
 Wrapper sobre NeuronAI. Métodos:

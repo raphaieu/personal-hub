@@ -81,12 +81,17 @@ A Evolution API está rodando em `https://whats.dopacheck.com.br`.
 A instância para este projeto chama-se `raphael` (número pessoal do Raphael).
 **Não** é a mesma instância do DopaCheck.
 
-O webhook da Evolution deve ser configurado para apontar para:
-`https://api.raphael-martins.com/webhook/whatsapp`
+**Webhook Laravel:** `POST /webhook/whatsapp` → produção `https://api.raphael-martins.com/webhook/whatsapp`.
 
-Evento necessário habilitado na instância: `messages.upsert`
+**Eventos:** habilitar pelo menos `MESSAGES_UPSERT` e, se quiser redundância com envios, `SEND_MESSAGE`. O código normaliza nomes (`MESSAGES_UPSERT` → `messages.upsert`, `SEND_MESSAGE` → `send.message`) em `EvolutionWebhookPayloadNormalizer`.
 
-**Auth do webhook:** com `EVOLUTION_WEBHOOK_SECRET`, o Laravel compara com o campo **`apikey` no JSON do body** (a Evolution envia assim no `webhookData`) e, se existirem, com headers `apikey` / `Authorization: Bearer` / `x-api-key`. Use o **mesmo valor do token da instância** do dashboard em `EVOLUTION_WEBHOOK_SECRET` (ou o que vier no body em produção).
+**Formato do body:** muitas vezes `data` é um **objeto único** com `key` + `message` + `messageType` (sem array `messages[]`). O extrator suporta os dois formatos. Mensagens com wrappers Baileys (`ephemeralMessage`, etc.) são desembrulhadas no `EvolutionMessagesUpsertExtractor`.
+
+**Auth:** `EVOLUTION_WEBHOOK_SECRET` deve coincidir com o **`apikey` no JSON** do body e/ou headers `apikey`, `Authorization: Bearer`, `x-api-key`.
+
+**Grupo “notas solo” (workaround):** mídia no chat 1:1 consigo mesmo costuma **não** disparar webhook na Evolution; uso de um **grupo só com você** faz a mídia chegar. No banco a fonte é `monitored_sources.kind = group`; o **`WHATSAPP_NOTAS_GRUPO_JID`** (`.env`) faz o `WebhookRouterService` despachar **`ProcessPersonalWhatsAppMessage`** em vez de `ProcessGroupWhatsAppMessage` para esse JID. O grupo familiar de faturas continua em `WHATSAPP_GRUPO_CASA_JID` (outro JID).
+
+**Logs:** em produção o webhook não loga payload completo. Com `APP_DEBUG=true`, um `Log::debug` resume `correlation_id` e `routing`. Falhas de credencial geram `Log::warning`.
 
 ### JIDs Evolution
 - Número individual: `5511948863848@s.whatsapp.net`
@@ -156,7 +161,7 @@ Fallback para Anthropic Claude quando Groq falhar ou para tarefas pesadas.
 
 5. **MinIO path style**: Sem `AWS_USE_PATH_STYLE_ENDPOINT=true` as requests falham com 403. Sempre incluir.
 
-6. **Evolution webhook**: O payload vem em `data.message` para `messages.upsert`. Ignorar `status@broadcast` e mensagens sem `message` key para evitar erros de processamento.
+6. **Evolution webhook**: Payload em `data` com `key` + `message`; ignorar `status@broadcast` e itens sem `message`. Mídia “para si mesmo” no 1:1 pode não gerar evento — ver grupo notas solo acima.
 
 7. **Postgres no Docker**: `DB_HOST` deve ser `raphael-postgres` (nome do container), não `127.0.0.1`, dentro dos containers. Com infra externa no host, usar `127.0.0.1` + porta mapeada.
 
