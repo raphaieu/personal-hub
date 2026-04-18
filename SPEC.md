@@ -4,8 +4,8 @@
 
 | Camada | Tecnologia |
 |---|---|
-| Backend | Laravel 12 + PHP 8.4 |
-| Frontend | Blade + Livewire 3 + Sanctum |
+| Backend | Laravel 13 + PHP 8.4 |
+| Frontend | Blade + Livewire 4 + Sanctum |
 | Banco | PostgreSQL 17 (container próprio ou serviço local; não MySQL para este app) |
 | Cache / Filas / Sessão | Redis 7 (container próprio) |
 | Monitor de filas | Laravel Horizon |
