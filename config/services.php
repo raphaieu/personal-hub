@@ -35,4 +35,8 @@ return [
         ],
     ],
 
+    'evolution' => [
+        'webhook_secret' => env('EVOLUTION_WEBHOOK_SECRET'),
+    ],
+
 ];
