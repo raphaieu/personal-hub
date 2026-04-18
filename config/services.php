@@ -36,7 +36,22 @@ return [
     ],
 
     'evolution' => [
+        'url' => env('EVOLUTION_URL'),
         'webhook_secret' => env('EVOLUTION_WEBHOOK_SECRET'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | WhatsApp (hub)
+    |--------------------------------------------------------------------------
+    |
+    | notes_solo_group_jid — mesmo JID que WHATSAPP_NOTAS_GRUPO_JID no seeder; mensagens
+    | desse grupo disparam ProcessPersonalWhatsAppMessage (workaround mídia no 1:1).
+    |
+    */
+
+    'whatsapp' => [
+        'notes_solo_group_jid' => env('WHATSAPP_NOTAS_GRUPO_JID'),
     ],
 
 ];
