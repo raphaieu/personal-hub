@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\Webhook;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Webhook\StoreWhatsAppWebhookRequest;
+use App\Services\WebhookRouterService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -11,9 +13,9 @@ use Illuminate\Support\Str;
 class WhatsAppWebhookController extends Controller
 {
     /**
-     * Recebe eventos da Evolution API (ex.: messages.upsert). Por ora só registra o payload para inspeção.
+     * Recebe eventos da Evolution API (ex.: messages.upsert, SEND_MESSAGE), valida credencial e roteia para jobs.
      */
-    public function __invoke(Request $request): JsonResponse
+    public function __invoke(StoreWhatsAppWebhookRequest $request, WebhookRouterService $router): JsonResponse
     {
         $secret = config('services.evolution.webhook_secret');
 
@@ -26,8 +28,6 @@ class WhatsAppWebhookController extends Controller
                     'ip' => $request->ip(),
                     'user_agent' => $request->userAgent(),
                     'reason' => $provided === null ? 'absent' : 'mismatch',
-                    'received_header_names' => array_keys($request->headers->all()),
-                    'has_json_apikey' => $request->has('apikey'),
                 ]);
 
                 abort(401, 'Unauthorized');
@@ -35,23 +35,20 @@ class WhatsAppWebhookController extends Controller
         }
 
         $correlationId = Str::uuid()->toString();
+        $routing = $router->route($request, $correlationId);
 
-        $payloadForLog = $request->all();
-        if (array_key_exists('apikey', $payloadForLog)) {
-            $payloadForLog['apikey'] = '[redacted]';
+        if (config('app.debug')) {
+            Log::debug('whatsapp webhook', [
+                'correlation_id' => $correlationId,
+                'instance' => $request->input('instance'),
+                'routing' => $routing,
+            ]);
         }
-
-        Log::info('whatsapp webhook payload', [
-            'correlation_id' => $correlationId,
-            'method' => $request->method(),
-            'content_type' => $request->header('Content-Type'),
-            'query' => $request->query(),
-            'payload' => $payloadForLog,
-        ]);
 
         return response()->json([
             'ok' => true,
             'correlation_id' => $correlationId,
+            'routing' => $routing,
         ]);
     }
 
