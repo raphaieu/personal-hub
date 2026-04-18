@@ -12,7 +12,9 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
-        //
+        $middleware->validateCsrfTokens(except: [
+            'webhook/whatsapp',
+        ]);
     })
     ->withSchedule(function (Schedule $schedule): void {
         // Métricas do Horizon — rodar `php artisan schedule:work` local ou cron em produção.

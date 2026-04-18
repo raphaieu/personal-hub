@@ -1,7 +1,12 @@
 <?php
 
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\Webhook\WhatsAppWebhookController;
 use Illuminate\Support\Facades\Route;
+
+Route::post('/webhook/whatsapp', WhatsAppWebhookController::class)
+    ->middleware('throttle:300,1')
+    ->name('webhook.whatsapp');
 
 Route::get('/', function () {
     return view('welcome');
