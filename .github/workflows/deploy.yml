@@ -1,97 +1,96 @@
-# name: Deploy Raphael Hub to VPS
+name: Deploy Raphael Hub to VPS
 
-# on:
-#   push:
-#     branches:
-#       - main
+on:
+  push:
+    branches:
+      - main
 
-# jobs:
-#   deploy:
-#     runs-on: ubuntu-latest
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
 
-#     steps:
-#       - name: Checkout do código
-#         uses: actions/checkout@v4
+    steps:
+      - name: Checkout do código
+        uses: actions/checkout@v4
 
-#       - name: Configurar chave SSH
-#         run: |
-#           mkdir -p ~/.ssh
-#           printf "%s" "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
-#           chmod 600 ~/.ssh/id_ed25519
-#           ssh-keyscan -H ${{ vars.VPS_HOST }} >> ~/.ssh/known_hosts
+      - name: Configurar chave SSH
+        run: |
+          mkdir -p ~/.ssh
+          printf "%s" "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ vars.VPS_HOST }} >> ~/.ssh/known_hosts
 
-#       - name: Sincronizar arquivos (ignora .env e vendor)
-#         run: |
-#           rsync -avz \
-#             --exclude='.env' \
-#             --exclude='vendor' \
-#             --exclude='node_modules' \
-#             --exclude='.git' \
-#             --exclude='playwright/node_modules' \
-#             --delete \
-#             -e "ssh -i ~/.ssh/id_ed25519" \
-#             ./ deploy@${{ vars.VPS_HOST }}:/home/deploy/raphael-hub
+      - name: Sincronizar arquivos (ignora .env e vendor)
+        run: |
+          rsync -avz \
+            --exclude='.env' \
+            --exclude='vendor' \
+            --exclude='node_modules' \
+            --exclude='.git' \
+            --exclude='playwright/node_modules' \
+            --exclude='storage/logs' \
+            --exclude='storage/framework' \
+            --exclude='bootstrap/cache' \
+            --delete \
+            -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
+            ./ deploy@${{ vars.VPS_HOST }}:/home/deploy/raphael-hub
 
-#       - name: Executar deploy remoto
-#         run: |
-#           ssh -i ~/.ssh/id_ed25519 deploy@${{ vars.VPS_HOST }} << 'EOF'
-#             set -e
+      - name: Executar deploy remoto
+        run: |
+          ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no deploy@${{ vars.VPS_HOST }} << 'ENDSSH'
+            set -e
+            cd /home/deploy/raphael-hub
 
-#             cd /home/deploy/raphael-hub
+            echo "--- Encerrando Horizon graciosamente ---"
+            docker compose exec -T horizon php artisan horizon:terminate || true
+            sleep 5
 
-#             # Sinaliza Horizon para encerrar workers graciosamente
-#             docker compose exec -T horizon php artisan horizon:terminate || true
-#             sleep 5
+            echo "--- Permissões ---"
+            mkdir -p storage/app/public storage/framework/{cache,sessions,views} storage/logs bootstrap/cache
+            chmod -R ug+rwx storage bootstrap/cache
+            chown -R deploy:deploy .
 
-#             # Instala dependências PHP
-#             composer install --no-interaction --prefer-dist --optimize-autoloader --no-dev
+            echo "--- Dependências PHP ---"
+            docker compose exec -T app composer install \
+              --no-interaction \
+              --prefer-dist \
+              --optimize-autoloader \
+              --no-dev
 
-#             # Instala dependências Node do Playwright
-#             cd playwright && npm install && cd ..
+            echo "--- Dependências Playwright ---"
+            if [ -d "playwright" ]; then
+              cd playwright && npm ci --omit=dev && cd ..
+            fi
 
-#             # Permissões
-#             chown -R deploy:deploy .
-#             chmod -R ug+rwx storage bootstrap/cache
+            echo "--- Rebuild imagem app ---"
+            docker compose build app playwright
 
-#             # Para o nginx antes de recriar (evita conflito de porta)
-#             docker stop raphael-nginx && docker rm raphael-nginx || true
+            echo "--- Recrear containers ---"
+            docker compose up -d --force-recreate --remove-orphans
 
-#             # Rebuild e recria todos os containers
-#             docker compose up -d --build --force-recreate --remove-orphans
+            echo "--- Aguardar containers ---"
+            sleep 15
 
-#             # Aguarda containers ficarem prontos
-#             sleep 30
+            echo "--- Migrations ---"
+            docker compose exec -T app php artisan migrate --force
 
-#             # Migrations
-#             docker compose exec -T app php artisan migrate --force
+            echo "--- Cache ---"
+            docker compose exec -T app php artisan config:cache
+            docker compose exec -T app php artisan route:cache
+            docker compose exec -T app php artisan view:cache
+            docker compose exec -T app php artisan horizon:publish
 
-#             # Cache do Laravel
-#             docker compose exec -T app php artisan config:cache
-#             docker compose exec -T app php artisan route:cache
-#             docker compose exec -T app php artisan view:cache
+            echo "--- Status ---"
+            docker compose ps
 
-#             # Publica assets do Horizon
-#             docker compose exec -T app php artisan horizon:publish
+            echo "--- Health check ---"
+            curl -sf http://127.0.0.1:8082/up && echo "✓ App OK" || echo "⚠ App não respondeu"
 
-#             # Verifica status
-#             echo "=== Containers ==="
-#             docker compose ps
+            echo "--- Limpeza imagens antigas ---"
+            docker image prune -f || true
 
-#             echo "=== PostgreSQL ==="
-#             docker compose exec -T postgres pg_isready -U raphael_app || echo "Postgres ainda iniciando"
-
-#             echo "=== Redis ==="
-#             docker compose exec -T redis redis-cli ping || echo "Redis não respondeu"
-
-#             echo "=== Horizon ==="
-#             docker compose exec -T horizon php artisan horizon:status || echo "Horizon ainda iniciando"
-
-#             # Limpeza de imagens antigas
-#             docker system prune -af --volumes=false || true
-
-#             echo "==============================="
-#             echo "Deploy concluído!"
-#             echo "App: https://api.raphael-martins.com"
-#             echo "Horizon: https://api.raphael-martins.com/horizon"
-#             echo "==============================="
-#           EOF
+            echo "==============================="
+            echo "Deploy concluído com sucesso!"
+            echo "api.raphael-martins.com"
+            echo "==============================="
+          ENDSSH
