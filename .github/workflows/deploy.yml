@@ -10,20 +10,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout do código
-        uses: actions/checkout@v4
-
-      - name: Configurar Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'npm'
-
-      - name: Instalar dependências Node e buildar assets
-        run: |
-          npm ci
-          npm run build
-
       - name: Configurar chave SSH
         run: |
           mkdir -p ~/.ssh
@@ -31,51 +17,36 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H ${{ vars.VPS_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Sincronizar arquivos para VPS
-        run: |
-          rsync -avz \
-            --exclude='.env' \
-            --exclude='vendor' \
-            --exclude='node_modules' \
-            --exclude='.git' \
-            --exclude='playwright/node_modules' \
-            --exclude='storage/logs' \
-            --exclude='storage/framework' \
-            --exclude='bootstrap/cache' \
-            --delete \
-            -e "ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no" \
-            ./ deploy@${{ vars.VPS_HOST }}:/home/deploy/raphael-hub
-
-      - name: Executar deploy remoto
+      - name: Deploy remoto
         run: |
           ssh -i ~/.ssh/id_ed25519 -o StrictHostKeyChecking=no deploy@${{ vars.VPS_HOST }} << 'ENDSSH'
             set -e
             cd /home/deploy/raphael-hub
 
-            echo "--- Encerrando Horizon graciosamente ---"
+            echo "--- Git pull ---"
+            git pull origin main
+
+            echo "--- Horizon terminate ---"
             docker compose exec -T horizon php artisan horizon:terminate || true
             sleep 3
 
-            echo "--- Permissões ---"
-            mkdir -p storage/app/public storage/framework/{cache,sessions,views} storage/logs bootstrap/cache
-            chmod -R ug+rwx storage bootstrap/cache
-            chown -R deploy:deploy .
-
-            echo "--- Dependências PHP ---"
-            docker compose exec -T app composer install \
-              --no-interaction \
-              --prefer-dist \
-              --optimize-autoloader \
-              --no-dev
-
-            echo "--- Rebuild imagem app ---"
+            echo "--- Rebuild imagem (PHP + Node) ---"
             docker compose build app
 
             echo "--- Recrear containers ---"
             docker compose up -d --force-recreate --remove-orphans
+            sleep 15
 
-            echo "--- Aguardar containers estabilizarem ---"
-            sleep 20
+            echo "--- Composer ---"
+            docker compose exec -T app composer install \
+              --no-interaction --prefer-dist --optimize-autoloader --no-dev
+
+            echo "--- Build assets ---"
+            docker compose exec -T app sh -c "npm ci && npm run build"
+
+            echo "--- Permissões ---"
+            mkdir -p storage/app/public storage/framework/{cache,sessions,views} storage/logs bootstrap/cache
+            chmod -R ug+rwx storage bootstrap/cache
 
             echo "--- Migrations ---"
             docker compose exec -T app php artisan migrate --force
@@ -86,15 +57,13 @@ jobs:
             docker compose exec -T app php artisan view:cache
             docker compose exec -T app php artisan horizon:publish
 
-            echo "--- Status containers ---"
+            echo "--- Status ---"
             docker compose ps
 
             echo "--- Health check ---"
             curl -sf http://127.0.0.1:8082/up && echo "✓ App OK" || echo "⚠ App não respondeu"
 
-            echo "--- Limpeza imagens antigas ---"
             docker image prune -f || true
-
             echo "==============================="
             echo "Deploy concluído!"
             echo "https://api.raphael-martins.com"
