@@ -54,7 +54,7 @@ jobs:
 
             echo "--- Encerrando Horizon graciosamente ---"
             docker compose exec -T horizon php artisan horizon:terminate || true
-            sleep 5
+            sleep 3
 
             echo "--- Permissões ---"
             mkdir -p storage/app/public storage/framework/{cache,sessions,views} storage/logs bootstrap/cache
@@ -68,30 +68,25 @@ jobs:
               --optimize-autoloader \
               --no-dev
 
-            echo "--- Dependências Playwright ---"
-            if [ -d "playwright" ]; then
-              cd playwright && npm ci --omit=dev && cd ..
-            fi
-
             echo "--- Rebuild imagem app ---"
-            docker compose build app playwright
+            docker compose build app
 
             echo "--- Recrear containers ---"
             docker compose up -d --force-recreate --remove-orphans
 
-            echo "--- Aguardar containers ---"
-            sleep 15
+            echo "--- Aguardar containers estabilizarem ---"
+            sleep 20
 
             echo "--- Migrations ---"
             docker compose exec -T app php artisan migrate --force
 
-            echo "--- Cache ---"
+            echo "--- Cache Laravel ---"
             docker compose exec -T app php artisan config:cache
             docker compose exec -T app php artisan route:cache
             docker compose exec -T app php artisan view:cache
             docker compose exec -T app php artisan horizon:publish
 
-            echo "--- Status ---"
+            echo "--- Status containers ---"
             docker compose ps
 
             echo "--- Health check ---"
