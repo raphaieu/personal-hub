@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM php:8.3-fpm
+FROM php:8.4-fpm
 
 # SO + libs (adicionado libpq-dev para PostgreSQL, removido libpng/jpeg/gd desnecessários pra esse projeto)
 RUN apt-get update && apt-get install -y \
