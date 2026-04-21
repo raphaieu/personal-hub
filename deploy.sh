@@ -15,7 +15,8 @@ echo "--- Rebuild imagem ---"
 docker compose build app
 
 echo "--- Recrear containers ---"
-docker compose up -d --force-recreate --remove-orphans
+docker compose up -d --force-recreate --remove-orphans \
+  app nginx postgres redis horizon queue scheduler
 sleep 15
 
 echo "--- Composer ---"
