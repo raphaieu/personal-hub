@@ -31,7 +31,7 @@ jobs:
           chmod 600 ~/.ssh/id_ed25519
           ssh-keyscan -H ${{ vars.VPS_HOST }} >> ~/.ssh/known_hosts
 
-      - name: Sincronizar arquivos (ignora .env e vendor)
+      - name: Sincronizar arquivos para VPS
         run: |
           rsync -avz \
             --exclude='.env' \
@@ -96,7 +96,7 @@ jobs:
             docker image prune -f || true
 
             echo "==============================="
-            echo "Deploy concluído com sucesso!"
-            echo "api.raphael-martins.com"
+            echo "Deploy concluído!"
+            echo "https://api.raphael-martins.com"
             echo "==============================="
           ENDSSH
