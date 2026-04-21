@@ -12,6 +12,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->trustProxies(at: '*'); // confiar no proxy do aaPanel
         $middleware->validateCsrfTokens(except: [
             'webhook/whatsapp',
         ]);
