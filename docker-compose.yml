@@ -43,7 +43,7 @@ services:
         max-size: "10m"
         max-file: "3"
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "host.docker.internal:172.23.0.1"
 
   # ---------------------------------------------------------------------------
   # Nginx — reverse proxy para o PHP-FPM
@@ -149,7 +149,7 @@ services:
       start_period: 30s
     logging: *default_logging
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "host.docker.internal:172.23.0.1"
 
   # ---------------------------------------------------------------------------
   # Queue Worker — fallback / overflow do Horizon
@@ -185,7 +185,7 @@ services:
       retries: 5
     logging: *default_logging
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "host.docker.internal:172.23.0.1"
 
   # ---------------------------------------------------------------------------
   # Scheduler — executa artisan schedule:run a cada minuto
@@ -223,7 +223,7 @@ services:
       start_period: 20s
     logging: *default_logging
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - "host.docker.internal:172.23.0.1"
 
   # ---------------------------------------------------------------------------
   # MinIO — storage S3 do Raphael Hub

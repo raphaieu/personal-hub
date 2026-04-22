@@ -31,8 +31,14 @@ echo "$CHANGED"
 
 APP_SERVICES="app nginx postgres redis horizon queue scheduler minio evolution-postgres evolution-redis evolution"
 BASE_APP_SERVICES="app nginx postgres redis horizon queue scheduler"
-INFRA_SERVICES="nginx postgres redis minio evolution-postgres evolution-redis evolution"
 PLAYWRIGHT_SERVICE="playwright"
+
+HAS_PLAYWRIGHT=false
+if docker compose config --services 2>/dev/null | grep -qx "$PLAYWRIGHT_SERVICE" \
+  && [ -f "Dockerfile.playwright" ] \
+  && [ -d "playwright" ]; then
+  HAS_PLAYWRIGHT=true
+fi
 
 NEEDS_APP_BUILD=false
 NEEDS_PLAYWRIGHT_BUILD=false
@@ -52,7 +58,7 @@ if echo "$CHANGED" | grep -qE '(^|/)(Dockerfile)$|composer\.(json|lock)$'; then
   NEEDS_COMPOSER_INSTALL=true
 fi
 
-if echo "$CHANGED" | grep -qE '(^|/)(Dockerfile\.playwright)$|^playwright/'; then
+if [ "$HAS_PLAYWRIGHT" = true ] && echo "$CHANGED" | grep -qE '(^|/)(Dockerfile\.playwright)$|^playwright/'; then
   NEEDS_PLAYWRIGHT_BUILD=true
 fi
 
@@ -98,15 +104,22 @@ if [ "$NEEDS_APP_BUILD" = true ]; then
   docker compose build app
 fi
 
-if [ "$NEEDS_PLAYWRIGHT_BUILD" = true ]; then
+if [ "$NEEDS_PLAYWRIGHT_BUILD" = true ] && [ "$HAS_PLAYWRIGHT" = true ]; then
   echo "--- Build do Playwright ---"
   docker compose build "$PLAYWRIGHT_SERVICE"
+elif [ "$NEEDS_PLAYWRIGHT_BUILD" = true ]; then
+  echo "--- Playwright ignorado: serviço/pasta não disponível nesta VPS ---"
 fi
 
 if [ "$NEEDS_INFRA_REFRESH" = true ] || [ "$NEEDS_APP_BUILD" = true ] || [ "$NEEDS_PLAYWRIGHT_BUILD" = true ]; then
   echo "--- Subindo / recriando stack necessária ---"
-  docker compose up -d --force-recreate --remove-orphans \
-    $APP_SERVICES $PLAYWRIGHT_SERVICE
+  SERVICES_TO_UP="$APP_SERVICES"
+
+  if [ "$HAS_PLAYWRIGHT" = true ]; then
+    SERVICES_TO_UP="$SERVICES_TO_UP $PLAYWRIGHT_SERVICE"
+  fi
+
+  docker compose up -d --force-recreate --remove-orphans $SERVICES_TO_UP
   sleep 15
 else
   echo "--- Restart leve dos serviços da aplicação ---"
@@ -139,7 +152,7 @@ fi
 # Dependências do Playwright
 # -------------------------------------------------------------------
 
-if [ "$NEEDS_PLAYWRIGHT_BUILD" = true ]; then
+if [ "$NEEDS_PLAYWRIGHT_BUILD" = true ] && [ "$HAS_PLAYWRIGHT" = true ]; then
   echo "--- Validando container Playwright ---"
   docker compose up -d "$PLAYWRIGHT_SERVICE"
   sleep 5
@@ -190,10 +203,14 @@ else
   echo "⚠ Evolution não respondeu"
 fi
 
-if docker compose exec -T playwright sh -c "wget -q -O - http://127.0.0.1:3001/health | grep -q ok"; then
-  echo "✓ Playwright OK"
+if [ "$HAS_PLAYWRIGHT" = true ]; then
+  if docker compose exec -T playwright sh -c "wget -q -O - http://127.0.0.1:3001/health | grep -q ok"; then
+    echo "✓ Playwright OK"
+  else
+    echo "⚠ Playwright não respondeu"
+  fi
 else
-  echo "⚠ Playwright não respondeu"
+  echo "ℹ Playwright não configurado nesta VPS"
 fi
 
 # -------------------------------------------------------------------
