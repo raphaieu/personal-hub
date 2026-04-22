@@ -1,58 +1,266 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# Raphael HUB
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
+> Seu número de WhatsApp como painel de controle da vida real.
 
-## About Laravel
+## Visão Geral
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+**Raphael HUB** é uma plataforma pessoal de automação doméstica, produtividade e organização digital baseada em **WhatsApp + Dashboard Web**.
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+O projeto centraliza tarefas reais do dia a dia:
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+* Monitoramento automático de contas (água / luz)
+* Lembretes pessoais inteligentes
+* Histórico de links, imagens e notas
+* Alertas para família e grupos
+* Dashboard web com métricas e controle
+* Base para futuras automações pessoais com IA
 
-## Learning Laravel
+A proposta é simples: usar o **WhatsApp como interface natural** e o sistema como cérebro operacional.
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework.
+---
 
-In addition, [Laracasts](https://laracasts.com) contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+## Problemas que Resolve
 
-You can also watch bite-sized lessons with real-world projects on [Laravel Learn](https://laravel.com/learn), where you will be guided through building a Laravel application from scratch while learning PHP fundamentals.
+### Casa / Família
 
-## Agentic Development
+* Contas vencem e ninguém lembra
+* Familiares precisam perguntar valores
+* Segunda via é burocrática
+* Falta histórico centralizado
 
-Laravel's predictable structure and conventions make it ideal for AI coding agents like Claude Code, Cursor, and GitHub Copilot. Install [Laravel Boost](https://laravel.com/docs/ai) to supercharge your AI workflow:
+### Produtividade Pessoal
 
-```bash
-composer require laravel/boost --dev
+* Mensagens enviadas para si mesmo se perdem
+* Links importantes somem
+* Imagens úteis ficam esquecidas
+* Ideias rápidas desaparecem
 
-php artisan boost:install
-```
+### Organização Digital
 
-Boost provides your agent 15+ tools and skills that help agents build Laravel applications while following best practices.
+* Informação espalhada
+* Zero automação
+* Dependência de memória humana
 
-## Contributing
+---
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+## Solução
 
-## Code of Conduct
+### WhatsApp como Interface
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+Você pode:
 
-## Security Vulnerabilities
+* mandar texto para si mesmo
+* enviar links
+  n- mandar imagens
+* perguntar contas
+* receber alertas
+* interagir sem abrir outro app
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+### Dashboard Web
 
-## License
+Painel com:
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+* contas atuais
+* históricos
+* consumo mensal
+* lembretes
+* logs
+* métricas
+* fontes monitoradas
+
+### IA Aplicada
+
+Classificação automática de mensagens, intenção e contexto.
+
+---
+
+## Casos de Uso
+
+### Contas Domésticas
+
+Pergunta no WhatsApp:
+
+> Quanto ficou a conta de água?
+
+Resposta automática com:
+
+* valor
+* vencimento
+* status
+* PDF da fatura
+
+### Lembretes Pessoais
+
+Mensagem:
+
+> Comprar cabo HDMI amanhã
+
+Sistema salva e categoriza.
+
+### Links Importantes
+
+Mensagem:
+
+> [https://site.com/artigo](https://site.com/artigo)
+
+Sistema salva com preview e busca futura.
+
+### Alertas Familiares
+
+Grupo recebe:
+
+> Conta de luz vence em 3 dias.
+
+Se não pagar, o sistema insiste.
+
+---
+
+## Arquitetura Técnica
+
+### Backend
+
+* PHP 8.4
+* Laravel 13
+
+### Frontend
+
+* Blade
+* Livewire 4
+
+### Banco
+
+* PostgreSQL 17
+
+### Filas / Cache
+
+* Redis 7
+* Laravel Horizon
+
+### Storage
+
+* MinIO (S3 compatível)
+
+### Scraping
+
+* Node.js 24
+* Playwright
+
+### WhatsApp
+
+* Evolution API
+
+### Infra
+
+* Docker
+* GitHub Actions
+* VPS Linux
+* Cloudflare Tunnel
+
+---
+
+## Camada de IA (Orquestrada)
+
+O projeto utiliza **NeuronAI** (PHP) como camada de abstração entre modelos.
+
+Isso permite trocar provedores sem reescrever prompts, tools ou fluxos.
+
+### Estratégia atual
+
+1. **Ollama local na VPS**
+
+   * análises rápidas
+   * sentimento
+   * tarefas simples
+   * custo zero por uso
+
+2. **Groq**
+
+   * alta velocidade
+   * tarefas intermediárias
+
+3. **Execução paralela / redundância opcional**
+
+   * Ollama + Groq quando fizer sentido
+
+4. **Fallback premium**
+
+   * OpenAI
+   * Anthropic Claude
+
+Objetivo: custo baixo, velocidade alta e qualidade quando necessário.
+
+---
+
+## Ambientes
+
+### Produção
+
+`https://api.raphael-martins.com`
+
+Deploy automatizado via GitHub Actions.
+
+### Desenvolvimento Local
+
+`http://hub.test`
+
+Infra híbrida:
+
+* app no host
+* postgres / redis / nginx via docker
+
+### Tunnel Dev
+
+`https://dev.raphael-martins.com`
+
+Para webhooks e testes externos.
+
+---
+
+## Roadmap
+
+### Curto Prazo
+
+* webhook estável
+* scraping confiável
+* lembretes automáticos
+* painel útil no dia a dia
+
+### Médio Prazo
+
+* inbox pessoal inteligente
+* OCR
+* transcrição de áudio
+* busca semântica
+* RAG pessoal
+
+### Longo Prazo
+
+* ERP da vida pessoal
+* despesas
+* tarefas familiares
+* documentos
+* agenda doméstica
+* automações amplas
+
+---
+
+## Filosofia
+
+Este projeto resolve problemas reais enquanto serve como laboratório prático para:
+
+* scraping real
+* PostgreSQL avançado
+* IA aplicada
+* arquitetura moderna
+* operação em produção
+
+Hoje é um hub pessoal.
+
+Amanhã pode ser um sistema operacional da vida real.
+
+---
+
+## Autor
+
+Raphael Martins
+Software Engineer / Builder / Automation First
