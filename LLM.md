@@ -1,4 +1,4 @@
-# CLAUDE.md — Raphael Hub
+# LLM.md — Raphael Hub
 
 Instruções para agentes de IA (Claude Code, Cursor, etc.) ao trabalhar neste projeto.
 Leia este arquivo inteiro antes de escrever qualquer código.
