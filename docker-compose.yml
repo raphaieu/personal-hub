@@ -13,20 +13,35 @@ services:
     env_file:
       - .env
     environment:
-      - APP_ENV=production
-      - APP_DEBUG=false
-      - TZ=America/Sao_Paulo
-      - QUEUE_CONNECTION=redis
-      - REDIS_HOST=raphael-redis
-      - DB_HOST=raphael-postgres
+      APP_ENV: production
+      APP_DEBUG: "false"
+      TZ: America/Sao_Paulo
+      QUEUE_CONNECTION: redis
+      REDIS_HOST: raphael-redis
+      DB_HOST: raphael-postgres
     volumes:
       - .:/var/www/html
     depends_on:
-      - postgres
-      - redis
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     restart: unless-stopped
     networks:
       - raphael-bridge
+    healthcheck:
+      test: ["CMD-SHELL", "php artisan about > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    logging: &default_logging
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
 
   # ---------------------------------------------------------------------------
   # Nginx — reverse proxy para o PHP-FPM
@@ -35,45 +50,67 @@ services:
     image: nginx:alpine
     container_name: raphael-nginx
     ports:
-      - "8082:80"  # aaPanel faz proxy desse para api.raphael-martins.com
+      - "8082:80" # aaPanel faz proxy desse para api.raphael-martins.com
     volumes:
       - .:/var/www/html:ro
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      - app
+      app:
+        condition: service_started
     restart: unless-stopped
     networks:
       - raphael-bridge
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1/ || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *default_logging
 
   # ---------------------------------------------------------------------------
-  # PostgreSQL — banco exclusivo do projeto
+  # PostgreSQL — banco exclusivo do app
   # ---------------------------------------------------------------------------
   postgres:
     image: postgres:16-alpine
     container_name: raphael-postgres
     environment:
-      POSTGRES_DB: raphael
-      POSTGRES_USER: raphael_app
-      POSTGRES_PASSWORD: "${DB_PASSWORD}"
+      POSTGRES_DB: ${DB_DATABASE:-raphael}
+      POSTGRES_USER: ${DB_USERNAME:-raphael_app}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
       TZ: America/Sao_Paulo
+      PGTZ: America/Sao_Paulo
     volumes:
       - postgres_data:/var/lib/postgresql/data
     restart: unless-stopped
     networks:
       - raphael-bridge
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USERNAME:-raphael_app} -d ${DB_DATABASE:-raphael}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *default_logging
 
   # ---------------------------------------------------------------------------
-  # Redis — filas, cache, sessão
+  # Redis — filas, cache, sessão do app
   # ---------------------------------------------------------------------------
   redis:
     image: redis:7-alpine
     container_name: raphael-redis
-    command: redis-server --appendonly yes
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
     restart: unless-stopped
     networks:
       - raphael-bridge
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *default_logging
 
   # ---------------------------------------------------------------------------
   # Horizon — monitor de filas
@@ -85,22 +122,33 @@ services:
     env_file:
       - .env
     environment:
-      - TZ=America/Sao_Paulo
-      - QUEUE_CONNECTION=redis
-      - REDIS_HOST=raphael-redis
-      - DB_HOST=raphael-postgres
+      TZ: America/Sao_Paulo
+      QUEUE_CONNECTION: redis
+      REDIS_HOST: raphael-redis
+      DB_HOST: raphael-postgres
     volumes:
       - .:/var/www/html
     depends_on:
-      - app
-      - redis
+      app:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     command: php artisan horizon
     restart: unless-stopped
     networks:
       - raphael-bridge
+    healthcheck:
+      test: ["CMD-SHELL", "php artisan horizon:status | grep -qi running"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging: *default_logging
 
   # ---------------------------------------------------------------------------
-  # Queue Worker — fallback/overflow do Horizon
+  # Queue Worker — fallback / overflow do Horizon
   # ---------------------------------------------------------------------------
   queue:
     image: raphael-hub:latest
@@ -109,19 +157,29 @@ services:
     env_file:
       - .env
     environment:
-      - TZ=America/Sao_Paulo
-      - QUEUE_CONNECTION=redis
-      - REDIS_HOST=raphael-redis
-      - DB_HOST=raphael-postgres
+      TZ: America/Sao_Paulo
+      QUEUE_CONNECTION: redis
+      REDIS_HOST: raphael-redis
+      DB_HOST: raphael-postgres
     volumes:
       - .:/var/www/html
     depends_on:
-      - app
-      - redis
-    command: php artisan queue:work redis --sleep=3 --tries=3 --timeout=120
+      app:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    command: php artisan queue:work redis --sleep=3 --tries=3 --timeout=120 --queue=default,notifications,scraping
     restart: unless-stopped
     networks:
       - raphael-bridge
+    healthcheck:
+      test: ["CMD-SHELL", "php -v > /dev/null || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+    logging: *default_logging
 
   # ---------------------------------------------------------------------------
   # Scheduler — executa artisan schedule:run a cada minuto
@@ -133,23 +191,61 @@ services:
     env_file:
       - .env
     environment:
-      - TZ=America/Sao_Paulo
-      - QUEUE_CONNECTION=redis
-      - REDIS_HOST=raphael-redis
-      - DB_HOST=raphael-postgres
+      TZ: America/Sao_Paulo
+      QUEUE_CONNECTION: redis
+      REDIS_HOST: raphael-redis
+      DB_HOST: raphael-postgres
     volumes:
       - .:/var/www/html
     depends_on:
-      - app
-      - redis
+      app:
+        condition: service_started
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
     command: >
       sh -c "while true; do php artisan schedule:run --verbose --no-interaction; sleep 60; done"
     restart: unless-stopped
     networks:
       - raphael-bridge
+    healthcheck:
+      test: ["CMD-SHELL", "php artisan schedule:list > /dev/null || exit 1"]
+      interval: 60s
+      timeout: 15s
+      retries: 5
+      start_period: 20s
+    logging: *default_logging
 
   # ---------------------------------------------------------------------------
-  # Playwright — scraping Embasa e Coelba (com CapSolver)
+  # MinIO — storage S3 do Raphael Hub
+  # ---------------------------------------------------------------------------
+  minio:
+    image: minio/minio:latest
+    container_name: raphael-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      TZ: America/Sao_Paulo
+    ports:
+      - "127.0.0.1:19000:9000" # API S3
+      - "127.0.0.1:19001:9001" # Console admin
+    volumes:
+      - minio_data:/data
+    restart: unless-stopped
+    networks:
+      - raphael-bridge
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    logging: *default_logging
+
+  # ---------------------------------------------------------------------------
+  # Playwright — scraping Embasa e Coelba
   # ---------------------------------------------------------------------------
   playwright:
     build:
@@ -158,26 +254,146 @@ services:
     image: raphael-playwright:latest
     container_name: raphael-playwright
     environment:
-      - TZ=America/Sao_Paulo
-      - CAPSOLVER_API_KEY=${CAPSOLVER_API_KEY}
-      - EMBASA_CPF=${EMBASA_CPF}
-      - EMBASA_PASSWORD=${EMBASA_PASSWORD}
-      - EMBASA_MATRICULA=${EMBASA_MATRICULA}
-      - COELBA_CPF=${COELBA_CPF}
-      - COELBA_PASSWORD=${COELBA_PASSWORD}
-      - COELBA_CODIGO_CLIENTE=${COELBA_CODIGO_CLIENTE}
-      - PORT=3001
+      TZ: America/Sao_Paulo
+      CAPSOLVER_API_KEY: ${CAPSOLVER_API_KEY}
+      EMBASA_CPF: ${EMBASA_CPF}
+      EMBASA_PASSWORD: ${EMBASA_PASSWORD}
+      EMBASA_MATRICULA: ${EMBASA_MATRICULA}
+      COELBA_CPF: ${COELBA_CPF}
+      COELBA_PASSWORD: ${COELBA_PASSWORD}
+      COELBA_CODIGO_CLIENTE: ${COELBA_CODIGO_CLIENTE}
+      PORT: 3001
     volumes:
       - ./playwright:/app
       - playwright_downloads:/app/downloads
     restart: unless-stopped
     networks:
       - raphael-bridge
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:3001/health | grep -q ok"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+    logging: *default_logging
+
+  # ---------------------------------------------------------------------------
+  # Evolution Redis — cache / fila da Evolution
+  # ---------------------------------------------------------------------------
+  evolution-redis:
+    image: redis:7-alpine
+    container_name: raphael-evolution-redis
+    command: redis-server --port 6379 --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - evolution_redis_data:/data
+    restart: unless-stopped
+    networks:
+      - raphael-bridge
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    logging: *default_logging
+
+  # ---------------------------------------------------------------------------
+  # Evolution PostgreSQL — banco isolado da Evolution
+  # ---------------------------------------------------------------------------
+  evolution-postgres:
+    image: postgres:15-alpine
+    container_name: raphael-evolution-postgres
+    environment:
+      POSTGRES_DB: ${EVOLUTION_POSTGRES_DB}
+      POSTGRES_USER: ${EVOLUTION_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${EVOLUTION_POSTGRES_PASSWORD}
+      TZ: America/Sao_Paulo
+      PGTZ: America/Sao_Paulo
+    volumes:
+      - evolution_postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - raphael-bridge
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${EVOLUTION_POSTGRES_USER} -d ${EVOLUTION_POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    logging: *default_logging
+
+  # ---------------------------------------------------------------------------
+  # Evolution API — instância própria do Raphael Hub
+  # ---------------------------------------------------------------------------
+  evolution:
+    image: evoapicloud/evolution-api:latest
+    container_name: raphael-evolution
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:18081:8080" # aaPanel/proxy -> evo.raphael-martins.com
+    environment:
+      # Server
+      SERVER_TYPE: http
+      SERVER_PORT: 8080
+      SERVER_URL: ${EVOLUTION_SERVER_URL}
+
+      # Database
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://${EVOLUTION_POSTGRES_USER}:${EVOLUTION_POSTGRES_PASSWORD}@evolution-postgres:5432/${EVOLUTION_POSTGRES_DB}
+
+      # Redis
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://evolution-redis:6379
+
+      # Auth
+      AUTHENTICATION_API_KEY: ${EVOLUTION_API_KEY}
+
+      # Webhook global
+      WEBHOOK_GLOBAL_URL: ${EVOLUTION_WEBHOOK_GLOBAL_URL}
+      WEBHOOK_GLOBAL_ENABLED: ${EVOLUTION_WEBHOOK_GLOBAL_ENABLED}
+      WEBHOOK_EVENTS_MESSAGES_UPSERT: ${EVOLUTION_WEBHOOK_EVENTS_MESSAGES_UPSERT}
+      WEBHOOK_EVENTS_SEND_MESSAGE: ${EVOLUTION_WEBHOOK_EVENTS_SEND_MESSAGE}
+      WEBHOOK_BASE64: "false"
+
+      # S3 / MinIO próprio do Raphael Hub
+      S3_ENABLED: "true"
+      S3_ACCESS_KEY: ${MINIO_ROOT_USER}
+      S3_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+      S3_BUCKET: ${EVOLUTION_S3_BUCKET}
+      S3_ENDPOINT: minio
+      S3_PORT: 9000
+      S3_USE_SSL: "false"
+      S3_REGION: ${AWS_DEFAULT_REGION}
+
+      # Logs / timezone
+      LOG_LEVEL: ${EVOLUTION_LOG_LEVEL}
+      TZ: America/Sao_Paulo
+    volumes:
+      - evolution_instances:/evolution/instances
+    depends_on:
+      evolution-postgres:
+        condition: service_healthy
+      evolution-redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    networks:
+      - raphael-bridge
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1:8080/ | grep -qi evolution || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+    logging: *default_logging
 
 volumes:
   postgres_data:
   redis_data:
+  minio_data:
   playwright_downloads:
+  evolution_postgres_data:
+  evolution_redis_data:
+  evolution_instances:
 
 networks:
   raphael-bridge:
