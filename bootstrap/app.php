@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\ValidateIaraAccess;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -15,6 +16,11 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(at: '*'); // confiar no proxy do aaPanel
         $middleware->validateCsrfTokens(except: [
             'webhook/whatsapp',
+            'iara',
+        ]);
+
+        $middleware->alias([
+            'iara.access' => ValidateIaraAccess::class,
         ]);
     })
     ->withSchedule(function (Schedule $schedule): void {

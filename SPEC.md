@@ -2,49 +2,60 @@
 
 ## Stack
 
-| Camada | Tecnologia |
-|---|---|
-| Backend | Laravel 13 + PHP 8.4 |
-| Frontend | Blade + Livewire 4 + Sanctum |
-| Banco | PostgreSQL 17 (container próprio ou serviço local; não MySQL para este app) |
-| Cache / Filas / Sessão | Redis 7 (container próprio) |
-| Monitor de filas | Laravel Horizon |
-| Storage | MinIO S3 — bucket `pessoal` (instância DopaCheck compartilhada) |
-| Scraping | Node 24 + Playwright — container separado `raphael-playwright` |
-| CAPTCHA | CapSolver (reCAPTCHA v3 — apenas Coelba) |
-| AI | NeuronAI (Laravel) — Groq primário via OpenAILike, Claude fallback via Anthropic |
-| WhatsApp | Evolution API — instância DopaCheck, número pessoal do Raphael |
-| Infra | Docker Compose + aaPanel Nginx proxy + GitHub Actions CI/CD |
+
+| Camada                 | Tecnologia                                                                                                                                                      |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Backend                | Laravel 13 + PHP 8.4                                                                                                                                            |
+| Frontend               | Blade + Livewire 4 + Sanctum                                                                                                                                    |
+| Banco                  | PostgreSQL 17 (container próprio ou serviço local; não MySQL para este app)                                                                                     |
+| Cache / Filas / Sessão | Redis 7 (container próprio)                                                                                                                                     |
+| Monitor de filas       | Laravel Horizon                                                                                                                                                 |
+| Storage                | MinIO S3 próprio — container `raphael-minio`, bucket configurável (`AWS_BUCKET`, típico `pessoal`)                                                              |
+| Scraping               | Node 24 + Playwright — container separado `raphael-playwright`                                                                                                  |
+| CAPTCHA                | CapSolver (reCAPTCHA v3 — apenas Coelba)                                                                                                                        |
+| AI                     | NeuronAI (Laravel) — **local-first** com **Ollama no host** quando `OLLAMA_ENABLED=true`; em seguida Groq / OpenAI / Anthropic conforme configuração e fallback |
+| WhatsApp               | Evolution API — containers próprios (`raphael-evolution` + Postgres/Redis dedicados), número pessoal do Raphael                                                 |
+| Infra                  | Docker Compose + aaPanel Nginx proxy + GitHub Actions CI/CD                                                                                                     |
+
 
 ---
 
 ## Infraestrutura
 
 ### VPS
-- Hostinger — Ubuntu 24 — 8 cores, 32GB RAM, 386GB disco
-- IP: `77.37.68.36` (confirmar IP correto da Hostinger)
+
+- Hostinger — Ubuntu 24 — 8 cores, 32GB RAM, ~380GB SSD
+- IP: `31.97.17.4` (confirmar IP correto da Hostinger)
 - aaPanel gerencia Nginx host e SSL (Cloudflare)
 - Usuário de deploy: `deploy` (uid=1003, gid=1003)
 - Path do projeto: `/home/deploy/raphael-hub`
 
 ### Domínio
+
 - `api.raphael-martins.com` → proxy aaPanel → `raphael-nginx:80` (porta host 8082)
 - DNS gerenciado na Cloudflare
 - Registro A apontando para o IP da VPS
 
 ### Docker
-- Network: `raphael-bridge` (isolada dos demais projetos)
-- Containers: `raphael-app`, `raphael-nginx`, `raphael-postgres`, `raphael-redis`, `raphael-horizon`, `raphael-queue`, `raphael-scheduler`, `raphael-playwright`
+
+- Network: `raphael-bridge` (isolada dos demais projetos); gateway típico na VPS para acesso host↔containers: `**172.23.0.1`** (usado pelo app para Ollama no host)
+- Containers principais: `raphael-app`, `raphael-nginx`, `raphael-postgres`, `raphael-redis`, `raphael-horizon`, `raphael-queue`, `raphael-scheduler`, `raphael-playwright` (opcional), `raphael-minio`, `raphael-evolution`, `raphael-evolution-postgres`, `raphael-evolution-redis`
 - `PUID=1003` / `PGID=1003` em todos os containers Laravel
 
-### Serviços compartilhados (DopaCheck)
-- Evolution API: `https://whats.dopacheck.com.br` (porta 18080 interna)
-- MinIO: `https://files.dopacheck.com.br` (porta 9000 interna)
-- Acessados via URL pública (não há necessidade de join de network por ora)
+### Serviços dedicados (stack do Raphael Hub)
+
+- **MinIO** (`raphael-minio`): API S3 na porta interna **9000**; no host costuma estar em `**127.0.0.1:19000`** (API) e `**127.0.0.1:19001**` (console). Exposição pública via proxy: `**https://files.raphael-martins.com**`. Dentro do Compose o Laravel usa hostname `**minio**` (ex.: `AWS_ENDPOINT=http://minio:9000`).
+- **Evolution API** (`raphael-evolution`): API própria; estado em `**raphael-evolution-postgres`** e cache em `**raphael-evolution-redis**`. URL pública da API conforme `**EVOLUTION_URL**` no `.env` (baseline em `.env.example`: `**https://evo.raphael-martins.com**`). Webhook do Laravel: `**POST /webhook/whatsapp**` → `**https://api.raphael-martins.com/webhook/whatsapp**`. A Evolution pode usar o mesmo MinIO para mídia (variáveis `S3_*` na stack).
+
+### Ollama (host — fora do Compose)
+
+- Rodando no **host** via systemd (não é container do projeto). Porta `**11434`**, bind típico `**0.0.0.0**` só para aceitar tráfego da bridge.
+- Dos containers Laravel, URL típica: `**OLLAMA_BASE_URL=http://172.23.0.1:11434**` (gateway Docker → host).
+- **Firewall (UFW):** permitir `**172.23.0.0/16` → `tcp/11434`** e não expor Ollama publicamente.
 
 ### Desenvolvimento local com infra externa (ex.: hub.test)
 
-Quando Postgres 17, nginx, Redis 7, Mailpit e **MySQL 8.4** rodam em um **projeto Docker separado** e o Laravel executa no host (ou em outro container) com hostname tipo **`hub.test`** no browser:
+Quando Postgres 17, nginx, Redis 7, Mailpit e **MySQL 8.4** rodam em um **projeto Docker separado** e o Laravel executa no host (ou em outro container) com hostname tipo `**hub.test`** no browser:
 
 - **Banco do Hub**: sempre **PostgreSQL** (`DB_CONNECTION=pgsql`). **MySQL** na mesma stack é para outros projetos — não definir `DB_CONNECTION=mysql` para este app.
 - **APP_URL**: tipicamente `http://hub.test` ou `https://hub.test` conforme SSL no nginx local; deve coincidir com o virtual host para cookies/sessão.
@@ -52,7 +63,7 @@ Quando Postgres 17, nginx, Redis 7, Mailpit e **MySQL 8.4** rodam em um **projet
 - **Mailpit**: SMTP em `127.0.0.1:1025` (ou hostname do serviço Mailpit se o PHP compartilha rede com ele); UI de inspeção costuma ser `:8025` ou a porta exposta pelo compose de infra.
 - **Playwright**: o Laravel chama o servidor Node por URL configurável no código/config (produção na rede Docker: `http://raphael-playwright:3001`; local: `http://127.0.0.1:3001` com porta publicada ou o hostname do container se estiver na mesma rede).
 
-Para o mapa tabular **`APP_*` / `DB_*` / `REDIS_*` / mail** (produção vs hub.test), usar [CLAUDE.md](CLAUDE.md) e os comentários por bloco em [`.env.example`](.env.example).
+Para o mapa tabular `**APP_`* / `DB_*` / `REDIS_*` / mail** (produção vs hub.test), usar [CLAUDE.md](CLAUDE.md) e os comentários por bloco em `[.env.example](.env.example)`.
 
 ---
 
@@ -63,12 +74,15 @@ Para o mapa tabular **`APP_*` / `DB_*` / `REDIS_*` / mail** (produção vs hub.t
 ### Tabelas
 
 #### `users` (extensão além do Breeze)
+
 ```
 global_role: super_admin | member (default member)
 ```
+
 Seed opcional via `SuperAdminUserSeeder` (`HUB_SEED_*` no `.env`; senha nunca no repositório).
 
 #### `monitored_sources`
+
 ```
 id, kind (self|contact|group), identifier (unique JID), label,
 permissions (json nullable), is_active (bool), notes,
@@ -76,12 +90,14 @@ media_storage_prefix (nullable), timestamps
 ```
 
 #### `monitored_source_user` (pivot — V2 / multi-admin de grupo)
+
 ```
 id, user_id (FK), monitored_source_id (FK), role (group_admin|viewer), timestamps
 UNIQUE: user_id + monitored_source_id
 ```
 
 #### `utility_accounts`
+
 Contas de concessionárias (água/luz).
 
 ```
@@ -91,6 +107,7 @@ last_scraped_at (timestamp nullable), timestamps
 ```
 
 #### `invoices`
+
 ```
 id, utility_account_id (FK), billing_reference (ex.: 05/2026), due_date,
 amount_total, amount_water, amount_sewage, amount_service,
@@ -101,6 +118,7 @@ UNIQUE: utility_account_id + billing_reference
 ```
 
 #### `message_logs`
+
 Registro de mensagens processadas (grupo/DM): remetente, conversa, tipo extensível, menções.
 
 ```
@@ -132,6 +150,7 @@ timestamps
 Índices: `(monitored_source_id, created_at)`, `(chat_jid, created_at)`, `sender_jid`.
 
 #### `message_attachments`
+
 Mídia/arquivos ligados a `message_logs`; objeto no MinIO usando `media_storage_prefix` da fonte quando aplicável.
 
 ```
@@ -143,6 +162,7 @@ sha256, metadata (json), timestamps
 ```
 
 #### `reminders`
+
 ```
 id, kind (text|url|image|audio|document), body, file_path,
 url_title, url_description, url_image,
@@ -155,48 +175,66 @@ message_log_id (FK nullable), timestamps
 ## Serviços Laravel
 
 ### `WebhookRouterService`
+
 Recebe payload da Evolution, extrai tipo/conteúdo, identifica a source e despacha o Job correto.
 
 **Eventos HTTP tratados como mensagem:** `messages.upsert` e `send.message` (aliases normalizados: `MESSAGES_UPSERT`, `SEND_MESSAGE`, `messages_upsert`, etc.).
 
 **Regras de roteamento (ordem):**
+
 1. `fromMe = true` + JID terminando em `@s.whatsapp.net` → `ProcessPersonalWhatsAppMessage`
 2. `chat_jid` igual a `config('services.whatsapp.notes_solo_group_jid')` (tipicamente `WHATSAPP_NOTAS_GRUPO_JID`) → `ProcessPersonalWhatsAppMessage` — grupo “só você” para notas/mídia; `monitored_source_id` segue o registro `group` no banco quando existir
 3. JID em `monitored_sources` com `kind = contact` → `ProcessContactWhatsAppMessage`
 4. JID em `monitored_sources` com `kind = group` (e não coberto pelo item 2) → `ProcessGroupWhatsAppMessage`
 5. Qualquer outro → persiste `message_logs` com rota ignorada e sem job
 
-### `NeuronAIService`
-Wrapper sobre NeuronAI. Métodos:
-- `classificarIntencaoPessoal(tipo, conteudo)` → `{intencao, sentimento, categoria, confianca}`
-- `classificarIntencaoContato(conteudo, permissoes)` → `{intencao, confianca}`
-- `buildInvoiceReply(Invoice $invoice)` → string formatada para WhatsApp
+### Camada de IA (NeuronAI + roteamento)
 
-**Provider config:**
-- Primário: Groq via `OpenAILike` (url: `https://api.groq.com/openai/v1`, model: `llama-3.3-70b-versatile`)
-- Fallback: Anthropic Claude (`claude-sonnet-4-20250514`)
-- Troca automática em caso de erro/timeout do primário
+**Pacote:** `neuron-core/neuron-ai` — providers oficiais (`Ollama`, `OpenAILike` para Groq, `Anthropic`, `OpenAI\OpenAI`).
+
+| Classe | Papel |
+|--------|--------|
+| `OllamaService` | Instancia o provider Ollama (URL com sufixo `/api`, `OLLAMA_THINK`, timeout curto). |
+| `AiRouterService` | Regras: tarefas leves e prompt curto → tenta Ollama primeiro; prompt “longo” (acima de `AI_PROMPT_LONG_THRESHOLD`) ou modo `chat_long` → pula Ollama; cadeia de fallback **Ollama (se habilitado) → Groq → Anthropic → OpenAI**; resposta vazia ou JSON inválido com `expect_json` → próximo provider. Timeouts em `config/ai.php`. Logs `ai.completion` / `ai.completion_failure`. |
+| `NeuronAIService` | Façade: `complete(userPrompt, AiTask, ?system, expectJson)` devolve `AiCompletionResult` (texto, `provider`, `model`, `latency_ms`, `fallback_used`). |
+| `App\Enums\AiTask` | `mode` HTTP (`classification`, `classify`, `sentiment`, `summary_short`, `chat`, `chat_long`, …). |
+
+**Rota HTTP (gateway admin / dev remoto):** `POST /iara` — `IaraController`, body: `prompt`, `mode` opcional, `system` opcional, `expect_json` opcional. Fora de `local`/`testing`: header `X-Internal-Key` + `IARA_INTERNAL_KEY`; opcional `IARA_ALLOWED_IPS`. Throttle dedicado; CSRF excetuado (`iara`). **Não** substitui o daemon Ollama na rede interna — na VPS o app chama `OLLAMA_BASE_URL` (host); num notebook só se chama `POST https://api…/iara` com a chave.
+
+**Ainda não implementados no domínio (SPEC alvo):**
+
+- `classificarIntencaoPessoal(tipo, conteudo)` → estrutura `{intencao, sentimento, …}` em cima de `complete`.
+- `classificarIntencaoContato(conteudo, permissoes)`
+- `buildInvoiceReply(Invoice $invoice)`
+
+**Variáveis:** ver `config/services.php` (`ollama`, `iara`, `groq`, `anthropic`, `openai`) e `config/ai.php`; baseline em `.env.example` (perfis VPS vs dev remoto vs Ollama local).
 
 ### `PlaywrightService`
+
 HTTP client que se comunica com o container `raphael-playwright` via rede Docker interna (`http://raphael-playwright:3001`).
 
 Métodos:
+
 - `scrapeEmbasa()` → array com faturas + pdf_path
 - `scrapeCoelba()` → array com faturas + pdf_path
 - `healthCheck()` → bool
 
 ### `EvolutionService`
+
 Wrapper HTTP para a Evolution API.
 
 Métodos:
+
 - `sendText(jid, text)` → void
 - `sendMedia(jid, url, caption, mediaType)` → void
 - `sendDocument(jid, path, filename, caption)` → void
 
 ### `InvoiceService`
+
 Orquestra o ciclo de vida de uma fatura no banco (`invoices`).
 
 Métodos:
+
 - `processScrapeResult(array $payload, UtilityAccount $account)` → upsert invoice, upload PDF, trigger notificação
 - `uploadPdf(string $localPath, UtilityAccount $account, string $billingReference)` → path no MinIO
 - `notifyHomeGroup(Invoice $invoice)` → formata mensagem e chama EvolutionService
@@ -205,14 +243,16 @@ Métodos:
 
 ## Jobs (filas Redis via Horizon)
 
-| Job | Fila | Trigger |
-|---|---|---|
-| `ProcessPersonalWhatsAppMessage` | `default` | Webhook isFromMe |
-| `ProcessContactWhatsAppMessage` | `default` | Webhook contato monitorado |
-| `ProcessGroupWhatsAppMessage` | `default` | Webhook grupo monitorado |
-| `ScrapeConta` | `scraping` | Schedule ou on-demand |
-| `EnriquecerUrlLembrete` | `default` | Após salvar lembrete de URL |
-| `NotificarVencimento` | `notifications` | Schedule diário |
+
+| Job                              | Fila            | Trigger                     |
+| -------------------------------- | --------------- | --------------------------- |
+| `ProcessPersonalWhatsAppMessage` | `default`       | Webhook isFromMe            |
+| `ProcessContactWhatsAppMessage`  | `default`       | Webhook contato monitorado  |
+| `ProcessGroupWhatsAppMessage`    | `default`       | Webhook grupo monitorado    |
+| `ScrapeConta`                    | `scraping`      | Schedule ou on-demand       |
+| `EnriquecerUrlLembrete`          | `default`       | Após salvar lembrete de URL |
+| `NotificarVencimento`            | `notifications` | Schedule diário             |
+
 
 ---
 
@@ -232,6 +272,7 @@ $schedule->job(new NotificarVencimento())->dailyAt('09:30');
 ```
 
 **Lógica do `ScrapeConta`:**
+
 1. Busca conta ativa no banco
 2. Calcula se hoje está dentro da janela `(dia_vencimento - dias_antecedencia)` a `(dia_vencimento + 30)`
 3. Se sim → chama `PlaywrightService::scrapeEmbasa/Coelba()`
@@ -239,6 +280,7 @@ $schedule->job(new NotificarVencimento())->dailyAt('09:30');
 5. Atualiza `utility_accounts.last_scraped_at`
 
 **Lógica do `NotificarVencimento`:**
+
 1. Busca invoices com status != pago e vencimento nos próximos N dias
 2. Para cada uma, verifica se já notificou hoje (`last_notified_at`)
 3. Se não → monta mensagem → `EvolutionService::sendText(grupo_da_casa)`
@@ -251,11 +293,13 @@ $schedule->job(new NotificarVencimento())->dailyAt('09:30');
 Servidor HTTP Node.js rodando na porta `3001` (interno à rede Docker).
 
 ### Rotas
+
 - `GET /health` → `{ status: 'ok' }`
 - `POST /scrape/embasa` → executa scraper Embasa, retorna JSON
 - `POST /scrape/coelba` → executa scraper Coelba com CapSolver, retorna JSON
 
 ### Resposta padrão dos scrapers
+
 ```json
 {
   "success": true,
@@ -278,6 +322,7 @@ Servidor HTTP Node.js rodando na porta `3001` (interno à rede Docker).
 ```
 
 ### CapSolver (Coelba)
+
 - Tipo: `ReCaptchaV3TaskProxyLess`
 - `websiteURL`: `https://agenciavirtual.neoenergia.com`
 - `pageAction`: `login`
@@ -356,9 +401,9 @@ PDF:         expande o item da fatura → botão "BAIXAR"
 
 ## Variáveis de Ambiente Críticas
 
-Configurar **`APP_URL`**, **`DB_*`** (somente PostgreSQL para este app), **`REDIS_*`** e **`MAIL_*`** conforme o ambiente.
+Configurar `**APP_URL**`, `**DB_***` (somente PostgreSQL para este app), `**REDIS_***` e `**MAIL_***` conforme o ambiente.
 
-O [`.env.example`](.env.example) é o **baseline de produção** (Docker VPS, serviços `raphael-postgres` / `raphael-redis`). Os **comentários no arquivo** e a secção *Infraestrutura → Desenvolvimento local com infra externa* no [CLAUDE.md](CLAUDE.md) descrevem sobrescritas para **hub.test** (Postgres 17, Redis 7, Mailpit, `127.0.0.1`, etc.).
+O `[.env.example](.env.example)` é o **baseline de produção** (Docker VPS, serviços `raphael-postgres` / `raphael-redis`). Os **comentários no arquivo** e a secção *Infraestrutura → Desenvolvimento local com infra externa* no [CLAUDE.md](CLAUDE.md) descrevem sobrescritas para **hub.test** (Postgres 17, Redis 7, Mailpit, `127.0.0.1`, etc.).
 
 ```env
 # Identificadores das concessionárias
@@ -370,20 +415,30 @@ COELBA_CPF=
 COELBA_PASSWORD=
 COELBA_CODIGO_CLIENTE=000030287096
 
-# Evolution — instância e número
-EVOLUTION_URL=https://whats.dopacheck.com.br
+# Evolution — URL da API (pública), instância e número
+EVOLUTION_URL=https://evo.raphael-martins.com
 EVOLUTION_API_KEY=
 EVOLUTION_INSTANCE=raphael
 
 # JID do grupo da casa para notificações
 WHATSAPP_GRUPO_CASA_JID=
 
-# MinIO
+# MinIO — dentro do Compose use o hostname do serviço (ver .env.example); público via proxy
 AWS_BUCKET=pessoal
-AWS_ENDPOINT=https://files.dopacheck.com.br
+AWS_ENDPOINT=http://minio:9000
 AWS_USE_PATH_STYLE_ENDPOINT=true
 
-# AI
+# AI — Ollama no host + gateway /iara + timeouts de roteamento (ver .env.example completo)
+# OLLAMA_ENABLED=true
+# OLLAMA_BASE_URL=http://172.23.0.1:11434
+# OLLAMA_MODEL=qwen3.5:4b
+# OLLAMA_THINK=false
+# OLLAMA_TIMEOUT=20
+# AI_PROMPT_LONG_THRESHOLD=2000
+# AI_OLLAMA_TIMEOUT_SIMPLE=10
+# IARA_INTERNAL_KEY=
+# IARA_GATEWAY_URL=   # só no cliente que chama a API remota
+
 GROQ_API_KEY=
 GROQ_MODEL=llama-3.3-70b-versatile
 GROQ_URL=https://api.groq.com/openai/v1
@@ -398,14 +453,11 @@ CAPSOLVER_API_KEY=
 
 ## CI/CD
 
-- Branch `main` → deploy automático
-- `rsync` para `/home/deploy/raphael-hub` excluindo `.env`, `vendor`, `node_modules`, `playwright/node_modules`
-- `composer install --no-dev` no host antes do Docker subir
-- `npm install` dentro de `playwright/`
-- `docker compose up -d --build --force-recreate --remove-orphans`
-- `php artisan migrate --force` após containers subirem
-- `php artisan config:cache && route:cache && view:cache`
-- Limpeza com `docker system prune -af --volumes=false`
+- Branch `main` → deploy automático (GitHub Actions conforme workflow do repositório)
+- Na VPS, o script `**deploy.sh**` (em `/home/deploy/raphael-hub`): `git pull`, classifica arquivos alterados e decide **rebuild de imagem** (Dockerfile / Composer), **build de front** (`resources/`, `vite`, `package.json`), **migration** só se mudou `database/migrations/`, refresh de cache Laravel, **health checks** (`/up`, MinIO, Evolution, Playwright opcional), **prune** de imagens/builder
+- Quando há mudança estrutural de imagem: `docker compose build` seletivo + `up -d` dos serviços necessários; caso contrário **restart leve** dos serviços base do app
+- `composer install` / `npm ci && npm run build` dentro do container `**app`** apenas quando o diff exige
+- Caches: `php artisan optimize:clear` seguido de `config:cache`, `route:cache`, `view:cache` após deploy
 
 ---
 
@@ -414,6 +466,7 @@ CAPSOLVER_API_KEY=
 ```
 app/
   Http/Controllers/
+    IaraController.php
     WebhookController.php
     DashboardController.php
     UtilityAccountController.php
@@ -437,7 +490,9 @@ app/
     Reminder.php
   Services/
     WebhookRouterService.php
+    AiRouterService.php
     NeuronAIService.php
+    OllamaService.php
     PlaywrightService.php
     EvolutionService.php
     InvoiceService.php
@@ -471,3 +526,4 @@ docker/
   workflows/
     deploy.yml
 ```
+

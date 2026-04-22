@@ -54,4 +54,61 @@ return [
         'notes_solo_group_jid' => env('WHATSAPP_NOTAS_GRUPO_JID'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Ollama (host / dev local)
+    |--------------------------------------------------------------------------
+    */
+
+    'ollama' => [
+        'enabled' => env('OLLAMA_ENABLED', false),
+        'base_url' => env('OLLAMA_BASE_URL', 'http://172.23.0.1:11434'),
+        'model' => env('OLLAMA_MODEL', 'qwen3.5:4b'),
+        'think' => env('OLLAMA_THINK', false),
+        'timeout' => env('OLLAMA_TIMEOUT', 20),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Gateway /iara — remote dev / admin (see .env.example profiles)
+    |--------------------------------------------------------------------------
+    */
+
+    'iara' => [
+        'gateway_url' => env('IARA_GATEWAY_URL'),
+        'internal_key' => env('IARA_INTERNAL_KEY'),
+        'allowed_ips' => array_values(array_filter(array_map(
+            trim(...),
+            explode(',', (string) env('IARA_ALLOWED_IPS', ''))
+        ))),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Groq — OpenAI-compatible endpoint
+    |--------------------------------------------------------------------------
+    */
+
+    'groq' => [
+        'api_key' => env('GROQ_API_KEY'),
+        'model' => env('GROQ_MODEL', 'llama-3.3-70b-versatile'),
+        'url' => env('GROQ_URL', 'https://api.groq.com/openai/v1'),
+    ],
+
+    /*
+    |--------------------------------------------------------------------------
+    | Anthropic / OpenAI (fallback chain after Groq)
+    |--------------------------------------------------------------------------
+    */
+
+    'anthropic' => [
+        'api_key' => env('ANTHROPIC_API_KEY'),
+        'model' => env('ANTHROPIC_MODEL', 'claude-sonnet-4-20250514'),
+    ],
+
+    'openai' => [
+        'api_key' => env('OPENAI_API_KEY'),
+        'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
+    ],
+
 ];
