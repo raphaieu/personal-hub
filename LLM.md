@@ -136,7 +136,7 @@ new OpenAILike(
 
 | Etapa | Comportamento |
 |-------|----------------|
-| Ollama | Primeiro quando `OLLAMA_ENABLED=true`, tarefa não é “só nuvem”, prompt ≤ `AI_PROMPT_LONG_THRESHOLD`. Timeout curto: `AI_OLLAMA_TIMEOUT_SIMPLE`. Parâmetro `think` vem de `OLLAMA_THINK`. |
+| Ollama | Primeiro quando `OLLAMA_ENABLED=true`, tarefa não é “só nuvem”, prompt ≤ `AI_PROMPT_LONG_THRESHOLD`. Timeout HTTP do chat: `AI_OLLAMA_TIMEOUT_SIMPLE` (segundos; default **45** — `/api/tags` não reflete latência do `/api/chat`). Parâmetro `think` vem de `OLLAMA_THINK`. |
 | Groq | `OpenAILike` + `GROQ_*`; timeout `AI_GROQ_TIMEOUT`. |
 | Anthropic / OpenAI | Fallback se chaves existirem; timeouts em `config/ai.php`. |
 

@@ -14,7 +14,8 @@ return [
 
     'prompt_long_threshold_chars' => (int) env('AI_PROMPT_LONG_THRESHOLD', 2000),
 
-    'ollama_timeout_simple' => (int) env('AI_OLLAMA_TIMEOUT_SIMPLE', 10),
+    // Segundos para POST /api/chat — tags (/api/tags) é rápido; inferência pode passar de 10s em CPU modesta ou cold start.
+    'ollama_timeout_simple' => (int) env('AI_OLLAMA_TIMEOUT_SIMPLE', 45),
 
     'groq_timeout' => (int) env('AI_GROQ_TIMEOUT', 30),
 
