@@ -252,6 +252,7 @@ Métodos:
 | `ScrapeConta`                    | `scraping`      | Schedule ou on-demand       |
 | `EnriquecerUrlLembrete`          | `default`       | Após salvar lembrete de URL |
 | `NotificarVencimento`            | `notifications` | Schedule diário             |
+| `RecalculateCommentScoreJob`     | `default`       | Após voto em `/oportunidades` |
 
 
 ---
@@ -328,6 +329,133 @@ Servidor HTTP Node.js rodando na porta `3001` (interno à rede Docker).
 - `pageAction`: `login`
 - `minScore`: `0.5`
 - Fallback: tenta submeter sem token se CapSolver falhar
+
+---
+
+## Playwright Threads (Fases 0, 1 e 2)
+
+Implementação inicial do serviço em `playwright/` para scraping autenticado do Threads com sessão persistida e contrato HTTP para integração com Laravel.
+
+### Endpoints Threads
+
+- `GET /health`
+  - Retorna `status`, `session_ready`, `session_path`.
+- `POST /threads/auth/login`
+  - Body: `{ "force_relogin": false }`
+  - Faz login com `THREADS_USERNAME`/`THREADS_PASSWORD` e persiste `storageState`.
+- `POST /threads/scrape-url`
+  - Body: `{ "url": "https://www.threads.com/@handle/post/..." }`
+  - Retorna post + comentários do thread, com scroll adaptativo e acumulação incremental (mitiga virtualização de DOM).
+- `POST /threads/scrape-keyword`
+  - Body mínimo: `{ "keyword": "freelance remoto php", "max_posts": 30 }`
+  - Padrão: `include_comments=false` (modo recomendado para descoberta de posts de vaga/freela).
+  - Suporta dedupe no próprio scraper: `known_post_ids`, `only_new`, `known_streak_stop`.
+
+### Contrato de keyword para Laravel
+
+Request (recomendado para jobs agendados):
+
+```json
+{
+  "keyword": "freelance remoto php",
+  "max_posts": 30,
+  "include_comments": false,
+  "only_new": true,
+  "known_post_ids": ["DXaaS6-igb9", "DXATKvACX6e"],
+  "known_streak_stop": 20
+}
+```
+
+Response (campos relevantes):
+
+```json
+{
+  "success": true,
+  "mode": "keyword",
+  "include_comments": false,
+  "only_new": true,
+  "data": {
+    "posts": [
+      {
+        "post": {
+          "external_id": "DXaaS6-igb9",
+          "author_handle": "@rebekahyurll",
+          "content": "..."
+        },
+        "is_known": false
+      }
+    ],
+    "stats": {
+      "posts_detected": 30,
+      "posts_selected": 30,
+      "posts_processed": 18,
+      "known_detected": 12,
+      "new_detected": 18,
+      "skipped_known": 12,
+      "early_stop_triggered": true,
+      "known_streak_stop": 20,
+      "comments_total": 0
+    }
+  }
+}
+```
+
+### Variáveis Threads usadas pelo serviço
+
+`PLAYWRIGHT_SERVICE_URL`, `THREADS_USERNAME`, `THREADS_PASSWORD`, `THREADS_SESSION_PATH`, `THREADS_MAX_POSTS_PER_KEYWORD`, `THREADS_STEP_TIMEOUT_MS`, `THREADS_RANDOM_DELAY_MIN_MS`, `THREADS_RANDOM_DELAY_MAX_MS`, `THREADS_MAX_SCROLL_ROUNDS`, `THREADS_SCROLL_IDLE_ROUNDS`, `THREADS_KNOWN_STREAK_STOP`, `THREADS_DEBUG_DIR`.
+
+### Observações de operação
+
+- Em dev, recomendado `PLAYWRIGHT_HEADLESS=false` para depuração de login/seletores.
+- Para reduzir ruído/custo no pipeline, `keyword` deve operar em `posts-only`; comentários ficam para coletas por URL específica ou investigação pontual.
+- A deduplicação final continua obrigatória no Laravel por `external_id` único.
+
+### Integração Laravel (Fase 1 e Fase 2 concluídas)
+
+- **Fase 1 (dados/domínio)**:
+  - Migrations criadas: `threads_sources`, `threads_categories`, `threads_posts`, `threads_comments`, `threads_comment_votes`.
+  - Models criados: `ThreadsSource`, `ThreadsCategory`, `ThreadsPost`, `ThreadsComment`, `ThreadsCommentVote`.
+  - Seed base: `ThreadsCategorySeeder` integrado ao `DatabaseSeeder`.
+- **Fase 2 (contrato mockável + cliente HTTP)**:
+  - Contrato: `App\Contracts\ThreadsScraperClientInterface`.
+  - Implementação real: `App\Services\Threads\ThreadsPlaywrightService`.
+  - Implementação fake para testes: `App\Services\Threads\FakeThreadsScraperClient`.
+  - Bind de container em `AppServiceProvider` para desacoplar jobs da runtime Node/Playwright.
+  - Config dedicada: `services.playwright.url` e `services.playwright.timeout` (`PLAYWRIGHT_HTTP_TIMEOUT`).
+- **Cobertura automática mínima da integração**:
+  - `tests/Feature/Threads/ThreadsScraperClientTest.php` cobre resolução da interface, normalização de payload, tratamento de erro HTTP e comportamento do fake.
+
+### Integração Laravel (Fase 3.1 concluída)
+
+- **Pipeline base de scraping desacoplado da runtime Node**:
+  - Jobs criados: `ScrapeThreadsUrlJob` e `ScrapeThreadsKeywordJob`.
+  - Ambos dependem de `ThreadsScraperClientInterface` (sem acoplamento direto ao Playwright no domínio Laravel).
+  - Fila padrão do bloco: `scraping`.
+- **Persistência inicial idempotente**:
+  - Serviço `ThreadsScrapeIngestionService` faz ingestão/upsert em `threads_posts` e `threads_comments`.
+  - Dedupe por `external_id` (chave única já existente no schema) para permitir reprocessamento sem duplicidade.
+  - `threads_sources.last_scraped_at` é atualizado quando o job recebe `threads_source_id`.
+- **Cobertura automática mínima do bloco**:
+  - `tests/Feature/Threads/ThreadsScrapeIngestionJobsTest.php` cobre execução dos jobs com `FakeThreadsScraperClient` e dedupe de post/comentário por `external_id`.
+
+### Integração Laravel (Fase 3.2 concluída)
+
+- **Classificação IA de comentários**:
+  - Serviço `ThreadsClassificationService` usa `NeuronAIService::complete(..., expectJson: true)` com `AiTask::ThreadsOpportunityClassification`.
+  - JSON esperado do classificador: `category_slug`, `summary`, `relevance_score`.
+  - Mapeamento persistido para `threads_comments`: `threads_category_id`, `ai_summary`, `ai_relevance_score`, `ai_meta`.
+- **Regra de threshold de relevância**:
+  - Variável `THREADS_RELEVANCE_THRESHOLD` (configurada em `services.threads.relevance_threshold`).
+  - `relevance_score` abaixo do corte => `status=ignored`.
+  - `relevance_score` no/above corte => `status=pending_review`.
+  - O serviço normaliza escala 0..1 e 0..100 para permitir configuração flexível.
+- **Orquestração por filas**:
+  - Job `ClassifyCommentsJob` criado na fila `ai`.
+  - Jobs de scraping (`ScrapeThreadsUrlJob`, `ScrapeThreadsKeywordJob`) disparam classificação assíncrona quando há comentários ingeridos.
+  - Horizon atualizado com supervisor dedicado para fila `ai`.
+- **Cobertura automática mínima do bloco**:
+  - `tests/Feature/Threads/ThreadsClassificationServiceTest.php` cobre threshold/status e execução do job de IA.
+  - `tests/Feature/Threads/ThreadsScrapeIngestionJobsTest.php` cobre disparo (ou não) de `ClassifyCommentsJob` após ingestão.
 
 ---
 
@@ -526,4 +654,117 @@ docker/
   workflows/
     deploy.yml
 ```
+
+---
+
+## Livewire (Fase 4.1)
+
+- Pacote instalado: `livewire/livewire` v4.
+- Layouts Blade base (`resources/views/layouts/app.blade.php` e `resources/views/layouts/guest.blade.php`) preparados com `@livewireStyles` e `@livewireScripts`.
+- Smoke test da instalação: `tests/Feature/Livewire/LivewireInstallationTest.php` valida disponibilidade do pacote Livewire no container da aplicação.
+
+## Dashboard Threads (Fase 4.2)
+
+- Rota autenticada inicial: `GET /hub/threads` (`threads.hub`) renderizada por `App\Livewire\Threads\HubPage`.
+- Navegação principal (desktop/mobile) atualizada com link para `Threads Hub`.
+- Primeira entrega da UI:
+  - abas `Sources`, `Review`, `Published` (estado em query string `?tab=`),
+  - tabela inicial de `threads_sources` (tipo, label, alvo, status, último scrape),
+  - placeholders de `Review`/`Published` para evolução nos próximos blocos.
+- Cobertura mínima:
+  - `tests/Feature/Threads/ThreadsHubPageTest.php` valida acesso autenticado e renderização da listagem de fontes.
+
+## Dashboard Threads (Fase 5.1 — Sources management inicial)
+
+- Componente `App\Livewire\Threads\HubPage` evoluído com ações de gestão de `threads_sources`:
+  - criação de source `keyword` ou `url`,
+  - alternância de status `is_active`,
+  - ação `scrape agora` para enfileirar o job compatível com o tipo.
+- Regras de enfileiramento:
+  - `keyword` -> `ScrapeThreadsKeywordJob` (`onlyNew=true`, `knownPostIds` da própria source, limite padrão via env),
+  - `url` -> `ScrapeThreadsUrlJob`.
+- UI de `Sources` inclui formulário de criação e botões de ação por linha (toggle/scrape).
+- Cobertura mínima:
+  - `tests/Feature/Threads/ThreadsHubPageTest.php` cobre criação, toggle e dispatch dos jobs por ação Livewire.
+
+## Pipeline IA Threads (ajuste de robustez)
+
+- `ClassifyCommentsJob` passa a processar **1 comentário por execução** (`commentId`, opcional `force`) para reduzir travamentos em lote e permitir reprocessamento manual pontual.
+- `DispatchPendingThreadsClassificationJob` criado para disparar classificação de pendentes (`ai_summary` nulo), com espaçamento entre jobs para respeitar capacidade/cota de providers.
+- `THREADS_AI_DISPATCH_SPACING_SECONDS` controla a cadência dos dispatches no encadeamento da classificação.
+
+## Dashboard Threads (Fase 5.2 — Review inicial)
+
+- Aba `Review` no `HubPage` agora lista comentários com:
+  - ordenação priorizando `pending_review` e `ignored`,
+  - filtro por status (`all`, `pending_review`, `ignored`),
+  - indicação visual para itens `ignored`.
+- Ações manuais por comentário:
+  - `reclassifyComment` (força novo `ClassifyCommentsJob` por id),
+  - `moveCommentToPendingReview`,
+  - `ignoreComment`,
+  - `toggleCommentPublic`.
+- Operação manual de backlog:
+  - botão para `dispatchPendingClassification` (enfileira `DispatchPendingThreadsClassificationJob` com batch size configurável na tela).
+
+## Dashboard Threads (Fase 5.2 — Review curation consolidada)
+
+- A aba `Review` passa a suportar **curadoria em lote** com seleção múltipla de comentários (`selectedReviewCommentIds`).
+- Ações batch disponíveis no `HubPage`:
+  - `batchMoveSelectedToPendingReview`,
+  - `batchIgnoreSelected`,
+  - `batchPublishSelected`,
+  - `batchUnpublishSelected`,
+  - `batchReclassifySelected` (1 `ClassifyCommentsJob` com `force=true` por comentário selecionado).
+- Filtros adicionais de produtividade:
+  - `status`,
+  - `categoria`,
+  - `source`,
+  - somente itens sem `ai_summary`.
+- Ordenação configurável:
+  - relevância IA (`ai_relevance_score`),
+  - mais novo (`created_at`),
+  - score (`score_total`).
+- Cobertura mínima atualizada em `tests/Feature/Threads/ThreadsHubPageTest.php` para batch actions, filtros avançados e regressão de reclassificação manual em lote.
+
+## Dashboard Threads (Fase 5.3 — Published management)
+
+- Aba `Published` no `HubPage` lista comentários com `is_public=true` (limite de 100), com relacionamentos `post.source` e `category` para contexto operacional.
+- Query string:
+  - `pub_category` — filtro por `threads_category_id` (`all` ou id),
+  - `pub_source` — filtro por `threads_posts.threads_source_id` (`all` ou id),
+  - `pub_sort` — ordenação: `score` (`score_total`), `newest` (`updated_at`), `relevance` (`ai_relevance_score`).
+- Estado de edição rápida por linha em `publishedForms[commentId]` (`ai_summary`, `threads_category_id`, `is_featured`), inicializado ao renderizar itens visíveis.
+- Ações:
+  - `savePublishedComment` — persiste `ai_summary`, categoria e `is_featured` para comentário ainda publicado,
+  - `unpublishPublishedComment` — define `is_public=false` e remove o estado local da linha.
+- Métricas exibidas: `upvotes`, `downvotes`, `score_total` (atualizados pelo fluxo de votos públicos + `RecalculateCommentScoreJob`).
+- Cobertura mínima em `tests/Feature/Threads/ThreadsHubPageTest.php`: somente públicos na aba, save de campos rápidos e despublicar.
+
+## Dashboard Threads — Polimento UX IA + seleção em massa (Review)
+
+- Contador global de comentários **sem classificação** alinhado ao job: `threads_comments.ai_summary IS NULL` (mesmo critério de `DispatchPendingThreadsClassificationJob` com `force=false`).
+- Exibição no Hub (abas Sources e Review) do total pendente, estimativa `min(batch configurado, pendentes)` para o próximo disparo e cadência da fila `ai` via `config('services.threads.ai_dispatch_spacing_seconds')` (`THREADS_AI_DISPATCH_SPACING_SECONDS` no `.env`).
+- Ao disparar classificação pendente, flash descreve quantos jobs foram enfileirados neste clique, batch, espaçamento e pendentes restantes estimados.
+- Aba Review: controle **selecionar todos nesta página** (mesmos filtros/ordenação da tabela, limite 100), método `toggleSelectAllReviewOnPage`.
+- Testes em `tests/Feature/Threads/ThreadsHubPageTest.php` para batch size do job e toggle de seleção.
+
+## Página pública Oportunidades (Fase 6 — listagem SSR inicial)
+
+- Rota pública: `GET /oportunidades`, nome `threads.opportunities` (sem autenticação).
+- Controller invokável `App\Http\Controllers\ThreadsOpportunitiesController`: lista apenas `threads_comments` com `is_public=true`, com `category`, `post` e `post.source`.
+- Query string suportada: `q` (busca em `ai_summary` e `content`, `LIKE` compatível com SQLite em testes), `category` (id), `source` (id da `threads_sources` via post), `sort` (`relevance` | `votes` | `newest`).
+- Paginação: 20 itens por página; ordenação padrão por `ai_relevance_score` descendente.
+- Views: `resources/views/threads/opportunities.blade.php` estendendo `layouts.public` (header mínimo, link Entrar/Dashboard conforme sessão).
+- Cobertura: `tests/Feature/Threads/ThreadsOpportunitiesPageTest.php`.
+
+## Página pública — Votação anônima e score (Fase 7 — MVP)
+
+- Rota `POST /oportunidades/votos/{comment}`, nome `threads.opportunities.vote`, throttle `120,1`, sem autenticação.
+- `ThreadsCommentVoteController::store` aceita apenas comentários `is_public=true` (caso contrário 404); body `direction` = `up` | `down`.
+- `App\Services\Threads\ThreadsVoteFingerprintService`: `session_fingerprint` = `hash('sha256', ip|user_agent|Y-m-d|salt)` com `config('services.threads.vote_fingerprint_salt')` (`THREADS_VOTE_FINGERPRINT_SALT`).
+- Persistência em `threads_comment_votes` com `updateOrCreate` por `(threads_comment_id, session_fingerprint)`; `vote` ∈ `{1, -1}`.
+- `App\Jobs\RecalculateCommentScoreJob` recalcula contagens e `score_total = upvotes - downvotes` no `threads_comments` correspondente.
+- UI em `threads/opportunities.blade.php`: botões +1 / -1 com `@csrf`.
+- Cobertura: `tests/Feature/Threads/ThreadsCommentVoteTest.php`.
 

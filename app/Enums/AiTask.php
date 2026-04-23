@@ -5,6 +5,7 @@ namespace App\Enums;
 enum AiTask: string
 {
     case Classification = 'classification';
+    case ThreadsOpportunityClassification = 'threads_opportunity_classification';
     case Sentiment = 'sentiment';
     case SummaryShort = 'summary_short';
     case ChatDefault = 'chat';
@@ -37,6 +38,7 @@ enum AiTask: string
     {
         return match ($this) {
             self::Classification,
+            self::ThreadsOpportunityClassification,
             self::Sentiment,
             self::SummaryShort,
             self::ChatDefault => true,
@@ -51,6 +53,7 @@ enum AiTask: string
     {
         return match ($this) {
             self::Classification => 'Respondas em pt-BR. Para classificar, devolva só um único label curto sem explicações, salvo pedido contrário pelo usuário.',
+            self::ThreadsOpportunityClassification => 'Responda em JSON válido para classificar oportunidades no Threads. Campos obrigatórios: category_slug (emprego-fixo|temporario|freela|renda-extra|outros), summary (string curta em pt-BR), relevance_score (número de 0 a 1). Sem markdown.',
             self::Sentiment => 'Respondas em pt-BR. Avalie apenas o sentimento principal (positivo, neutro ou negativo) numa única linha.',
             self::SummaryShort => 'Respondas em pt-BR. Resumo curto em até três frases.',
             self::ChatDefault => null,

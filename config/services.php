@@ -111,4 +111,21 @@ return [
         'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Playwright Threads scraper
+    |--------------------------------------------------------------------------
+    */
+
+    'playwright' => [
+        'url' => env('PLAYWRIGHT_SERVICE_URL', 'http://127.0.0.1:3001'),
+        'timeout' => env('PLAYWRIGHT_HTTP_TIMEOUT', 120),
+    ],
+
+    'threads' => [
+        'relevance_threshold' => (float) env('THREADS_RELEVANCE_THRESHOLD', 0.65),
+        'ai_dispatch_spacing_seconds' => (int) env('THREADS_AI_DISPATCH_SPACING_SECONDS', 30),
+        'vote_fingerprint_salt' => env('THREADS_VOTE_FINGERPRINT_SALT', ''),
+    ],
+
 ];

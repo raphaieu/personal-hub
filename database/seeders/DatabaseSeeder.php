@@ -16,5 +16,6 @@ class DatabaseSeeder extends Seeder
     {
         $this->call(SuperAdminUserSeeder::class);
         $this->call(NotesSoloGroupMonitoredSourceSeeder::class);
+        $this->call(ThreadsCategorySeeder::class);
     }
 }

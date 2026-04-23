@@ -240,6 +240,31 @@ Para webhooks e testes externos (mesmo stack em termos de comportamento; URL pú
 * scraping confiável
 * lembretes automáticos
 * painel útil no dia a dia
+* threads-classificados: Playwright autenticado + contrato HTTP (`/threads/auth/login`, `/threads/scrape-url`, `/threads/scrape-keyword`)
+
+### Threads Classificados (status atual)
+
+- Fase 0 concluída no serviço `playwright/`: login com sessão persistida (`storageState`), scrape por URL e por keyword.
+- Modo keyword otimizado para descoberta de posts (`include_comments=false` por padrão), com dedupe opcional no scraper (`known_post_ids`, `only_new`, `known_streak_stop`).
+- Fase 1 concluída no Laravel: schema `threads_*` (`threads_sources`, `threads_posts`, `threads_comments`, `threads_comment_votes`, `threads_categories`), models e seed inicial de categorias.
+- Fase 2 concluída no Laravel: contrato mockavel `ThreadsScraperClientInterface` com implementação HTTP (`ThreadsPlaywrightService`) e fake (`FakeThreadsScraperClient`) para testes sem acoplamento ao container Node.
+- Cobertura de regressao da integracao em `tests/Feature/Threads/ThreadsScraperClientTest.php`.
+- Fase 3.1 concluida no Laravel: jobs base `ScrapeThreadsUrlJob` e `ScrapeThreadsKeywordJob` (fila `scraping`) com ingestao idempotente para `threads_posts`/`threads_comments` via dedupe por `external_id`.
+- Fase 3.2 concluida no Laravel: classificacao IA com `ThreadsClassificationService`, job `ClassifyCommentsJob` na fila `ai`, regra de corte `THREADS_RELEVANCE_THRESHOLD` (`ignored` abaixo / `pending_review` acima) e disparo automatico de classificacao apos ingestao de comentarios.
+- Proximo passo: Fase 4 (orquestracao por scheduler/gatilhos de sources).
+
+### Dashboard Threads (fase frontend)
+
+- Fase 4.1 concluida: `livewire/livewire` (v4) instalado via Composer, layouts base (`app` e `guest`) preparados com `@livewireStyles`/`@livewireScripts` e smoke test de disponibilidade do pacote no container adicionado.
+- Fase 4.2 concluida: estrutura inicial do dashboard em `/hub/threads` via componente Livewire (`App\Livewire\Threads\HubPage`) com abas `Sources/Review/Published`, tabela inicial de fontes e testes de acesso/render.
+- Fase 5.1 concluida: gerenciamento inicial de sources no dashboard (`/hub/threads`) com criacao (keyword/url), toggle ativo/inativo e acao "scrape agora" enfileirando jobs adequados.
+- Ajuste de robustez no pipeline IA: classificacao agora roda 1 comentario por job (`ClassifyCommentsJob` com `commentId`), com espaco configuravel entre dispatches (`THREADS_AI_DISPATCH_SPACING_SECONDS`) e job auxiliar `DispatchPendingThreadsClassificationJob` para varrer pendentes.
+- Fase 5.2 consolidada (curadoria de Review): selecao multipla com acoes em lote (mover para review, ignorar, publicar, despublicar, reclassificar), filtros por status/categoria/source/sem resumo IA e ordenacao configuravel (relevancia, mais novo, score).
+- Fase 5.3 concluida: aba `Published` no dashboard lista apenas `threads_comments.is_public=true`, com filtros por categoria/source, ordenacao (score, atualizado, relevancia IA), edicao rapida de `ai_summary`/categoria/`is_featured`, exibicao de `upvotes`/`downvotes`/`score_total` e acao de despublicar.
+- Polimento UX no Hub (IA + Review): contagem global de comentarios sem resumo IA (`ai_summary` nulo), estimativa do proximo disparo vs batch configurado, cadencia `THREADS_AI_DISPATCH_SPACING_SECONDS` via `config/services.php`, mensagem de flash ao enfileirar `DispatchPendingThreadsClassificationJob`; na aba Review, checkbox no cabecalho para selecionar/desmarcar todos os itens visiveis no filtro atual.
+- Pagina publica inicial: `GET /oportunidades` (`threads.opportunities`) SSR com listagem paginada somente de comentarios publicos, filtros busca/categoria/source e ordenacao (relevancia IA, votos, recente); layout dedicado `layouts.public`; cobertura em `tests/Feature/Threads/ThreadsOpportunitiesPageTest.php`.
+- Votacao anonima no feed: `POST /oportunidades/votos/{comment}` (`threads.opportunities.vote`) com `direction=up|down`, fingerprint diario (`IP + User-Agent + data + THREADS_VOTE_FINGERPRINT_SALT`), dedupe `(threads_comment_id, session_fingerprint)` em `threads_comment_votes`, `RecalculateCommentScoreJob` na fila `default` atualizando `upvotes`/`downvotes`/`score_total`; testes em `ThreadsCommentVoteTest`.
+- Proximo passo: observabilidade / hardening do MVP (rate limit fino, anti-abuso, metricas Horizon) e evolucao do feed publico conforme PRD.
 
 ### Médio Prazo
 
