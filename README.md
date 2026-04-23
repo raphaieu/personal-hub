@@ -249,7 +249,8 @@ Para webhooks e testes externos (mesmo stack em termos de comportamento; URL pú
 - Fase 1 concluída no Laravel: schema `threads_*` (`threads_sources`, `threads_posts`, `threads_comments`, `threads_comment_votes`, `threads_categories`), models e seed inicial de categorias.
 - Fase 2 concluída no Laravel: contrato mockavel `ThreadsScraperClientInterface` com implementação HTTP (`ThreadsPlaywrightService`) e fake (`FakeThreadsScraperClient`) para testes sem acoplamento ao container Node.
 - Cobertura de regressao da integracao em `tests/Feature/Threads/ThreadsScraperClientTest.php`.
-- Proximo passo: Fase 3 (jobs de scraping/classificacao IA + threshold de relevancia + orquestracao por filas).
+- Fase 3.1 concluida no Laravel: jobs base `ScrapeThreadsUrlJob` e `ScrapeThreadsKeywordJob` (fila `scraping`) com ingestao idempotente para `threads_posts`/`threads_comments` via dedupe por `external_id`.
+- Proximo passo: Fase 3.2 (classificacao IA + threshold de relevancia + fila `ai`).
 
 ### Médio Prazo
 

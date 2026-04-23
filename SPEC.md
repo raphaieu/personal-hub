@@ -424,6 +424,19 @@ Response (campos relevantes):
 - **Cobertura automática mínima da integração**:
   - `tests/Feature/Threads/ThreadsScraperClientTest.php` cobre resolução da interface, normalização de payload, tratamento de erro HTTP e comportamento do fake.
 
+### Integração Laravel (Fase 3.1 concluída)
+
+- **Pipeline base de scraping desacoplado da runtime Node**:
+  - Jobs criados: `ScrapeThreadsUrlJob` e `ScrapeThreadsKeywordJob`.
+  - Ambos dependem de `ThreadsScraperClientInterface` (sem acoplamento direto ao Playwright no domínio Laravel).
+  - Fila padrão do bloco: `scraping`.
+- **Persistência inicial idempotente**:
+  - Serviço `ThreadsScrapeIngestionService` faz ingestão/upsert em `threads_posts` e `threads_comments`.
+  - Dedupe por `external_id` (chave única já existente no schema) para permitir reprocessamento sem duplicidade.
+  - `threads_sources.last_scraped_at` é atualizado quando o job recebe `threads_source_id`.
+- **Cobertura automática mínima do bloco**:
+  - `tests/Feature/Threads/ThreadsScrapeIngestionJobsTest.php` cobre execução dos jobs com `FakeThreadsScraperClient` e dedupe de post/comentário por `external_id`.
+
 ---
 
 ## Fluxo Embasa (mapeado)
