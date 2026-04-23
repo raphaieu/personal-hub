@@ -57,6 +57,10 @@ class ScrapeThreadsKeywordJob implements ShouldQueue
 
         $result = $ingestionService->ingestKeywordPayload($payload, $source);
 
+        if (($result['comment_ids'] ?? []) !== []) {
+            ClassifyCommentsJob::dispatch($result['comment_ids']);
+        }
+
         if ($source) {
             $source->forceFill(['last_scraped_at' => now()])->save();
         }

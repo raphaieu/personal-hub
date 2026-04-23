@@ -114,6 +114,7 @@ return [
         'redis:default' => 60,
         'redis:notifications' => 90,
         'redis:scraping' => 180,
+        'redis:ai' => 180,
     ],
 
     /*
@@ -243,6 +244,19 @@ return [
             'timeout' => 120,
             'nice' => 0,
         ],
+        'supervisor-ai' => [
+            'connection' => 'redis',
+            'queue' => ['ai'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 256,
+            'tries' => 3,
+            'timeout' => 120,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
@@ -255,6 +269,9 @@ return [
             'supervisor-scraping' => [
                 'maxProcesses' => 2,
             ],
+            'supervisor-ai' => [
+                'maxProcesses' => 2,
+            ],
         ],
 
         'local' => [
@@ -262,6 +279,9 @@ return [
                 'maxProcesses' => 3,
             ],
             'supervisor-scraping' => [
+                'maxProcesses' => 1,
+            ],
+            'supervisor-ai' => [
                 'maxProcesses' => 1,
             ],
         ],

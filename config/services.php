@@ -122,4 +122,8 @@ return [
         'timeout' => env('PLAYWRIGHT_HTTP_TIMEOUT', 120),
     ],
 
+    'threads' => [
+        'relevance_threshold' => (float) env('THREADS_RELEVANCE_THRESHOLD', 0.65),
+    ],
+
 ];

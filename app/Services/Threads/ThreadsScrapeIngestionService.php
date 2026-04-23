@@ -12,54 +12,56 @@ final class ThreadsScrapeIngestionService
 {
     /**
      * @param  array<string, mixed>  $payload
-     * @return array{posts_upserted: int, comments_upserted: int}
+     * @return array{posts_upserted: int, comments_upserted: int, comment_ids: list<int>}
      */
     public function ingestUrlPayload(array $payload, ?ThreadsSource $source = null): array
     {
         $data = Arr::get($payload, 'data');
         if (! is_array($data)) {
-            return ['posts_upserted' => 0, 'comments_upserted' => 0];
+            return ['posts_upserted' => 0, 'comments_upserted' => 0, 'comment_ids' => []];
         }
 
         $scrapedAt = $this->parseDate(Arr::get($payload, 'scraped_at'));
         $postData = Arr::get($data, 'post');
         if (! is_array($postData)) {
-            return ['posts_upserted' => 0, 'comments_upserted' => 0];
+            return ['posts_upserted' => 0, 'comments_upserted' => 0, 'comment_ids' => []];
         }
 
         $post = $this->upsertPost($postData, $source, $scrapedAt);
         if (! $post) {
-            return ['posts_upserted' => 0, 'comments_upserted' => 0];
+            return ['posts_upserted' => 0, 'comments_upserted' => 0, 'comment_ids' => []];
         }
 
         $comments = Arr::get($data, 'comments');
-        $commentsUpserted = $this->upsertComments($post, $comments, $scrapedAt);
+        ['count' => $commentsUpserted, 'ids' => $commentIds] = $this->upsertComments($post, $comments, $scrapedAt);
 
         return [
             'posts_upserted' => 1,
             'comments_upserted' => $commentsUpserted,
+            'comment_ids' => $commentIds,
         ];
     }
 
     /**
      * @param  array<string, mixed>  $payload
-     * @return array{posts_upserted: int, comments_upserted: int}
+     * @return array{posts_upserted: int, comments_upserted: int, comment_ids: list<int>}
      */
     public function ingestKeywordPayload(array $payload, ?ThreadsSource $source = null): array
     {
         $data = Arr::get($payload, 'data');
         if (! is_array($data)) {
-            return ['posts_upserted' => 0, 'comments_upserted' => 0];
+            return ['posts_upserted' => 0, 'comments_upserted' => 0, 'comment_ids' => []];
         }
 
         $items = Arr::get($data, 'posts');
         if (! is_array($items)) {
-            return ['posts_upserted' => 0, 'comments_upserted' => 0];
+            return ['posts_upserted' => 0, 'comments_upserted' => 0, 'comment_ids' => []];
         }
 
         $scrapedAt = $this->parseDate(Arr::get($payload, 'scraped_at'));
         $postsUpserted = 0;
         $commentsUpserted = 0;
+        $commentIds = [];
 
         foreach ($items as $item) {
             if (! is_array($item)) {
@@ -77,12 +79,15 @@ final class ThreadsScrapeIngestionService
             }
 
             $postsUpserted++;
-            $commentsUpserted += $this->upsertComments($post, Arr::get($item, 'comments'), $scrapedAt);
+            ['count' => $count, 'ids' => $ids] = $this->upsertComments($post, Arr::get($item, 'comments'), $scrapedAt);
+            $commentsUpserted += $count;
+            $commentIds = [...$commentIds, ...$ids];
         }
 
         return [
             'posts_upserted' => $postsUpserted,
             'comments_upserted' => $commentsUpserted,
+            'comment_ids' => array_values(array_unique($commentIds)),
         ];
     }
 
@@ -114,13 +119,14 @@ final class ThreadsScrapeIngestionService
     /**
      * @param  mixed  $comments
      */
-    private function upsertComments(ThreadsPost $post, mixed $comments, ?CarbonImmutable $scrapedAt): int
+    private function upsertComments(ThreadsPost $post, mixed $comments, ?CarbonImmutable $scrapedAt): array
     {
         if (! is_array($comments)) {
-            return 0;
+            return ['count' => 0, 'ids' => []];
         }
 
         $upserted = 0;
+        $ids = [];
         foreach ($comments as $commentData) {
             if (! is_array($commentData)) {
                 continue;
@@ -131,7 +137,7 @@ final class ThreadsScrapeIngestionService
                 continue;
             }
 
-            ThreadsComment::query()->updateOrCreate(
+            $comment = ThreadsComment::query()->updateOrCreate(
                 ['external_id' => $externalId],
                 [
                     'threads_post_id' => $post->id,
@@ -146,9 +152,13 @@ final class ThreadsScrapeIngestionService
             );
 
             $upserted++;
+            $ids[] = $comment->id;
         }
 
-        return $upserted;
+        return [
+            'count' => $upserted,
+            'ids' => array_values(array_unique($ids)),
+        ];
     }
 
     private function parseDate(mixed $value): ?CarbonImmutable

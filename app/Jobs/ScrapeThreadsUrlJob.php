@@ -42,6 +42,10 @@ class ScrapeThreadsUrlJob implements ShouldQueue
 
         $result = $ingestionService->ingestUrlPayload($payload, $source);
 
+        if (($result['comment_ids'] ?? []) !== []) {
+            ClassifyCommentsJob::dispatch($result['comment_ids']);
+        }
+
         if ($source) {
             $source->forceFill(['last_scraped_at' => now()])->save();
         }

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Threads;
 
 use App\Contracts\ThreadsScraperClientInterface;
+use App\Jobs\ClassifyCommentsJob;
 use App\Jobs\ScrapeThreadsKeywordJob;
 use App\Jobs\ScrapeThreadsUrlJob;
 use App\Models\ThreadsComment;
@@ -10,6 +11,7 @@ use App\Models\ThreadsPost;
 use App\Models\ThreadsSource;
 use App\Services\Threads\FakeThreadsScraperClient;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Bus;
 use Tests\TestCase;
 
 final class ThreadsScrapeIngestionJobsTest extends TestCase
@@ -18,6 +20,8 @@ final class ThreadsScrapeIngestionJobsTest extends TestCase
 
     public function test_scrape_url_job_upserts_post_and_comments_by_external_id(): void
     {
+        Bus::fake();
+
         $source = ThreadsSource::query()->create([
             'type' => 'url',
             'label' => 'URL de teste',
@@ -95,10 +99,13 @@ final class ThreadsScrapeIngestionJobsTest extends TestCase
         $this->assertSame(1, ThreadsComment::query()->count());
         $this->assertSame('Post atualizado', (string) ThreadsPost::query()->first()?->content);
         $this->assertSame('Comentario atualizado', (string) ThreadsComment::query()->first()?->content);
+        Bus::assertDispatched(ClassifyCommentsJob::class);
     }
 
     public function test_scrape_keyword_job_runs_with_fake_client_and_upserts_posts(): void
     {
+        Bus::fake();
+
         $source = ThreadsSource::query()->create([
             'type' => 'keyword',
             'label' => 'Keyword de teste',
@@ -163,5 +170,6 @@ final class ThreadsScrapeIngestionJobsTest extends TestCase
             'external_id' => 'post-k-1',
             'threads_source_id' => $source->id,
         ]);
+        Bus::assertNotDispatched(ClassifyCommentsJob::class);
     }
 }

@@ -437,6 +437,25 @@ Response (campos relevantes):
 - **Cobertura automática mínima do bloco**:
   - `tests/Feature/Threads/ThreadsScrapeIngestionJobsTest.php` cobre execução dos jobs com `FakeThreadsScraperClient` e dedupe de post/comentário por `external_id`.
 
+### Integração Laravel (Fase 3.2 concluída)
+
+- **Classificação IA de comentários**:
+  - Serviço `ThreadsClassificationService` usa `NeuronAIService::complete(..., expectJson: true)` com `AiTask::ThreadsOpportunityClassification`.
+  - JSON esperado do classificador: `category_slug`, `summary`, `relevance_score`.
+  - Mapeamento persistido para `threads_comments`: `threads_category_id`, `ai_summary`, `ai_relevance_score`, `ai_meta`.
+- **Regra de threshold de relevância**:
+  - Variável `THREADS_RELEVANCE_THRESHOLD` (configurada em `services.threads.relevance_threshold`).
+  - `relevance_score` abaixo do corte => `status=ignored`.
+  - `relevance_score` no/above corte => `status=pending_review`.
+  - O serviço normaliza escala 0..1 e 0..100 para permitir configuração flexível.
+- **Orquestração por filas**:
+  - Job `ClassifyCommentsJob` criado na fila `ai`.
+  - Jobs de scraping (`ScrapeThreadsUrlJob`, `ScrapeThreadsKeywordJob`) disparam classificação assíncrona quando há comentários ingeridos.
+  - Horizon atualizado com supervisor dedicado para fila `ai`.
+- **Cobertura automática mínima do bloco**:
+  - `tests/Feature/Threads/ThreadsClassificationServiceTest.php` cobre threshold/status e execução do job de IA.
+  - `tests/Feature/Threads/ThreadsScrapeIngestionJobsTest.php` cobre disparo (ou não) de `ClassifyCommentsJob` após ingestão.
+
 ---
 
 ## Fluxo Embasa (mapeado)
