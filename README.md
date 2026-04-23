@@ -263,7 +263,8 @@ Para webhooks e testes externos (mesmo stack em termos de comportamento; URL pú
 - Fase 5.3 concluida: aba `Published` no dashboard lista apenas `threads_comments.is_public=true`, com filtros por categoria/source, ordenacao (score, atualizado, relevancia IA), edicao rapida de `ai_summary`/categoria/`is_featured`, exibicao de `upvotes`/`downvotes`/`score_total` e acao de despublicar.
 - Polimento UX no Hub (IA + Review): contagem global de comentarios sem resumo IA (`ai_summary` nulo), estimativa do proximo disparo vs batch configurado, cadencia `THREADS_AI_DISPATCH_SPACING_SECONDS` via `config/services.php`, mensagem de flash ao enfileirar `DispatchPendingThreadsClassificationJob`; na aba Review, checkbox no cabecalho para selecionar/desmarcar todos os itens visiveis no filtro atual.
 - Pagina publica inicial: `GET /oportunidades` (`threads.opportunities`) SSR com listagem paginada somente de comentarios publicos, filtros busca/categoria/source e ordenacao (relevancia IA, votos, recente); layout dedicado `layouts.public`; cobertura em `tests/Feature/Threads/ThreadsOpportunitiesPageTest.php`.
-- Proximo passo: votacao anonima no feed publico + `RecalculateCommentScoreJob` em producao (dedupe por fingerprint).
+- Votacao anonima no feed: `POST /oportunidades/votos/{comment}` (`threads.opportunities.vote`) com `direction=up|down`, fingerprint diario (`IP + User-Agent + data + THREADS_VOTE_FINGERPRINT_SALT`), dedupe `(threads_comment_id, session_fingerprint)` em `threads_comment_votes`, `RecalculateCommentScoreJob` na fila `default` atualizando `upvotes`/`downvotes`/`score_total`; testes em `ThreadsCommentVoteTest`.
+- Proximo passo: observabilidade / hardening do MVP (rate limit fino, anti-abuso, metricas Horizon) e evolucao do feed publico conforme PRD.
 
 ### Médio Prazo
 

@@ -3,6 +3,7 @@
 use App\Http\Controllers\AiChatController;
 use App\Http\Controllers\IaraController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ThreadsCommentVoteController;
 use App\Http\Controllers\ThreadsOpportunitiesController;
 use App\Http\Controllers\Webhook\WhatsAppWebhookController;
 use App\Livewire\Threads\HubPage as ThreadsHubPage;
@@ -21,6 +22,10 @@ Route::get('/', function () {
 });
 
 Route::get('/oportunidades', ThreadsOpportunitiesController::class)->name('threads.opportunities');
+
+Route::post('/oportunidades/votos/{comment}', [ThreadsCommentVoteController::class, 'store'])
+    ->middleware('throttle:120,1')
+    ->name('threads.opportunities.vote');
 
 Route::get('/dashboard', function () {
     return view('dashboard');

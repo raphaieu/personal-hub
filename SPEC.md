@@ -252,6 +252,7 @@ Métodos:
 | `ScrapeConta`                    | `scraping`      | Schedule ou on-demand       |
 | `EnriquecerUrlLembrete`          | `default`       | Após salvar lembrete de URL |
 | `NotificarVencimento`            | `notifications` | Schedule diário             |
+| `RecalculateCommentScoreJob`     | `default`       | Após voto em `/oportunidades` |
 
 
 ---
@@ -737,7 +738,7 @@ docker/
 - Ações:
   - `savePublishedComment` — persiste `ai_summary`, categoria e `is_featured` para comentário ainda publicado,
   - `unpublishPublishedComment` — define `is_public=false` e remove o estado local da linha.
-- Métricas exibidas: `upvotes`, `downvotes`, `score_total` (campos já persistidos no modelo; recalculo por votos permanece no fluxo público futuro).
+- Métricas exibidas: `upvotes`, `downvotes`, `score_total` (atualizados pelo fluxo de votos públicos + `RecalculateCommentScoreJob`).
 - Cobertura mínima em `tests/Feature/Threads/ThreadsHubPageTest.php`: somente públicos na aba, save de campos rápidos e despublicar.
 
 ## Dashboard Threads — Polimento UX IA + seleção em massa (Review)
@@ -756,4 +757,14 @@ docker/
 - Paginação: 20 itens por página; ordenação padrão por `ai_relevance_score` descendente.
 - Views: `resources/views/threads/opportunities.blade.php` estendendo `layouts.public` (header mínimo, link Entrar/Dashboard conforme sessão).
 - Cobertura: `tests/Feature/Threads/ThreadsOpportunitiesPageTest.php`.
+
+## Página pública — Votação anônima e score (Fase 7 — MVP)
+
+- Rota `POST /oportunidades/votos/{comment}`, nome `threads.opportunities.vote`, throttle `120,1`, sem autenticação.
+- `ThreadsCommentVoteController::store` aceita apenas comentários `is_public=true` (caso contrário 404); body `direction` = `up` | `down`.
+- `App\Services\Threads\ThreadsVoteFingerprintService`: `session_fingerprint` = `hash('sha256', ip|user_agent|Y-m-d|salt)` com `config('services.threads.vote_fingerprint_salt')` (`THREADS_VOTE_FINGERPRINT_SALT`).
+- Persistência em `threads_comment_votes` com `updateOrCreate` por `(threads_comment_id, session_fingerprint)`; `vote` ∈ `{1, -1}`.
+- `App\Jobs\RecalculateCommentScoreJob` recalcula contagens e `score_total = upvotes - downvotes` no `threads_comments` correspondente.
+- UI em `threads/opportunities.blade.php`: botões +1 / -1 com `@csrf`.
+- Cobertura: `tests/Feature/Threads/ThreadsCommentVoteTest.php`.
 

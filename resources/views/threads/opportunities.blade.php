@@ -92,6 +92,33 @@
                                 <span class="text-gray-400"> / </span>
                                 <span class="text-rose-700">-{{ $comment->downvotes }}</span>
                             </div>
+                            <div class="mt-3 flex items-center justify-end gap-2">
+                                <form method="post" action="{{ route('threads.opportunities.vote', $comment) }}" class="inline">
+                                    @csrf
+                                    <input type="hidden" name="direction" value="up">
+                                    <button
+                                        type="submit"
+                                        class="inline-flex min-w-[2.25rem] items-center justify-center rounded-md bg-emerald-100 px-2 py-1 text-xs font-medium text-emerald-800 hover:bg-emerald-200"
+                                        title="Voto util"
+                                    >
+                                        +1
+                                    </button>
+                                </form>
+                                <form method="post" action="{{ route('threads.opportunities.vote', $comment) }}" class="inline">
+                                    @csrf
+                                    <input type="hidden" name="direction" value="down">
+                                    <button
+                                        type="submit"
+                                        class="inline-flex min-w-[2.25rem] items-center justify-center rounded-md bg-rose-100 px-2 py-1 text-xs font-medium text-rose-800 hover:bg-rose-200"
+                                        title="Voto nao util"
+                                    >
+                                        -1
+                                    </button>
+                                </form>
+                            </div>
+                            <p class="mt-2 max-w-[12rem] text-[10px] leading-snug text-gray-400">
+                                Um voto por dia por dispositivo/rede (anonimo).
+                            </p>
                         </div>
                     </div>
                 </li>
