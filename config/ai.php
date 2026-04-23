@@ -23,4 +23,9 @@ return [
 
     'openai_timeout' => (int) env('AI_OPENAI_TIMEOUT', 60),
 
+    // Dashboard: transcrição / imagens (HTTP direto à API do provedor)
+    'transcription_timeout' => (int) env('AI_TRANSCRIPTION_TIMEOUT', 120),
+
+    'image_generation_timeout' => (int) env('AI_IMAGE_GENERATION_TIMEOUT', 120),
+
 ];

@@ -6,8 +6,12 @@ use App\Data\AiCompletionResult;
 use App\Enums\AiTask;
 use Illuminate\Support\Facades\Log;
 use NeuronAI\Chat\Enums\MessageRole;
+use NeuronAI\Chat\Enums\SourceType;
 use NeuronAI\Chat\Messages\AssistantMessage;
+use NeuronAI\Chat\Messages\ContentBlocks\ImageContent;
+use NeuronAI\Chat\Messages\ContentBlocks\TextContent;
 use NeuronAI\Chat\Messages\Message;
+use NeuronAI\Chat\Messages\UserMessage;
 use NeuronAI\Exceptions\HttpException;
 use NeuronAI\Exceptions\ProviderException;
 use NeuronAI\HttpClient\GuzzleHttpClient;
@@ -47,7 +51,7 @@ final class AiRouterService
                     $timeout = (float) config('ai.ollama_timeout_simple', 10);
                     $provider = $this->ollama->makeProvider($timeout);
 
-                    return $this->invokeProvider($provider, $system, $userPrompt);
+                    return $this->invokeProvider($provider, $system, new Message(MessageRole::USER, $userPrompt));
                 },
             ];
         }
@@ -58,7 +62,7 @@ final class AiRouterService
                 'provider' => 'groq',
                 'model' => (string) config('services.groq.model'),
                 'call' => function () use ($groq, $system, $userPrompt): AssistantMessage {
-                    return $this->invokeProvider($groq, $system, $userPrompt);
+                    return $this->invokeProvider($groq, $system, new Message(MessageRole::USER, $userPrompt));
                 },
             ];
         }
@@ -69,7 +73,7 @@ final class AiRouterService
                 'provider' => 'anthropic',
                 'model' => (string) config('services.anthropic.model'),
                 'call' => function () use ($anthropic, $system, $userPrompt): AssistantMessage {
-                    return $this->invokeProvider($anthropic, $system, $userPrompt);
+                    return $this->invokeProvider($anthropic, $system, new Message(MessageRole::USER, $userPrompt));
                 },
             ];
         }
@@ -80,7 +84,7 @@ final class AiRouterService
                 'provider' => 'openai',
                 'model' => (string) config('services.openai.model'),
                 'call' => function () use ($openai, $system, $userPrompt): AssistantMessage {
-                    return $this->invokeProvider($openai, $system, $userPrompt);
+                    return $this->invokeProvider($openai, $system, new Message(MessageRole::USER, $userPrompt));
                 },
             ];
         }
@@ -166,6 +170,125 @@ final class AiRouterService
         );
     }
 
+    /**
+     * Um único provedor/modelo (dashboard) — sem fallback.
+     *
+     * @param  list<array{data: string, mime: string}>  $images  Base64 cru (sem prefixo data:)
+     */
+    public function completeDirect(
+        string $providerKey,
+        string $model,
+        AiTask $task,
+        string $userPrompt,
+        ?string $systemPromptOverride = null,
+        array $images = [],
+    ): AiCompletionResult {
+        $system = $systemPromptOverride ?? $task->systemPrompt();
+        $userMessage = $this->buildUserMessage($userPrompt, $images);
+
+        $providerKey = strtolower($providerKey);
+
+        $provider = match ($providerKey) {
+            'ollama' => $this->ollama->enabled()
+                ? $this->ollama->makeProvider((float) config('ai.ollama_timeout_simple', 45), [], $model)
+                : null,
+            'groq' => $this->groqProvider($model),
+            'anthropic' => $this->anthropicProvider($model),
+            'openai' => $this->openAiProvider($model),
+            default => null,
+        };
+
+        if ($provider === null) {
+            return new AiCompletionResult(
+                success: false,
+                text: '',
+                provider: $providerKey,
+                model: $model,
+                latencyMs: 0,
+                fallbackUsed: false,
+                errorType: 'no_provider',
+                errorDetail: 'Provedor indisponível ou inválido.',
+            );
+        }
+
+        $started = hrtime(true);
+
+        try {
+            $assistant = $this->invokeProvider($provider, $system, $userMessage);
+            $latencyMs = (int) round((hrtime(true) - $started) / 1_000_000);
+
+            $text = trim((string) ($assistant->getContent() ?? ''));
+
+            if ($text === '') {
+                throw new ProviderException('Resposta vazia do provedor.');
+            }
+
+            Log::info('ai.completion', [
+                'ai_provider' => $providerKey,
+                'ai_model' => $model,
+                'latency_ms' => $latencyMs,
+                'fallback_used' => false,
+                'ai_task' => $task->value,
+                'ai_chat_direct' => true,
+            ]);
+
+            return new AiCompletionResult(
+                success: true,
+                text: $text,
+                provider: $providerKey,
+                model: $model,
+                latencyMs: $latencyMs,
+                fallbackUsed: false,
+                meta: config('app.debug') ? ['stop_reason' => $assistant->stopReason()] : null,
+            );
+        } catch (Throwable $e) {
+            $latencyMs = (int) round((hrtime(true) - $started) / 1_000_000);
+
+            Log::warning('ai.completion_failure', [
+                'ai_provider' => $providerKey,
+                'ai_model' => $model,
+                'ai_task' => $task->value,
+                'error_type' => $this->classifyThrowable($e),
+                'message' => $e->getMessage(),
+                'ai_chat_direct' => true,
+            ]);
+
+            return new AiCompletionResult(
+                success: false,
+                text: '',
+                provider: $providerKey,
+                model: $model,
+                latencyMs: $latencyMs,
+                fallbackUsed: false,
+                errorType: $this->classifyThrowable($e),
+                errorDetail: $e->getMessage(),
+            );
+        }
+    }
+
+    /**
+     * @param  list<array{data: string, mime: string}>  $images
+     */
+    private function buildUserMessage(string $userPrompt, array $images): Message
+    {
+        if ($images === []) {
+            return new Message(MessageRole::USER, $userPrompt);
+        }
+
+        $blocks = [];
+        $text = trim($userPrompt);
+        if ($text === '') {
+            $text = 'Descreva o conteúdo da imagem em português.';
+        }
+        $blocks[] = new TextContent($text);
+
+        foreach ($images as $image) {
+            $blocks[] = new ImageContent($image['data'], SourceType::BASE64, $image['mime']);
+        }
+
+        return new UserMessage($blocks);
+    }
+
     private function shouldAttemptOllamaFirst(AiTask $task, string $userPrompt): bool
     {
         if (! $task->prefersLocalFirst()) {
@@ -180,11 +303,11 @@ final class AiRouterService
     private function invokeProvider(
         AIProviderInterface $provider,
         ?string $system,
-        string $userPrompt,
+        Message $userMessage,
     ): AssistantMessage {
         $provider->systemPrompt($system);
 
-        $message = $provider->chat(new Message(MessageRole::USER, $userPrompt));
+        $message = $provider->chat($userMessage);
 
         if (! $message instanceof AssistantMessage) {
             throw new ProviderException('Resposta inesperada do provedor.');
@@ -237,7 +360,7 @@ final class AiRouterService
         return 'provider';
     }
 
-    private function groqProvider(): ?OpenAILike
+    private function groqProvider(?string $modelOverride = null): ?OpenAILike
     {
         $key = config('services.groq.api_key');
         if (! filled($key)) {
@@ -245,27 +368,30 @@ final class AiRouterService
         }
 
         $baseUri = rtrim((string) config('services.groq.url'), '/');
+        $model = $modelOverride ?? (string) config('services.groq.model');
 
         return new OpenAILike(
             baseUri: $baseUri,
             key: (string) $key,
-            model: (string) config('services.groq.model'),
+            model: $model,
             parameters: [],
             strict_response: false,
             httpClient: new GuzzleHttpClient([], (float) config('ai.groq_timeout', 30)),
         );
     }
 
-    private function anthropicProvider(): ?Anthropic
+    private function anthropicProvider(?string $modelOverride = null): ?Anthropic
     {
         $key = config('services.anthropic.api_key');
         if (! filled($key)) {
             return null;
         }
 
+        $model = $modelOverride ?? (string) config('services.anthropic.model');
+
         return new Anthropic(
             key: (string) $key,
-            model: (string) config('services.anthropic.model'),
+            model: $model,
             version: '2023-06-01',
             max_tokens: 8192,
             parameters: [],
@@ -273,16 +399,18 @@ final class AiRouterService
         );
     }
 
-    private function openAiProvider(): ?OpenAI
+    private function openAiProvider(?string $modelOverride = null): ?OpenAI
     {
         $key = config('services.openai.api_key');
         if (! filled($key)) {
             return null;
         }
 
+        $model = $modelOverride ?? (string) config('services.openai.model');
+
         return new OpenAI(
             key: (string) $key,
-            model: (string) config('services.openai.model'),
+            model: $model,
             parameters: [],
             strict_response: false,
             httpClient: new GuzzleHttpClient([], (float) config('ai.openai_timeout', 60)),

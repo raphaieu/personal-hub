@@ -25,7 +25,7 @@ final class OllamaService
     /**
      * @param  array<string, mixed>  $extraParameters
      */
-    public function makeProvider(float $timeout, array $extraParameters = []): Ollama
+    public function makeProvider(float $timeout, array $extraParameters = [], ?string $modelOverride = null): Ollama
     {
         $think = (bool) config('services.ollama.think');
         $parameters = array_merge(
@@ -37,7 +37,7 @@ final class OllamaService
 
         return new Ollama(
             url: $this->apiBaseUrl(),
-            model: (string) config('services.ollama.model'),
+            model: $modelOverride ?? (string) config('services.ollama.model'),
             parameters: $parameters,
             httpClient: $http,
         );

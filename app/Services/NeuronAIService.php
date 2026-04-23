@@ -30,4 +30,27 @@ class NeuronAIService
             expectJson: $expectJson,
         );
     }
+
+    /**
+     * @param  list<array{data: string, mime: string}>  $images
+     *
+     * @see AiRouterService::completeDirect()
+     */
+    public function completeDirect(
+        string $providerKey,
+        string $model,
+        AiTask $task,
+        string $userPrompt,
+        ?string $systemPromptOverride = null,
+        array $images = [],
+    ): AiCompletionResult {
+        return $this->router->completeDirect(
+            providerKey: $providerKey,
+            model: $model,
+            task: $task,
+            userPrompt: $userPrompt,
+            systemPromptOverride: $systemPromptOverride,
+            images: $images,
+        );
+    }
 }
