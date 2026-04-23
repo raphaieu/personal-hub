@@ -8,6 +8,7 @@ const MAX_SCROLL_ROUNDS = Number(process.env.THREADS_MAX_SCROLL_ROUNDS || 120);
 const SCROLL_IDLE_ROUNDS = Number(process.env.THREADS_SCROLL_IDLE_ROUNDS || 6);
 const KNOWN_STREAK_STOP_DEFAULT = Number(process.env.THREADS_KNOWN_STREAK_STOP || 20);
 const DEBUG_DIR = process.env.THREADS_DEBUG_DIR || "/app/downloads/threads-debug";
+const SHUTDOWN_TIMEOUT_MS = Number(process.env.THREADS_SHUTDOWN_TIMEOUT_MS || 5000);
 
 function nowIso() {
   return new Date().toISOString();
@@ -320,8 +321,8 @@ export async function scrapeByUrl({ url }) {
       screenshot_path,
     };
   } finally {
-    await context.close();
-    await browser.close();
+    await safeCloseContext(context);
+    await safeCloseBrowser(browser);
   }
 }
 
@@ -517,7 +518,45 @@ export async function scrapeByKeyword({
       screenshot_path,
     };
   } finally {
-    await context.close();
-    await browser.close();
+    await safeCloseContext(context);
+    await safeCloseBrowser(browser);
+  }
+}
+
+async function safeCloseContext(context) {
+  if (!context) {
+    return;
+  }
+
+  try {
+    await Promise.race([
+      context.close(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Context close timeout")), SHUTDOWN_TIMEOUT_MS),
+      ),
+    ]);
+  } catch {
+    // Não propaga erro de shutdown para não travar o endpoint.
+  }
+}
+
+async function safeCloseBrowser(browser) {
+  if (!browser) {
+    return;
+  }
+
+  try {
+    await Promise.race([
+      browser.close(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Browser close timeout")), SHUTDOWN_TIMEOUT_MS),
+      ),
+    ]);
+  } catch {
+    try {
+      browser?.process()?.kill("SIGKILL");
+    } catch {
+      // fallback best-effort
+    }
   }
 }

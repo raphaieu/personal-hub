@@ -673,3 +673,16 @@ docker/
 - Cobertura mínima:
   - `tests/Feature/Threads/ThreadsHubPageTest.php` valida acesso autenticado e renderização da listagem de fontes.
 
+## Dashboard Threads (Fase 5.1 — Sources management inicial)
+
+- Componente `App\Livewire\Threads\HubPage` evoluído com ações de gestão de `threads_sources`:
+  - criação de source `keyword` ou `url`,
+  - alternância de status `is_active`,
+  - ação `scrape agora` para enfileirar o job compatível com o tipo.
+- Regras de enfileiramento:
+  - `keyword` -> `ScrapeThreadsKeywordJob` (`onlyNew=true`, `knownPostIds` da própria source, limite padrão via env),
+  - `url` -> `ScrapeThreadsUrlJob`.
+- UI de `Sources` inclui formulário de criação e botões de ação por linha (toggle/scrape).
+- Cobertura mínima:
+  - `tests/Feature/Threads/ThreadsHubPageTest.php` cobre criação, toggle e dispatch dos jobs por ação Livewire.
+

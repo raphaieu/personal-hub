@@ -13,6 +13,7 @@ const RANDOM_DELAY_MIN_MS = Number(process.env.THREADS_RANDOM_DELAY_MIN_MS || 25
 const RANDOM_DELAY_MAX_MS = Number(process.env.THREADS_RANDOM_DELAY_MAX_MS || 700);
 const DEFAULT_TIMEOUT_MS = Number(process.env.THREADS_STEP_TIMEOUT_MS || 30000);
 const DEBUG_DIR = process.env.THREADS_DEBUG_DIR || path.resolve(process.cwd(), "downloads/threads-debug");
+const SHUTDOWN_TIMEOUT_MS = Number(process.env.THREADS_SHUTDOWN_TIMEOUT_MS || 5000);
 
 function randomInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -193,8 +194,8 @@ export async function performThreadsLogin({ forceRelogin = false } = {}) {
       reused: false,
     };
   } finally {
-    await context.close();
-    await browser.close();
+    await safeCloseContext(context);
+    await safeCloseBrowser(browser);
   }
 }
 
@@ -214,4 +215,42 @@ export async function createAuthenticatedContext(browser) {
 
 export function getSessionPath() {
   return DEFAULT_SESSION_PATH;
+}
+
+async function safeCloseContext(context) {
+  if (!context) {
+    return;
+  }
+
+  try {
+    await Promise.race([
+      context.close(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Context close timeout")), SHUTDOWN_TIMEOUT_MS),
+      ),
+    ]);
+  } catch {
+    // Não propaga erro de shutdown para não bloquear a finalização da requisição.
+  }
+}
+
+async function safeCloseBrowser(browser) {
+  if (!browser) {
+    return;
+  }
+
+  try {
+    await Promise.race([
+      browser.close(),
+      new Promise((_, reject) =>
+        setTimeout(() => reject(new Error("Browser close timeout")), SHUTDOWN_TIMEOUT_MS),
+      ),
+    ]);
+  } catch {
+    try {
+      browser?.process()?.kill("SIGKILL");
+    } catch {
+      // Ignora falha de kill; objetivo é evitar travamento do fluxo HTTP.
+    }
+  }
 }
