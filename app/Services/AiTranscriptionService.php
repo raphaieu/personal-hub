@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\ServiceApiKeys;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -27,7 +28,7 @@ final class AiTranscriptionService
      */
     private function openai(UploadedFile $file): array
     {
-        $key = config('services.openai.api_key');
+        $key = ServiceApiKeys::openAi();
         if (! filled($key)) {
             return ['ok' => false, 'error' => 'OpenAI não configurado.'];
         }
@@ -47,7 +48,7 @@ final class AiTranscriptionService
             }
 
             $response = Http::timeout($timeout)
-                ->withToken((string) $key)
+                ->withToken($key)
                 ->attach(
                     'file',
                     $handle,
@@ -87,7 +88,7 @@ final class AiTranscriptionService
      */
     private function groq(UploadedFile $file): array
     {
-        $key = config('services.groq.api_key');
+        $key = ServiceApiKeys::groq();
         if (! filled($key)) {
             return ['ok' => false, 'error' => 'Groq não configurado.'];
         }
@@ -108,7 +109,7 @@ final class AiTranscriptionService
             }
 
             $response = Http::timeout($timeout)
-                ->withToken((string) $key)
+                ->withToken($key)
                 ->attach(
                     'file',
                     $handle,

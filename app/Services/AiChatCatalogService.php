@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\ServiceApiKeys;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -87,9 +88,9 @@ final class AiChatCatalogService
         }
 
         $hasKey = match ($provider) {
-            'groq' => filled(config('services.groq.api_key')),
-            'openai' => filled(config('services.openai.api_key')),
-            'anthropic' => filled(config('services.anthropic.api_key')),
+            'groq' => filled(ServiceApiKeys::groq()),
+            'openai' => filled(ServiceApiKeys::openAi()),
+            'anthropic' => filled(ServiceApiKeys::anthropic()),
             default => false,
         };
 
@@ -259,9 +260,9 @@ final class AiChatCatalogService
 
         foreach (['groq', 'anthropic', 'openai'] as $pid) {
             $configured = match ($pid) {
-                'groq' => filled(config('services.groq.api_key')),
-                'anthropic' => filled(config('services.anthropic.api_key')),
-                'openai' => filled(config('services.openai.api_key')),
+                'groq' => filled(ServiceApiKeys::groq()),
+                'anthropic' => filled(ServiceApiKeys::anthropic()),
+                'openai' => filled(ServiceApiKeys::openAi()),
                 default => false,
             };
 
@@ -327,12 +328,12 @@ final class AiChatCatalogService
         }
 
         $transcription = [
-            'openai' => filled(config('services.openai.api_key')),
-            'groq' => filled(config('services.groq.api_key')),
+            'openai' => filled(ServiceApiKeys::openAi()),
+            'groq' => filled(ServiceApiKeys::groq()),
         ];
 
         $imageGeneration = [
-            'openai' => filled(config('services.openai.api_key')),
+            'openai' => filled(ServiceApiKeys::openAi()),
         ];
 
         return [
@@ -357,7 +358,7 @@ final class AiChatCatalogService
      */
     private function fetchGroqModelIdsFromApi(): array
     {
-        $key = config('services.groq.api_key');
+        $key = ServiceApiKeys::groq();
         if (! filled($key)) {
             return [];
         }
@@ -368,7 +369,7 @@ final class AiChatCatalogService
 
         try {
             $response = Http::timeout($timeout)
-                ->withToken((string) $key)
+                ->withToken($key)
                 ->acceptJson()
                 ->get($url);
 
@@ -391,7 +392,7 @@ final class AiChatCatalogService
      */
     private function fetchOpenAiModelIdsFromApi(): array
     {
-        $key = config('services.openai.api_key');
+        $key = ServiceApiKeys::openAi();
         if (! filled($key)) {
             return [];
         }
@@ -400,7 +401,7 @@ final class AiChatCatalogService
 
         try {
             $response = Http::timeout($timeout)
-                ->withToken((string) $key)
+                ->withToken($key)
                 ->acceptJson()
                 ->get(self::OPENAI_MODELS_URL);
 
@@ -423,7 +424,7 @@ final class AiChatCatalogService
      */
     private function fetchAnthropicModelIdsFromApi(): array
     {
-        $key = config('services.anthropic.api_key');
+        $key = ServiceApiKeys::anthropic();
         if (! filled($key)) {
             return [];
         }
@@ -442,7 +443,7 @@ final class AiChatCatalogService
 
                 $response = Http::timeout($timeout)
                     ->withHeaders([
-                        'x-api-key' => (string) $key,
+                        'x-api-key' => $key,
                         'anthropic-version' => '2023-06-01',
                     ])
                     ->acceptJson()

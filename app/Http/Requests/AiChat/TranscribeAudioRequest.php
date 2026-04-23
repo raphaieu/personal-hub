@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\AiChat;
 
+use App\Support\ServiceApiKeys;
 use Illuminate\Contracts\Validation\Validator;
 use Illuminate\Foundation\Http\FormRequest;
 
@@ -27,10 +28,10 @@ class TranscribeAudioRequest extends FormRequest
     {
         $validator->after(function (Validator $validator): void {
             $engine = (string) $this->input('engine');
-            if ($engine === 'openai' && ! filled(config('services.openai.api_key'))) {
+            if ($engine === 'openai' && ! filled(ServiceApiKeys::openAi())) {
                 $validator->errors()->add('engine', 'OpenAI não configurado.');
             }
-            if ($engine === 'groq' && ! filled(config('services.groq.api_key'))) {
+            if ($engine === 'groq' && ! filled(ServiceApiKeys::groq())) {
                 $validator->errors()->add('engine', 'Groq não configurado.');
             }
         });

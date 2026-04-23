@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests\AiChat;
 
+use App\Support\ServiceApiKeys;
 use Illuminate\Foundation\Http\FormRequest;
 
 class GenerateImageRequest extends FormRequest
@@ -26,7 +27,7 @@ class GenerateImageRequest extends FormRequest
     public function withValidator($validator): void
     {
         $validator->after(function ($validator): void {
-            if (! filled(config('services.openai.api_key'))) {
+            if (! filled(ServiceApiKeys::openAi())) {
                 $validator->errors()->add('prompt', 'OpenAI não configurado para geração de imagens.');
             }
         });

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Data\AiCompletionResult;
 use App\Enums\AiTask;
+use App\Support\ServiceApiKeys;
 use Illuminate\Support\Facades\Log;
 use NeuronAI\Chat\Enums\MessageRole;
 use NeuronAI\Chat\Enums\SourceType;
@@ -362,7 +363,7 @@ final class AiRouterService
 
     private function groqProvider(?string $modelOverride = null): ?OpenAILike
     {
-        $key = config('services.groq.api_key');
+        $key = ServiceApiKeys::groq();
         if (! filled($key)) {
             return null;
         }
@@ -372,7 +373,7 @@ final class AiRouterService
 
         return new OpenAILike(
             baseUri: $baseUri,
-            key: (string) $key,
+            key: $key,
             model: $model,
             parameters: [],
             strict_response: false,
@@ -382,7 +383,7 @@ final class AiRouterService
 
     private function anthropicProvider(?string $modelOverride = null): ?Anthropic
     {
-        $key = config('services.anthropic.api_key');
+        $key = ServiceApiKeys::anthropic();
         if (! filled($key)) {
             return null;
         }
@@ -390,7 +391,7 @@ final class AiRouterService
         $model = $modelOverride ?? (string) config('services.anthropic.model');
 
         return new Anthropic(
-            key: (string) $key,
+            key: $key,
             model: $model,
             version: '2023-06-01',
             max_tokens: 8192,
@@ -401,7 +402,7 @@ final class AiRouterService
 
     private function openAiProvider(?string $modelOverride = null): ?OpenAI
     {
-        $key = config('services.openai.api_key');
+        $key = ServiceApiKeys::openAi();
         if (! filled($key)) {
             return null;
         }
@@ -409,7 +410,7 @@ final class AiRouterService
         $model = $modelOverride ?? (string) config('services.openai.model');
 
         return new OpenAI(
-            key: (string) $key,
+            key: $key,
             model: $model,
             parameters: [],
             strict_response: false,

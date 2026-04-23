@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\ServiceApiKeys;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -12,7 +13,7 @@ final class AiImageGenerationService
      */
     public function generate(string $prompt, ?string $size = null, ?string $responseFormat = null): array
     {
-        $key = config('services.openai.api_key');
+        $key = ServiceApiKeys::openAi();
         if (! filled($key)) {
             return ['ok' => false, 'error' => 'OpenAI não configurado.'];
         }
@@ -24,7 +25,7 @@ final class AiImageGenerationService
 
         try {
             $response = Http::timeout($timeout)
-                ->withToken((string) $key)
+                ->withToken($key)
                 ->acceptJson()
                 ->post('https://api.openai.com/v1/images/generations', [
                     'model' => $model,
