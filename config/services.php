@@ -111,4 +111,15 @@ return [
         'model' => env('OPENAI_MODEL', 'gpt-4o-mini'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | Playwright Threads scraper
+    |--------------------------------------------------------------------------
+    */
+
+    'playwright' => [
+        'url' => env('PLAYWRIGHT_SERVICE_URL', 'http://127.0.0.1:3001'),
+        'timeout' => env('PLAYWRIGHT_HTTP_TIMEOUT', 120),
+    ],
+
 ];
