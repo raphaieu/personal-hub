@@ -662,3 +662,14 @@ docker/
 - Layouts Blade base (`resources/views/layouts/app.blade.php` e `resources/views/layouts/guest.blade.php`) preparados com `@livewireStyles` e `@livewireScripts`.
 - Smoke test da instalação: `tests/Feature/Livewire/LivewireInstallationTest.php` valida disponibilidade do pacote Livewire no container da aplicação.
 
+## Dashboard Threads (Fase 4.2)
+
+- Rota autenticada inicial: `GET /hub/threads` (`threads.hub`) renderizada por `App\Livewire\Threads\HubPage`.
+- Navegação principal (desktop/mobile) atualizada com link para `Threads Hub`.
+- Primeira entrega da UI:
+  - abas `Sources`, `Review`, `Published` (estado em query string `?tab=`),
+  - tabela inicial de `threads_sources` (tipo, label, alvo, status, último scrape),
+  - placeholders de `Review`/`Published` para evolução nos próximos blocos.
+- Cobertura mínima:
+  - `tests/Feature/Threads/ThreadsHubPageTest.php` valida acesso autenticado e renderização da listagem de fontes.
+

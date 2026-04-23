@@ -18,6 +18,9 @@
                     <x-nav-link :href="route('chat')" :active="request()->routeIs('chat')">
                         {{ __('Chat IA') }}
                     </x-nav-link>
+                    <x-nav-link :href="route('threads.hub')" :active="request()->routeIs('threads.hub')">
+                        {{ __('Threads Hub') }}
+                    </x-nav-link>
                 </div>
             </div>
 
@@ -75,6 +78,9 @@
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('chat')" :active="request()->routeIs('chat')">
                 {{ __('Chat IA') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('threads.hub')" :active="request()->routeIs('threads.hub')">
+                {{ __('Threads Hub') }}
             </x-responsive-nav-link>
         </div>
 

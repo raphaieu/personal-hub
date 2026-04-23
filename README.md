@@ -256,7 +256,8 @@ Para webhooks e testes externos (mesmo stack em termos de comportamento; URL pú
 ### Dashboard Threads (fase frontend)
 
 - Fase 4.1 concluida: `livewire/livewire` (v4) instalado via Composer, layouts base (`app` e `guest`) preparados com `@livewireStyles`/`@livewireScripts` e smoke test de disponibilidade do pacote no container adicionado.
-- Proximo passo: Fase 4.2 (estrutura inicial do dashboard `/hub/threads` em commits pequenos).
+- Fase 4.2 concluida: estrutura inicial do dashboard em `/hub/threads` via componente Livewire (`App\Livewire\Threads\HubPage`) com abas `Sources/Review/Published`, tabela inicial de fontes e testes de acesso/render.
+- Proximo passo: Fase 4.3 (acoes de sources: CRUD/toggle/disparo "scrape agora").
 
 ### Médio Prazo
 
