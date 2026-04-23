@@ -279,7 +279,70 @@ final class ThreadsHubPageTest extends TestCase
             ->assertDontSee('outra categoria');
     }
 
-    private function makeComment(string $status = 'pending_review', ?int $sourceId = null): ThreadsComment
+    public function test_published_tab_lists_only_public_comments(): void
+    {
+        $user = User::factory()->create();
+        $secret = $this->makeComment(isPublic: false);
+        $secret->forceFill(['ai_summary' => 'SEC_UNIQ_NOT_SHOWN_IN_PUB'])->save();
+
+        $pub = $this->makeComment(isPublic: true);
+        $pub->forceFill(['ai_summary' => 'PUB_UNIQ_VISIBLE_IN_TAB'])->save();
+
+        $component = Livewire::actingAs($user)
+            ->test(HubPage::class)
+            ->set('currentTab', 'published');
+
+        $component->assertSet('publishedForms.'.$pub->id.'.ai_summary', 'PUB_UNIQ_VISIBLE_IN_TAB');
+
+        $this->assertArrayNotHasKey($secret->id, $component->instance()->publishedForms);
+
+        $component->assertDontSee('SEC_UNIQ_NOT_SHOWN_IN_PUB');
+    }
+
+    public function test_livewire_can_save_published_comment_quick_edit_fields(): void
+    {
+        $user = User::factory()->create();
+        $category = ThreadsCategory::query()->create([
+            'slug' => 'save-cat',
+            'name' => 'Save Cat',
+            'is_active' => true,
+        ]);
+        $comment = $this->makeComment(isPublic: true);
+        $comment->forceFill([
+            'ai_summary' => 'resumo antigo',
+            'threads_category_id' => null,
+            'is_featured' => false,
+        ])->save();
+
+        Livewire::actingAs($user)
+            ->test(HubPage::class)
+            ->set('currentTab', 'published')
+            ->set('publishedForms.'.$comment->id.'.ai_summary', 'resumo editado para o feed')
+            ->set('publishedForms.'.$comment->id.'.threads_category_id', (string) $category->id)
+            ->set('publishedForms.'.$comment->id.'.is_featured', true)
+            ->call('savePublishedComment', $comment->id)
+            ->assertHasNoErrors();
+
+        $fresh = $comment->fresh();
+        $this->assertSame('resumo editado para o feed', (string) $fresh?->ai_summary);
+        $this->assertSame($category->id, (int) $fresh?->threads_category_id);
+        $this->assertTrue((bool) $fresh?->is_featured);
+    }
+
+    public function test_livewire_can_unpublish_from_published_tab(): void
+    {
+        $user = User::factory()->create();
+        $comment = $this->makeComment(isPublic: true);
+
+        Livewire::actingAs($user)
+            ->test(HubPage::class)
+            ->set('currentTab', 'published')
+            ->call('unpublishPublishedComment', $comment->id);
+
+        $this->assertFalse((bool) $comment->fresh()?->is_public);
+    }
+
+    private function makeComment(string $status = 'pending_review', ?int $sourceId = null, bool $isPublic = false): ThreadsComment
     {
         $post = ThreadsPost::query()->create([
             'external_id' => uniqid('post-', true),
@@ -291,7 +354,7 @@ final class ThreadsHubPageTest extends TestCase
             'external_id' => uniqid('comment-', true),
             'content' => 'Comentário para review',
             'status' => $status,
-            'is_public' => false,
+            'is_public' => $isPublic,
         ]);
     }
 }

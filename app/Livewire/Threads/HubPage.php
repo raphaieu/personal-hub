@@ -33,6 +33,15 @@ final class HubPage extends Component
     #[Url(as: 'review_sort')]
     public string $reviewSort = 'relevance';
 
+    #[Url(as: 'pub_category')]
+    public string $publishedCategory = 'all';
+
+    #[Url(as: 'pub_source')]
+    public string $publishedSource = 'all';
+
+    #[Url(as: 'pub_sort')]
+    public string $publishedSort = 'score';
+
     public string $newSourceType = 'keyword';
 
     public string $newSourceLabel = '';
@@ -47,6 +56,13 @@ final class HubPage extends Component
 
     /** @var array<int> */
     public array $selectedReviewCommentIds = [];
+
+    /**
+     * Estado de edição rápida por comentário publicado (somente ids visíveis na lista).
+     *
+     * @var array<int, array{ai_summary: string, threads_category_id: string, is_featured: bool}>
+     */
+    public array $publishedForms = [];
 
     /**
      * @return array<string, mixed>
@@ -97,9 +113,45 @@ final class HubPage extends Component
             ->orderBy('name')
             ->get(['id', 'name']);
 
+        $publishedQuery = ThreadsComment::query()
+            ->where('is_public', true)
+            ->with(['post:id,post_url,threads_source_id', 'post.source:id,label', 'category:id,name'])
+            ->when($this->publishedCategory !== 'all', fn ($query) => $query->where('threads_category_id', (int) $this->publishedCategory))
+            ->when($this->publishedSource !== 'all', fn ($query) => $query
+                ->whereHas('post', fn ($postQuery) => $postQuery->where('threads_source_id', (int) $this->publishedSource)));
+
+        if ($this->publishedSort === 'newest') {
+            $publishedQuery->orderByDesc('updated_at')->orderByDesc('id');
+        } elseif ($this->publishedSort === 'relevance') {
+            $publishedQuery->orderByDesc('ai_relevance_score')->orderByDesc('id');
+        } else {
+            $publishedQuery->orderByDesc('score_total')->orderByDesc('id');
+        }
+
+        $publishedComments = $publishedQuery->limit(100)->get();
+
+        foreach ($publishedComments as $comment) {
+            $cid = $comment->id;
+            if (! array_key_exists($cid, $this->publishedForms)) {
+                $this->publishedForms[$cid] = [
+                    'ai_summary' => (string) ($comment->ai_summary ?? ''),
+                    'threads_category_id' => $comment->threads_category_id !== null ? (string) $comment->threads_category_id : '',
+                    'is_featured' => (bool) $comment->is_featured,
+                ];
+            }
+        }
+
         return [
             'sources' => $sources,
             'reviewComments' => $reviewComments,
+            'publishedComments' => $publishedComments,
+            'publishedCategoryOptions' => $reviewCategories,
+            'publishedSourceOptions' => $reviewSources,
+            'publishedSortOptions' => [
+                'score' => 'Score',
+                'newest' => 'Atualizado',
+                'relevance' => 'Relevancia IA',
+            ],
             'reviewSelectedCount' => count($this->selectedReviewCommentIds),
             'tabLabels' => [
                 'sources' => 'Sources',
@@ -180,6 +232,35 @@ final class HubPage extends Component
     {
         if (! in_array($value, ['relevance', 'newest', 'score'], true)) {
             $this->reviewSort = 'relevance';
+        }
+    }
+
+    public function updatedPublishedCategory(string $value): void
+    {
+        if ($value === 'all') {
+            return;
+        }
+
+        if (! ctype_digit($value)) {
+            $this->publishedCategory = 'all';
+        }
+    }
+
+    public function updatedPublishedSource(string $value): void
+    {
+        if ($value === 'all') {
+            return;
+        }
+
+        if (! ctype_digit($value)) {
+            $this->publishedSource = 'all';
+        }
+    }
+
+    public function updatedPublishedSort(string $value): void
+    {
+        if (! in_array($value, ['score', 'newest', 'relevance'], true)) {
+            $this->publishedSort = 'score';
         }
     }
 
@@ -359,6 +440,51 @@ final class HubPage extends Component
         $comment->forceFill(['is_public' => ! $comment->is_public])->save();
 
         session()->flash('threads_hub_notice', 'Visibilidade publica atualizada.');
+    }
+
+    public function savePublishedComment(int $commentId): void
+    {
+        ThreadsComment::query()->where('is_public', true)->findOrFail($commentId);
+
+        $this->validate([
+            "publishedForms.$commentId.ai_summary" => ['nullable', 'string', 'max:10000'],
+            "publishedForms.$commentId.is_featured" => ['boolean'],
+        ]);
+
+        $form = $this->publishedForms[$commentId] ?? null;
+        if ($form === null) {
+            return;
+        }
+
+        $categoryRaw = $form['threads_category_id'] ?? '';
+        $categoryId = ($categoryRaw === '' || $categoryRaw === null) ? null : (int) $categoryRaw;
+
+        if ($categoryId !== null && ! ThreadsCategory::query()->whereKey($categoryId)->exists()) {
+            $this->addError(
+                'publishedForms.'.$commentId.'.threads_category_id',
+                'Categoria invalida.'
+            );
+
+            return;
+        }
+
+        ThreadsComment::query()->whereKey($commentId)->where('is_public', true)->update([
+            'ai_summary' => filled($form['ai_summary'] ?? null) ? trim((string) $form['ai_summary']) : null,
+            'threads_category_id' => $categoryId,
+            'is_featured' => (bool) ($form['is_featured'] ?? false),
+        ]);
+
+        session()->flash('threads_hub_notice', 'Publicacao atualizada.');
+    }
+
+    public function unpublishPublishedComment(int $commentId): void
+    {
+        $comment = ThreadsComment::query()->where('is_public', true)->findOrFail($commentId);
+        $comment->forceFill(['is_public' => false])->save();
+
+        unset($this->publishedForms[$commentId]);
+
+        session()->flash('threads_hub_notice', 'Comentario despublicado.');
     }
 
     /**

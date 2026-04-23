@@ -260,7 +260,8 @@ Para webhooks e testes externos (mesmo stack em termos de comportamento; URL pú
 - Fase 5.1 concluida: gerenciamento inicial de sources no dashboard (`/hub/threads`) com criacao (keyword/url), toggle ativo/inativo e acao "scrape agora" enfileirando jobs adequados.
 - Ajuste de robustez no pipeline IA: classificacao agora roda 1 comentario por job (`ClassifyCommentsJob` com `commentId`), com espaco configuravel entre dispatches (`THREADS_AI_DISPATCH_SPACING_SECONDS`) e job auxiliar `DispatchPendingThreadsClassificationJob` para varrer pendentes.
 - Fase 5.2 consolidada (curadoria de Review): selecao multipla com acoes em lote (mover para review, ignorar, publicar, despublicar, reclassificar), filtros por status/categoria/source/sem resumo IA e ordenacao configuravel (relevancia, mais novo, score).
-- Proximo passo: consolidar visao `Published` com edicao rapida e metricas basicas.
+- Fase 5.3 concluida: aba `Published` no dashboard lista apenas `threads_comments.is_public=true`, com filtros por categoria/source, ordenacao (score, atualizado, relevancia IA), edicao rapida de `ai_summary`/categoria/`is_featured`, exibicao de `upvotes`/`downvotes`/`score_total` e acao de despublicar.
+- Proximo passo: feedback de fila/processamento de IA no Hub e pagina publica SSR (`/oportunidades`).
 
 ### Médio Prazo
 

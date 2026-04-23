@@ -726,3 +726,17 @@ docker/
   - score (`score_total`).
 - Cobertura mínima atualizada em `tests/Feature/Threads/ThreadsHubPageTest.php` para batch actions, filtros avançados e regressão de reclassificação manual em lote.
 
+## Dashboard Threads (Fase 5.3 — Published management)
+
+- Aba `Published` no `HubPage` lista comentários com `is_public=true` (limite de 100), com relacionamentos `post.source` e `category` para contexto operacional.
+- Query string:
+  - `pub_category` — filtro por `threads_category_id` (`all` ou id),
+  - `pub_source` — filtro por `threads_posts.threads_source_id` (`all` ou id),
+  - `pub_sort` — ordenação: `score` (`score_total`), `newest` (`updated_at`), `relevance` (`ai_relevance_score`).
+- Estado de edição rápida por linha em `publishedForms[commentId]` (`ai_summary`, `threads_category_id`, `is_featured`), inicializado ao renderizar itens visíveis.
+- Ações:
+  - `savePublishedComment` — persiste `ai_summary`, categoria e `is_featured` para comentário ainda publicado,
+  - `unpublishPublishedComment` — define `is_public=false` e remove o estado local da linha.
+- Métricas exibidas: `upvotes`, `downvotes`, `score_total` (campos já persistidos no modelo; recalculo por votos permanece no fluxo público futuro).
+- Cobertura mínima em `tests/Feature/Threads/ThreadsHubPageTest.php`: somente públicos na aba, save de campos rápidos e despublicar.
+
