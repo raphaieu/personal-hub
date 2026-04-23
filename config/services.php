@@ -124,6 +124,7 @@ return [
 
     'threads' => [
         'relevance_threshold' => (float) env('THREADS_RELEVANCE_THRESHOLD', 0.65),
+        'ai_dispatch_spacing_seconds' => (int) env('THREADS_AI_DISPATCH_SPACING_SECONDS', 30),
     ],
 
 ];

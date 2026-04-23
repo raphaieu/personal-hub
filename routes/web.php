@@ -3,6 +3,7 @@
 use App\Http\Controllers\AiChatController;
 use App\Http\Controllers\IaraController;
 use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ThreadsOpportunitiesController;
 use App\Http\Controllers\Webhook\WhatsAppWebhookController;
 use App\Livewire\Threads\HubPage as ThreadsHubPage;
 use Illuminate\Support\Facades\Route;
@@ -18,6 +19,8 @@ Route::post('/iara', IaraController::class)
 Route::get('/', function () {
     return view('welcome');
 });
+
+Route::get('/oportunidades', ThreadsOpportunitiesController::class)->name('threads.opportunities');
 
 Route::get('/dashboard', function () {
     return view('dashboard');

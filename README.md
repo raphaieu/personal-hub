@@ -261,7 +261,9 @@ Para webhooks e testes externos (mesmo stack em termos de comportamento; URL pú
 - Ajuste de robustez no pipeline IA: classificacao agora roda 1 comentario por job (`ClassifyCommentsJob` com `commentId`), com espaco configuravel entre dispatches (`THREADS_AI_DISPATCH_SPACING_SECONDS`) e job auxiliar `DispatchPendingThreadsClassificationJob` para varrer pendentes.
 - Fase 5.2 consolidada (curadoria de Review): selecao multipla com acoes em lote (mover para review, ignorar, publicar, despublicar, reclassificar), filtros por status/categoria/source/sem resumo IA e ordenacao configuravel (relevancia, mais novo, score).
 - Fase 5.3 concluida: aba `Published` no dashboard lista apenas `threads_comments.is_public=true`, com filtros por categoria/source, ordenacao (score, atualizado, relevancia IA), edicao rapida de `ai_summary`/categoria/`is_featured`, exibicao de `upvotes`/`downvotes`/`score_total` e acao de despublicar.
-- Proximo passo: feedback de fila/processamento de IA no Hub e pagina publica SSR (`/oportunidades`).
+- Polimento UX no Hub (IA + Review): contagem global de comentarios sem resumo IA (`ai_summary` nulo), estimativa do proximo disparo vs batch configurado, cadencia `THREADS_AI_DISPATCH_SPACING_SECONDS` via `config/services.php`, mensagem de flash ao enfileirar `DispatchPendingThreadsClassificationJob`; na aba Review, checkbox no cabecalho para selecionar/desmarcar todos os itens visiveis no filtro atual.
+- Pagina publica inicial: `GET /oportunidades` (`threads.opportunities`) SSR com listagem paginada somente de comentarios publicos, filtros busca/categoria/source e ordenacao (relevancia IA, votos, recente); layout dedicado `layouts.public`; cobertura em `tests/Feature/Threads/ThreadsOpportunitiesPageTest.php`.
+- Proximo passo: votacao anonima no feed publico + `RecalculateCommentScoreJob` em producao (dedupe por fingerprint).
 
 ### Médio Prazo
 

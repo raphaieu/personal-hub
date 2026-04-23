@@ -56,6 +56,13 @@
                         </div>
                     </div>
 
+                    <p class="mb-4 text-xs text-gray-600 leading-relaxed">
+                        <span class="font-medium text-gray-700">IA:</span>
+                        {{ $pendingClassificationCount }} comentario(s) sem resumo IA na base.
+                        Proximo disparo enfileira ate {{ $nextClassificationBatchEstimate }} job(s)
+                        (batch configurado: {{ $manualDispatchBatchSize }}, espaco ~{{ $aiDispatchSpacingSeconds }}s entre jobs na fila <code class="text-[11px] bg-gray-100 px-1 rounded">ai</code>).
+                    </p>
+
                     <form wire:submit="createSource" class="mb-6 grid grid-cols-1 gap-3 md:grid-cols-6">
                         <div>
                             <label class="block text-xs font-medium text-gray-600 mb-1">Tipo</label>
@@ -209,6 +216,11 @@
                             </div>
                         </div>
 
+                        <p class="text-xs text-gray-600 leading-relaxed">
+                            <span class="font-medium text-gray-700">IA (base inteira):</span>
+                            {{ $pendingClassificationCount }} sem resumo IA · espaco ~{{ $aiDispatchSpacingSeconds }}s entre jobs.
+                        </p>
+
                         <div class="flex flex-wrap items-center gap-2">
                             <span class="text-sm text-gray-600">{{ $reviewSelectedCount }} selecionado(s)</span>
                             <button
@@ -253,7 +265,17 @@
                         <table class="min-w-full divide-y divide-gray-200 text-sm">
                             <thead class="bg-gray-50">
                                 <tr>
-                                    <th class="px-3 py-2 text-left font-medium text-gray-600">Sel.</th>
+                                    <th class="px-3 py-2 text-left font-medium text-gray-600 w-10">
+                                        <label class="inline-flex items-center gap-1 cursor-pointer" title="Selecionar todos nesta pagina (filtro atual)">
+                                            <input
+                                                type="checkbox"
+                                                wire:click.prevent="toggleSelectAllReviewOnPage"
+                                                @checked($reviewAllVisibleSelected)
+                                                class="rounded border-gray-300 text-indigo-600"
+                                            >
+                                            <span class="sr-only">Selecionar todos</span>
+                                        </label>
+                                    </th>
                                     <th class="px-3 py-2 text-left font-medium text-gray-600">Comentario</th>
                                     <th class="px-3 py-2 text-left font-medium text-gray-600">Resumo IA</th>
                                     <th class="px-3 py-2 text-left font-medium text-gray-600">Relevancia</th>

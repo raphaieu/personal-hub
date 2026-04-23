@@ -161,6 +161,45 @@ final class ThreadsHubPageTest extends TestCase
         Bus::assertDispatched(DispatchPendingThreadsClassificationJob::class);
     }
 
+    public function test_dispatch_pending_classification_passes_batch_size_to_job(): void
+    {
+        Bus::fake();
+        $user = User::factory()->create();
+
+        $this->makeComment();
+        $this->makeComment();
+        $this->makeComment();
+
+        Livewire::actingAs($user)
+            ->test(HubPage::class)
+            ->set('manualDispatchBatchSize', 2)
+            ->call('dispatchPendingClassification');
+
+        Bus::assertDispatched(DispatchPendingThreadsClassificationJob::class, function (DispatchPendingThreadsClassificationJob $job): bool {
+            return $job->batchSize === 2;
+        });
+    }
+
+    public function test_review_select_all_selects_then_clears_visible_rows(): void
+    {
+        $user = User::factory()->create();
+        $commentA = $this->makeComment();
+        $commentB = $this->makeComment();
+
+        $component = Livewire::actingAs($user)
+            ->test(HubPage::class)
+            ->set('currentTab', 'review');
+
+        $component->call('toggleSelectAllReviewOnPage');
+        $this->assertEqualsCanonicalizing(
+            [$commentA->id, $commentB->id],
+            $component->instance()->selectedReviewCommentIds
+        );
+
+        $component->call('toggleSelectAllReviewOnPage');
+        $this->assertSame([], $component->instance()->selectedReviewCommentIds);
+    }
+
     public function test_livewire_can_move_ignored_comment_back_to_pending_review(): void
     {
         $user = User::factory()->create();

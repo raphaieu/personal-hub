@@ -740,3 +740,20 @@ docker/
 - Métricas exibidas: `upvotes`, `downvotes`, `score_total` (campos já persistidos no modelo; recalculo por votos permanece no fluxo público futuro).
 - Cobertura mínima em `tests/Feature/Threads/ThreadsHubPageTest.php`: somente públicos na aba, save de campos rápidos e despublicar.
 
+## Dashboard Threads — Polimento UX IA + seleção em massa (Review)
+
+- Contador global de comentários **sem classificação** alinhado ao job: `threads_comments.ai_summary IS NULL` (mesmo critério de `DispatchPendingThreadsClassificationJob` com `force=false`).
+- Exibição no Hub (abas Sources e Review) do total pendente, estimativa `min(batch configurado, pendentes)` para o próximo disparo e cadência da fila `ai` via `config('services.threads.ai_dispatch_spacing_seconds')` (`THREADS_AI_DISPATCH_SPACING_SECONDS` no `.env`).
+- Ao disparar classificação pendente, flash descreve quantos jobs foram enfileirados neste clique, batch, espaçamento e pendentes restantes estimados.
+- Aba Review: controle **selecionar todos nesta página** (mesmos filtros/ordenação da tabela, limite 100), método `toggleSelectAllReviewOnPage`.
+- Testes em `tests/Feature/Threads/ThreadsHubPageTest.php` para batch size do job e toggle de seleção.
+
+## Página pública Oportunidades (Fase 6 — listagem SSR inicial)
+
+- Rota pública: `GET /oportunidades`, nome `threads.opportunities` (sem autenticação).
+- Controller invokável `App\Http\Controllers\ThreadsOpportunitiesController`: lista apenas `threads_comments` com `is_public=true`, com `category`, `post` e `post.source`.
+- Query string suportada: `q` (busca em `ai_summary` e `content`, `LIKE` compatível com SQLite em testes), `category` (id), `source` (id da `threads_sources` via post), `sort` (`relevance` | `votes` | `newest`).
+- Paginação: 20 itens por página; ordenação padrão por `ai_relevance_score` descendente.
+- Views: `resources/views/threads/opportunities.blade.php` estendendo `layouts.public` (header mínimo, link Entrar/Dashboard conforme sessão).
+- Cobertura: `tests/Feature/Threads/ThreadsOpportunitiesPageTest.php`.
+

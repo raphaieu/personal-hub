@@ -9,6 +9,7 @@ use App\Jobs\ScrapeThreadsUrlJob;
 use App\Models\ThreadsCategory;
 use App\Models\ThreadsComment;
 use App\Models\ThreadsSource;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -81,29 +82,21 @@ final class HubPage extends Component
                 'last_scraped_at',
             ]);
 
-        $reviewCommentsQuery = ThreadsComment::query()
-            ->with(['post:id,post_url,threads_source_id', 'post.source:id,label', 'category:id,name'])
-            ->orderByRaw('CASE WHEN status = ? THEN 0 WHEN status = ? THEN 1 ELSE 2 END', ['pending_review', 'ignored'])
-            ->when($this->reviewStatus !== 'all', fn ($query) => $query->where('status', $this->reviewStatus))
-            ->when($this->reviewCategory !== 'all', fn ($query) => $query->where('threads_category_id', (int) $this->reviewCategory))
-            ->when($this->reviewSource !== 'all', fn ($query) => $query
-                ->whereHas('post', fn ($postQuery) => $postQuery->where('threads_source_id', (int) $this->reviewSource)))
-            ->when($this->reviewWithoutSummary, fn ($query) => $query->whereNull('ai_summary'));
-
-        if ($this->reviewSort === 'newest') {
-            $reviewCommentsQuery->orderByDesc('created_at')->orderByDesc('id');
-        } elseif ($this->reviewSort === 'score') {
-            $reviewCommentsQuery->orderByDesc('score_total')->orderByDesc('id');
-        } else {
-            $reviewCommentsQuery->orderByDesc('ai_relevance_score')->orderByDesc('id');
-        }
-
-        $reviewComments = $reviewCommentsQuery->limit(100)->get();
+        $reviewComments = $this->reviewCommentsQuery()->limit(100)->get();
         $reviewCommentIdsOnScreen = $reviewComments->pluck('id')->map(static fn ($id): int => (int) $id)->all();
         $this->selectedReviewCommentIds = array_values(array_map(
             'intval',
             array_intersect($this->selectedReviewCommentIds, $reviewCommentIdsOnScreen)
         ));
+
+        $sortedVisible = $reviewCommentIdsOnScreen;
+        sort($sortedVisible);
+        $sortedSelected = $this->normalizedSelectedReviewCommentIds();
+        sort($sortedSelected);
+        $reviewAllVisibleSelected = count($sortedVisible) > 0 && $sortedVisible === $sortedSelected;
+
+        $pendingClassificationCount = ThreadsComment::query()->whereNull('ai_summary')->count();
+        $aiDispatchSpacingSeconds = (int) config('services.threads.ai_dispatch_spacing_seconds', 30);
 
         $reviewSources = ThreadsSource::query()
             ->orderBy('label')
@@ -153,6 +146,10 @@ final class HubPage extends Component
                 'relevance' => 'Relevancia IA',
             ],
             'reviewSelectedCount' => count($this->selectedReviewCommentIds),
+            'reviewAllVisibleSelected' => $reviewAllVisibleSelected,
+            'pendingClassificationCount' => $pendingClassificationCount,
+            'nextClassificationBatchEstimate' => min(max(1, min(200, (int) $this->manualDispatchBatchSize)), max(0, $pendingClassificationCount)),
+            'aiDispatchSpacingSeconds' => $aiDispatchSpacingSeconds,
             'tabLabels' => [
                 'sources' => 'Sources',
                 'review' => 'Review',
@@ -350,14 +347,44 @@ final class HubPage extends Component
     public function dispatchPendingClassification(): void
     {
         $batchSize = max(1, min(200, (int) $this->manualDispatchBatchSize));
+        $spacing = (int) config('services.threads.ai_dispatch_spacing_seconds', 30);
+        $pending = ThreadsComment::query()->whereNull('ai_summary')->count();
+        $queued = min($batchSize, $pending);
 
         DispatchPendingThreadsClassificationJob::dispatch(
             batchSize: $batchSize,
-            spacingSeconds: (int) env('THREADS_AI_DISPATCH_SPACING_SECONDS', 30),
+            spacingSeconds: $spacing,
             force: false,
         );
 
-        session()->flash('threads_hub_notice', "Classificacao pendente enfileirada (batch: {$batchSize}).");
+        $remaining = max(0, $pending - $queued);
+
+        session()->flash(
+            'threads_hub_notice',
+            $pending < 1
+                ? 'Nenhum comentario pendente de classificacao (sem resumo IA).'
+                : "Fila IA: {$queued} classificacao(oes) enfileirada(s) neste disparo (batch {$batchSize}, espaco {$spacing}s). Pendente na base: {$pending}. Estimativa apos este disparo: {$remaining} restante(s)."
+        );
+    }
+
+    public function toggleSelectAllReviewOnPage(): void
+    {
+        $visibleIds = $this->reviewCommentsQuery()
+            ->limit(100)
+            ->pluck('id')
+            ->map(static fn ($id): int => (int) $id)
+            ->sort()
+            ->values()
+            ->all();
+
+        $current = $this->normalizedSelectedReviewCommentIds();
+        sort($current);
+
+        if ($visibleIds === $current && count($visibleIds) > 0) {
+            $this->selectedReviewCommentIds = [];
+        } else {
+            $this->selectedReviewCommentIds = $visibleIds;
+        }
     }
 
     public function reclassifyComment(int $commentId): void
@@ -505,6 +532,33 @@ final class HubPage extends Component
         }
 
         return "{$affected} {$suffix}";
+    }
+
+    /**
+     * Lista de review com os mesmos filtros/ordenacao da tabela (sem limite).
+     *
+     * @return Builder<ThreadsComment>
+     */
+    private function reviewCommentsQuery(): Builder
+    {
+        $query = ThreadsComment::query()
+            ->with(['post:id,post_url,threads_source_id', 'post.source:id,label', 'category:id,name'])
+            ->orderByRaw('CASE WHEN status = ? THEN 0 WHEN status = ? THEN 1 ELSE 2 END', ['pending_review', 'ignored'])
+            ->when($this->reviewStatus !== 'all', fn ($q) => $q->where('status', $this->reviewStatus))
+            ->when($this->reviewCategory !== 'all', fn ($q) => $q->where('threads_category_id', (int) $this->reviewCategory))
+            ->when($this->reviewSource !== 'all', fn ($q) => $q
+                ->whereHas('post', fn ($postQuery) => $postQuery->where('threads_source_id', (int) $this->reviewSource)))
+            ->when($this->reviewWithoutSummary, fn ($q) => $q->whereNull('ai_summary'));
+
+        if ($this->reviewSort === 'newest') {
+            $query->orderByDesc('created_at')->orderByDesc('id');
+        } elseif ($this->reviewSort === 'score') {
+            $query->orderByDesc('score_total')->orderByDesc('id');
+        } else {
+            $query->orderByDesc('ai_relevance_score')->orderByDesc('id');
+        }
+
+        return $query;
     }
 
     public function render()
