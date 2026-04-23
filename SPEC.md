@@ -654,3 +654,11 @@ docker/
     deploy.yml
 ```
 
+---
+
+## Livewire (Fase 4.1)
+
+- Pacote instalado: `livewire/livewire` v4.
+- Layouts Blade base (`resources/views/layouts/app.blade.php` e `resources/views/layouts/guest.blade.php`) preparados com `@livewireStyles` e `@livewireScripts`.
+- Smoke test da instalação: `tests/Feature/Livewire/LivewireInstallationTest.php` valida disponibilidade do pacote Livewire no container da aplicação.
+

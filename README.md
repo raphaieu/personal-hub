@@ -253,6 +253,11 @@ Para webhooks e testes externos (mesmo stack em termos de comportamento; URL pú
 - Fase 3.2 concluida no Laravel: classificacao IA com `ThreadsClassificationService`, job `ClassifyCommentsJob` na fila `ai`, regra de corte `THREADS_RELEVANCE_THRESHOLD` (`ignored` abaixo / `pending_review` acima) e disparo automatico de classificacao apos ingestao de comentarios.
 - Proximo passo: Fase 4 (orquestracao por scheduler/gatilhos de sources).
 
+### Dashboard Threads (fase frontend)
+
+- Fase 4.1 concluida: `livewire/livewire` (v4) instalado via Composer, layouts base (`app` e `guest`) preparados com `@livewireStyles`/`@livewireScripts` e smoke test de disponibilidade do pacote no container adicionado.
+- Proximo passo: Fase 4.2 (estrutura inicial do dashboard `/hub/threads` em commits pequenos).
+
 ### Médio Prazo
 
 * inbox pessoal inteligente
