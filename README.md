@@ -246,7 +246,10 @@ Para webhooks e testes externos (mesmo stack em termos de comportamento; URL pú
 
 - Fase 0 concluída no serviço `playwright/`: login com sessão persistida (`storageState`), scrape por URL e por keyword.
 - Modo keyword otimizado para descoberta de posts (`include_comments=false` por padrão), com dedupe opcional no scraper (`known_post_ids`, `only_new`, `known_streak_stop`).
-- Próximo passo: integração Laravel (schema `threads_*`, jobs, classificação IA e dashboard de curadoria).
+- Fase 1 concluída no Laravel: schema `threads_*` (`threads_sources`, `threads_posts`, `threads_comments`, `threads_comment_votes`, `threads_categories`), models e seed inicial de categorias.
+- Fase 2 concluída no Laravel: contrato mockavel `ThreadsScraperClientInterface` com implementação HTTP (`ThreadsPlaywrightService`) e fake (`FakeThreadsScraperClient`) para testes sem acoplamento ao container Node.
+- Cobertura de regressao da integracao em `tests/Feature/Threads/ThreadsScraperClientTest.php`.
+- Proximo passo: Fase 3 (jobs de scraping/classificacao IA + threshold de relevancia + orquestracao por filas).
 
 ### Médio Prazo
 

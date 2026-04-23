@@ -331,7 +331,7 @@ Servidor HTTP Node.js rodando na porta `3001` (interno à rede Docker).
 
 ---
 
-## Playwright Threads (Fase 0 concluída)
+## Playwright Threads (Fases 0, 1 e 2)
 
 Implementação inicial do serviço em `playwright/` para scraping autenticado do Threads com sessão persistida e contrato HTTP para integração com Laravel.
 
@@ -408,6 +408,21 @@ Response (campos relevantes):
 - Em dev, recomendado `PLAYWRIGHT_HEADLESS=false` para depuração de login/seletores.
 - Para reduzir ruído/custo no pipeline, `keyword` deve operar em `posts-only`; comentários ficam para coletas por URL específica ou investigação pontual.
 - A deduplicação final continua obrigatória no Laravel por `external_id` único.
+
+### Integração Laravel (Fase 1 e Fase 2 concluídas)
+
+- **Fase 1 (dados/domínio)**:
+  - Migrations criadas: `threads_sources`, `threads_categories`, `threads_posts`, `threads_comments`, `threads_comment_votes`.
+  - Models criados: `ThreadsSource`, `ThreadsCategory`, `ThreadsPost`, `ThreadsComment`, `ThreadsCommentVote`.
+  - Seed base: `ThreadsCategorySeeder` integrado ao `DatabaseSeeder`.
+- **Fase 2 (contrato mockável + cliente HTTP)**:
+  - Contrato: `App\Contracts\ThreadsScraperClientInterface`.
+  - Implementação real: `App\Services\Threads\ThreadsPlaywrightService`.
+  - Implementação fake para testes: `App\Services\Threads\FakeThreadsScraperClient`.
+  - Bind de container em `AppServiceProvider` para desacoplar jobs da runtime Node/Playwright.
+  - Config dedicada: `services.playwright.url` e `services.playwright.timeout` (`PLAYWRIGHT_HTTP_TIMEOUT`).
+- **Cobertura automática mínima da integração**:
+  - `tests/Feature/Threads/ThreadsScraperClientTest.php` cobre resolução da interface, normalização de payload, tratamento de erro HTTP e comportamento do fake.
 
 ---
 
