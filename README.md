@@ -240,6 +240,13 @@ Para webhooks e testes externos (mesmo stack em termos de comportamento; URL pú
 * scraping confiável
 * lembretes automáticos
 * painel útil no dia a dia
+* threads-classificados: Playwright autenticado + contrato HTTP (`/threads/auth/login`, `/threads/scrape-url`, `/threads/scrape-keyword`)
+
+### Threads Classificados (status atual)
+
+- Fase 0 concluída no serviço `playwright/`: login com sessão persistida (`storageState`), scrape por URL e por keyword.
+- Modo keyword otimizado para descoberta de posts (`include_comments=false` por padrão), com dedupe opcional no scraper (`known_post_ids`, `only_new`, `known_streak_stop`).
+- Próximo passo: integração Laravel (schema `threads_*`, jobs, classificação IA e dashboard de curadoria).
 
 ### Médio Prazo
 

@@ -331,6 +331,86 @@ Servidor HTTP Node.js rodando na porta `3001` (interno à rede Docker).
 
 ---
 
+## Playwright Threads (Fase 0 concluída)
+
+Implementação inicial do serviço em `playwright/` para scraping autenticado do Threads com sessão persistida e contrato HTTP para integração com Laravel.
+
+### Endpoints Threads
+
+- `GET /health`
+  - Retorna `status`, `session_ready`, `session_path`.
+- `POST /threads/auth/login`
+  - Body: `{ "force_relogin": false }`
+  - Faz login com `THREADS_USERNAME`/`THREADS_PASSWORD` e persiste `storageState`.
+- `POST /threads/scrape-url`
+  - Body: `{ "url": "https://www.threads.com/@handle/post/..." }`
+  - Retorna post + comentários do thread, com scroll adaptativo e acumulação incremental (mitiga virtualização de DOM).
+- `POST /threads/scrape-keyword`
+  - Body mínimo: `{ "keyword": "freelance remoto php", "max_posts": 30 }`
+  - Padrão: `include_comments=false` (modo recomendado para descoberta de posts de vaga/freela).
+  - Suporta dedupe no próprio scraper: `known_post_ids`, `only_new`, `known_streak_stop`.
+
+### Contrato de keyword para Laravel
+
+Request (recomendado para jobs agendados):
+
+```json
+{
+  "keyword": "freelance remoto php",
+  "max_posts": 30,
+  "include_comments": false,
+  "only_new": true,
+  "known_post_ids": ["DXaaS6-igb9", "DXATKvACX6e"],
+  "known_streak_stop": 20
+}
+```
+
+Response (campos relevantes):
+
+```json
+{
+  "success": true,
+  "mode": "keyword",
+  "include_comments": false,
+  "only_new": true,
+  "data": {
+    "posts": [
+      {
+        "post": {
+          "external_id": "DXaaS6-igb9",
+          "author_handle": "@rebekahyurll",
+          "content": "..."
+        },
+        "is_known": false
+      }
+    ],
+    "stats": {
+      "posts_detected": 30,
+      "posts_selected": 30,
+      "posts_processed": 18,
+      "known_detected": 12,
+      "new_detected": 18,
+      "skipped_known": 12,
+      "early_stop_triggered": true,
+      "known_streak_stop": 20,
+      "comments_total": 0
+    }
+  }
+}
+```
+
+### Variáveis Threads usadas pelo serviço
+
+`PLAYWRIGHT_SERVICE_URL`, `THREADS_USERNAME`, `THREADS_PASSWORD`, `THREADS_SESSION_PATH`, `THREADS_MAX_POSTS_PER_KEYWORD`, `THREADS_STEP_TIMEOUT_MS`, `THREADS_RANDOM_DELAY_MIN_MS`, `THREADS_RANDOM_DELAY_MAX_MS`, `THREADS_MAX_SCROLL_ROUNDS`, `THREADS_SCROLL_IDLE_ROUNDS`, `THREADS_KNOWN_STREAK_STOP`, `THREADS_DEBUG_DIR`.
+
+### Observações de operação
+
+- Em dev, recomendado `PLAYWRIGHT_HEADLESS=false` para depuração de login/seletores.
+- Para reduzir ruído/custo no pipeline, `keyword` deve operar em `posts-only`; comentários ficam para coletas por URL específica ou investigação pontual.
+- A deduplicação final continua obrigatória no Laravel por `external_id` único.
+
+---
+
 ## Fluxo Embasa (mapeado)
 
 ```
