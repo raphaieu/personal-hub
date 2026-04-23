@@ -26,13 +26,13 @@
             </div>
 
             <div class="bg-white shadow-sm sm:rounded-lg p-4 sm:p-6">
-                @if ($currentTab === 'sources')
-                    @if (session('threads_hub_notice'))
-                        <div class="mb-4 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-700">
-                            {{ session('threads_hub_notice') }}
-                        </div>
-                    @endif
+                @if (session('threads_hub_notice'))
+                    <div class="mb-4 rounded-md border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-700">
+                        {{ session('threads_hub_notice') }}
+                    </div>
+                @endif
 
+                @if ($currentTab === 'sources')
                     <div class="flex items-center justify-between mb-4">
                         <h3 class="text-lg font-semibold text-gray-900">Sources</h3>
                         <div class="flex items-center gap-3">
@@ -159,15 +159,93 @@
                         </table>
                     </div>
                 @elseif ($currentTab === 'review')
-                    <div class="flex items-center justify-between mb-4">
-                        <h3 class="text-lg font-semibold text-gray-900">Review</h3>
-                        <div class="flex items-center gap-2">
-                            <label class="text-sm text-gray-600">Status</label>
-                            <select wire:model.live="reviewStatus" class="rounded-md border-gray-300 text-sm">
-                                @foreach ($reviewStatusOptions as $key => $label)
-                                    <option value="{{ $key }}">{{ $label }}</option>
-                                @endforeach
-                            </select>
+                    <div class="space-y-4 mb-4">
+                        <div class="flex flex-wrap items-center justify-between gap-3">
+                            <h3 class="text-lg font-semibold text-gray-900">Review</h3>
+                            <span class="text-sm text-gray-500">{{ $reviewComments->count() }} itens no filtro</span>
+                        </div>
+
+                        <div class="grid grid-cols-1 gap-3 md:grid-cols-5">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Status</label>
+                                <select wire:model.live="reviewStatus" class="w-full rounded-md border-gray-300 text-sm">
+                                    @foreach ($reviewStatusOptions as $key => $label)
+                                        <option value="{{ $key }}">{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Categoria</label>
+                                <select wire:model.live="reviewCategory" class="w-full rounded-md border-gray-300 text-sm">
+                                    <option value="all">Todas</option>
+                                    @foreach ($reviewCategoryOptions as $category)
+                                        <option value="{{ $category->id }}">{{ $category->name }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Source</label>
+                                <select wire:model.live="reviewSource" class="w-full rounded-md border-gray-300 text-sm">
+                                    <option value="all">Todas</option>
+                                    @foreach ($reviewSourceOptions as $source)
+                                        <option value="{{ $source->id }}">{{ $source->label }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Resumo IA</label>
+                                <select wire:model.live="reviewWithoutSummary" class="w-full rounded-md border-gray-300 text-sm">
+                                    <option value="0">Todos</option>
+                                    <option value="1">Sem resumo IA</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-600 mb-1">Ordenar por</label>
+                                <select wire:model.live="reviewSort" class="w-full rounded-md border-gray-300 text-sm">
+                                    @foreach ($reviewSortOptions as $key => $label)
+                                        <option value="{{ $key }}">{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                        </div>
+
+                        <div class="flex flex-wrap items-center gap-2">
+                            <span class="text-sm text-gray-600">{{ $reviewSelectedCount }} selecionado(s)</span>
+                            <button
+                                type="button"
+                                wire:click="batchMoveSelectedToPendingReview"
+                                class="inline-flex items-center rounded-md bg-emerald-100 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-200"
+                            >
+                                Mover p/ review
+                            </button>
+                            <button
+                                type="button"
+                                wire:click="batchIgnoreSelected"
+                                class="inline-flex items-center rounded-md bg-amber-100 px-2.5 py-1.5 text-xs font-medium text-amber-700 hover:bg-amber-200"
+                            >
+                                Ignorar
+                            </button>
+                            <button
+                                type="button"
+                                wire:click="batchPublishSelected"
+                                class="inline-flex items-center rounded-md bg-indigo-100 px-2.5 py-1.5 text-xs font-medium text-indigo-700 hover:bg-indigo-200"
+                            >
+                                Publicar
+                            </button>
+                            <button
+                                type="button"
+                                wire:click="batchUnpublishSelected"
+                                class="inline-flex items-center rounded-md bg-gray-100 px-2.5 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200"
+                            >
+                                Despublicar
+                            </button>
+                            <button
+                                type="button"
+                                wire:click="batchReclassifySelected"
+                                class="inline-flex items-center rounded-md bg-violet-100 px-2.5 py-1.5 text-xs font-medium text-violet-700 hover:bg-violet-200"
+                            >
+                                Reclassificar
+                            </button>
                         </div>
                     </div>
 
@@ -175,6 +253,7 @@
                         <table class="min-w-full divide-y divide-gray-200 text-sm">
                             <thead class="bg-gray-50">
                                 <tr>
+                                    <th class="px-3 py-2 text-left font-medium text-gray-600">Sel.</th>
                                     <th class="px-3 py-2 text-left font-medium text-gray-600">Comentario</th>
                                     <th class="px-3 py-2 text-left font-medium text-gray-600">Resumo IA</th>
                                     <th class="px-3 py-2 text-left font-medium text-gray-600">Relevancia</th>
@@ -186,6 +265,14 @@
                             <tbody class="divide-y divide-gray-100">
                                 @forelse ($reviewComments as $comment)
                                     <tr @class(['bg-amber-50/40' => $comment->status === 'ignored'])>
+                                        <td class="px-3 py-2">
+                                            <input
+                                                type="checkbox"
+                                                wire:model.live="selectedReviewCommentIds"
+                                                value="{{ $comment->id }}"
+                                                class="rounded border-gray-300 text-indigo-600"
+                                            >
+                                        </td>
                                         <td class="px-3 py-2 text-gray-700">
                                             <div class="max-w-md truncate">{{ $comment->content ?: '-' }}</div>
                                             <div class="text-xs text-gray-500 mt-1">
@@ -258,7 +345,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="6" class="px-3 py-6 text-center text-gray-500">
+                                        <td colspan="7" class="px-3 py-6 text-center text-gray-500">
                                             Nenhum comentario para review neste filtro.
                                         </td>
                                     </tr>

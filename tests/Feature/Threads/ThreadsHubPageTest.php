@@ -2,10 +2,12 @@
 
 namespace Tests\Feature\Threads;
 
+use App\Jobs\ClassifyCommentsJob;
+use App\Jobs\DispatchPendingThreadsClassificationJob;
 use App\Jobs\ScrapeThreadsKeywordJob;
 use App\Jobs\ScrapeThreadsUrlJob;
-use App\Jobs\DispatchPendingThreadsClassificationJob;
 use App\Livewire\Threads\HubPage;
+use App\Models\ThreadsCategory;
 use App\Models\ThreadsComment;
 use App\Models\ThreadsPost;
 use App\Models\ThreadsSource;
@@ -183,10 +185,105 @@ final class ThreadsHubPageTest extends TestCase
         $this->assertTrue((bool) $comment->fresh()?->is_public);
     }
 
-    private function makeComment(string $status = 'pending_review'): ThreadsComment
+    public function test_livewire_batch_actions_update_selected_comments(): void
+    {
+        $user = User::factory()->create();
+        $commentA = $this->makeComment(status: 'pending_review');
+        $commentB = $this->makeComment(status: 'pending_review');
+
+        Livewire::actingAs($user)
+            ->test(HubPage::class)
+            ->set('selectedReviewCommentIds', [$commentA->id, $commentB->id])
+            ->call('batchIgnoreSelected');
+
+        $this->assertSame('ignored', (string) $commentA->fresh()?->status);
+        $this->assertSame('ignored', (string) $commentB->fresh()?->status);
+
+        Livewire::actingAs($user)
+            ->test(HubPage::class)
+            ->set('selectedReviewCommentIds', [$commentA->id, $commentB->id])
+            ->call('batchPublishSelected');
+
+        $this->assertTrue((bool) $commentA->fresh()?->is_public);
+        $this->assertTrue((bool) $commentB->fresh()?->is_public);
+    }
+
+    public function test_livewire_batch_reclassify_dispatches_one_job_per_selected_comment(): void
+    {
+        Bus::fake();
+        $user = User::factory()->create();
+        $commentA = $this->makeComment(status: 'pending_review');
+        $commentB = $this->makeComment(status: 'ignored');
+
+        Livewire::actingAs($user)
+            ->test(HubPage::class)
+            ->set('selectedReviewCommentIds', [$commentA->id, $commentB->id])
+            ->call('batchReclassifySelected');
+
+        Bus::assertDispatchedTimes(ClassifyCommentsJob::class, 2);
+        Bus::assertDispatched(ClassifyCommentsJob::class, function (ClassifyCommentsJob $job) use ($commentA): bool {
+            return $job->commentId === $commentA->id && $job->force === true;
+        });
+        Bus::assertDispatched(ClassifyCommentsJob::class, function (ClassifyCommentsJob $job) use ($commentB): bool {
+            return $job->commentId === $commentB->id && $job->force === true;
+        });
+    }
+
+    public function test_livewire_review_filters_can_limit_without_summary_by_source_and_category(): void
+    {
+        $user = User::factory()->create();
+        $sourceA = ThreadsSource::query()->create([
+            'type' => 'keyword',
+            'label' => 'Source A',
+            'keyword' => 'a',
+            'is_active' => true,
+        ]);
+        $sourceB = ThreadsSource::query()->create([
+            'type' => 'keyword',
+            'label' => 'Source B',
+            'keyword' => 'b',
+            'is_active' => true,
+        ]);
+        $categoryA = ThreadsCategory::query()->create([
+            'slug' => 'freela',
+            'name' => 'Freela',
+            'is_active' => true,
+        ]);
+        $categoryB = ThreadsCategory::query()->create([
+            'slug' => 'outros',
+            'name' => 'Outros',
+            'is_active' => true,
+        ]);
+
+        $target = $this->makeComment(status: 'pending_review', sourceId: $sourceA->id);
+        $target->forceFill(['content' => 'match sem resumo', 'threads_category_id' => $categoryA->id, 'ai_summary' => null])->save();
+
+        $excludedWithSummary = $this->makeComment(status: 'pending_review', sourceId: $sourceA->id);
+        $excludedWithSummary->forceFill(['content' => 'tem resumo', 'threads_category_id' => $categoryA->id, 'ai_summary' => 'ok'])->save();
+
+        $excludedOtherSource = $this->makeComment(status: 'pending_review', sourceId: $sourceB->id);
+        $excludedOtherSource->forceFill(['content' => 'outra source', 'threads_category_id' => $categoryA->id, 'ai_summary' => null])->save();
+
+        $excludedOtherCategory = $this->makeComment(status: 'pending_review', sourceId: $sourceA->id);
+        $excludedOtherCategory->forceFill(['content' => 'outra categoria', 'threads_category_id' => $categoryB->id, 'ai_summary' => null])->save();
+
+        Livewire::actingAs($user)
+            ->test(HubPage::class)
+            ->set('currentTab', 'review')
+            ->set('reviewWithoutSummary', true)
+            ->set('reviewSource', (string) $sourceA->id)
+            ->set('reviewCategory', (string) $categoryA->id)
+            ->assertSee('match sem resumo')
+            ->assertDontSee('tem resumo')
+            ->assertDontSee('outra source')
+            ->assertDontSee('outra categoria');
+    }
+
+    private function makeComment(string $status = 'pending_review', ?int $sourceId = null): ThreadsComment
     {
         $post = ThreadsPost::query()->create([
             'external_id' => uniqid('post-', true),
+            'threads_source_id' => $sourceId,
         ]);
 
         return ThreadsComment::query()->create([

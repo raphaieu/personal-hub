@@ -706,3 +706,23 @@ docker/
 - Operação manual de backlog:
   - botão para `dispatchPendingClassification` (enfileira `DispatchPendingThreadsClassificationJob` com batch size configurável na tela).
 
+## Dashboard Threads (Fase 5.2 — Review curation consolidada)
+
+- A aba `Review` passa a suportar **curadoria em lote** com seleção múltipla de comentários (`selectedReviewCommentIds`).
+- Ações batch disponíveis no `HubPage`:
+  - `batchMoveSelectedToPendingReview`,
+  - `batchIgnoreSelected`,
+  - `batchPublishSelected`,
+  - `batchUnpublishSelected`,
+  - `batchReclassifySelected` (1 `ClassifyCommentsJob` com `force=true` por comentário selecionado).
+- Filtros adicionais de produtividade:
+  - `status`,
+  - `categoria`,
+  - `source`,
+  - somente itens sem `ai_summary`.
+- Ordenação configurável:
+  - relevância IA (`ai_relevance_score`),
+  - mais novo (`created_at`),
+  - score (`score_total`).
+- Cobertura mínima atualizada em `tests/Feature/Threads/ThreadsHubPageTest.php` para batch actions, filtros avançados e regressão de reclassificação manual em lote.
+

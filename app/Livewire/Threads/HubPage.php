@@ -6,6 +6,7 @@ use App\Jobs\ClassifyCommentsJob;
 use App\Jobs\DispatchPendingThreadsClassificationJob;
 use App\Jobs\ScrapeThreadsKeywordJob;
 use App\Jobs\ScrapeThreadsUrlJob;
+use App\Models\ThreadsCategory;
 use App\Models\ThreadsComment;
 use App\Models\ThreadsSource;
 use Illuminate\Validation\Rule;
@@ -20,6 +21,18 @@ final class HubPage extends Component
     #[Url(as: 'review_status')]
     public string $reviewStatus = 'all';
 
+    #[Url(as: 'review_category')]
+    public string $reviewCategory = 'all';
+
+    #[Url(as: 'review_source')]
+    public string $reviewSource = 'all';
+
+    #[Url(as: 'review_without_summary')]
+    public bool $reviewWithoutSummary = false;
+
+    #[Url(as: 'review_sort')]
+    public string $reviewSort = 'relevance';
+
     public string $newSourceType = 'keyword';
 
     public string $newSourceLabel = '';
@@ -31,6 +44,9 @@ final class HubPage extends Component
     public bool $newSourceIsActive = true;
 
     public int $manualDispatchBatchSize = 1;
+
+    /** @var array<int> */
+    public array $selectedReviewCommentIds = [];
 
     /**
      * @return array<string, mixed>
@@ -52,18 +68,39 @@ final class HubPage extends Component
         $reviewCommentsQuery = ThreadsComment::query()
             ->with(['post:id,post_url,threads_source_id', 'post.source:id,label', 'category:id,name'])
             ->orderByRaw('CASE WHEN status = ? THEN 0 WHEN status = ? THEN 1 ELSE 2 END', ['pending_review', 'ignored'])
-            ->orderByDesc('ai_relevance_score')
-            ->orderByDesc('id');
+            ->when($this->reviewStatus !== 'all', fn ($query) => $query->where('status', $this->reviewStatus))
+            ->when($this->reviewCategory !== 'all', fn ($query) => $query->where('threads_category_id', (int) $this->reviewCategory))
+            ->when($this->reviewSource !== 'all', fn ($query) => $query
+                ->whereHas('post', fn ($postQuery) => $postQuery->where('threads_source_id', (int) $this->reviewSource)))
+            ->when($this->reviewWithoutSummary, fn ($query) => $query->whereNull('ai_summary'));
 
-        if ($this->reviewStatus !== 'all') {
-            $reviewCommentsQuery->where('status', $this->reviewStatus);
+        if ($this->reviewSort === 'newest') {
+            $reviewCommentsQuery->orderByDesc('created_at')->orderByDesc('id');
+        } elseif ($this->reviewSort === 'score') {
+            $reviewCommentsQuery->orderByDesc('score_total')->orderByDesc('id');
+        } else {
+            $reviewCommentsQuery->orderByDesc('ai_relevance_score')->orderByDesc('id');
         }
 
         $reviewComments = $reviewCommentsQuery->limit(100)->get();
+        $reviewCommentIdsOnScreen = $reviewComments->pluck('id')->map(static fn ($id): int => (int) $id)->all();
+        $this->selectedReviewCommentIds = array_values(array_map(
+            'intval',
+            array_intersect($this->selectedReviewCommentIds, $reviewCommentIdsOnScreen)
+        ));
+
+        $reviewSources = ThreadsSource::query()
+            ->orderBy('label')
+            ->get(['id', 'label']);
+
+        $reviewCategories = ThreadsCategory::query()
+            ->orderBy('name')
+            ->get(['id', 'name']);
 
         return [
             'sources' => $sources,
             'reviewComments' => $reviewComments,
+            'reviewSelectedCount' => count($this->selectedReviewCommentIds),
             'tabLabels' => [
                 'sources' => 'Sources',
                 'review' => 'Review',
@@ -77,6 +114,13 @@ final class HubPage extends Component
                 'all' => 'Todos',
                 'pending_review' => 'Pending Review',
                 'ignored' => 'Ignored',
+            ],
+            'reviewCategoryOptions' => $reviewCategories,
+            'reviewSourceOptions' => $reviewSources,
+            'reviewSortOptions' => [
+                'relevance' => 'Relevancia IA',
+                'newest' => 'Mais novo',
+                'score' => 'Score',
             ],
         ];
     }
@@ -108,6 +152,40 @@ final class HubPage extends Component
         if (! in_array($value, ['all', 'pending_review', 'ignored'], true)) {
             $this->reviewStatus = 'all';
         }
+    }
+
+    public function updatedReviewCategory(string $value): void
+    {
+        if ($value === 'all') {
+            return;
+        }
+
+        if (! ctype_digit($value)) {
+            $this->reviewCategory = 'all';
+        }
+    }
+
+    public function updatedReviewSource(string $value): void
+    {
+        if ($value === 'all') {
+            return;
+        }
+
+        if (! ctype_digit($value)) {
+            $this->reviewSource = 'all';
+        }
+    }
+
+    public function updatedReviewSort(string $value): void
+    {
+        if (! in_array($value, ['relevance', 'newest', 'score'], true)) {
+            $this->reviewSort = 'relevance';
+        }
+    }
+
+    public function updatedSelectedReviewCommentIds(): void
+    {
+        $this->selectedReviewCommentIds = $this->normalizedSelectedReviewCommentIds();
     }
 
     /**
@@ -207,6 +285,58 @@ final class HubPage extends Component
         session()->flash('threads_hub_notice', 'Reclassificacao manual enfileirada.');
     }
 
+    public function batchMoveSelectedToPendingReview(): void
+    {
+        $affected = ThreadsComment::query()
+            ->whereIn('id', $this->normalizedSelectedReviewCommentIds())
+            ->update(['status' => 'pending_review']);
+
+        $this->selectedReviewCommentIds = [];
+        session()->flash('threads_hub_notice', $this->batchNotice($affected, 'comentario(s) movido(s) para pending_review.'));
+    }
+
+    public function batchIgnoreSelected(): void
+    {
+        $affected = ThreadsComment::query()
+            ->whereIn('id', $this->normalizedSelectedReviewCommentIds())
+            ->update(['status' => 'ignored']);
+
+        $this->selectedReviewCommentIds = [];
+        session()->flash('threads_hub_notice', $this->batchNotice($affected, 'comentario(s) marcado(s) como ignored.'));
+    }
+
+    public function batchPublishSelected(): void
+    {
+        $affected = ThreadsComment::query()
+            ->whereIn('id', $this->normalizedSelectedReviewCommentIds())
+            ->update(['is_public' => true]);
+
+        $this->selectedReviewCommentIds = [];
+        session()->flash('threads_hub_notice', $this->batchNotice($affected, 'comentario(s) publicado(s).'));
+    }
+
+    public function batchUnpublishSelected(): void
+    {
+        $affected = ThreadsComment::query()
+            ->whereIn('id', $this->normalizedSelectedReviewCommentIds())
+            ->update(['is_public' => false]);
+
+        $this->selectedReviewCommentIds = [];
+        session()->flash('threads_hub_notice', $this->batchNotice($affected, 'comentario(s) despublicado(s).'));
+    }
+
+    public function batchReclassifySelected(): void
+    {
+        $ids = $this->normalizedSelectedReviewCommentIds();
+
+        foreach ($ids as $commentId) {
+            ClassifyCommentsJob::dispatch($commentId, true);
+        }
+
+        $this->selectedReviewCommentIds = [];
+        session()->flash('threads_hub_notice', $this->batchNotice(count($ids), 'comentario(s) enfileirado(s) para reclassificacao.'));
+    }
+
     public function moveCommentToPendingReview(int $commentId): void
     {
         $comment = ThreadsComment::query()->findOrFail($commentId);
@@ -229,6 +359,26 @@ final class HubPage extends Component
         $comment->forceFill(['is_public' => ! $comment->is_public])->save();
 
         session()->flash('threads_hub_notice', 'Visibilidade publica atualizada.');
+    }
+
+    /**
+     * @return array<int>
+     */
+    private function normalizedSelectedReviewCommentIds(): array
+    {
+        return array_values(array_unique(array_map('intval', array_filter(
+            $this->selectedReviewCommentIds,
+            static fn ($id): bool => is_numeric($id) && (int) $id > 0
+        ))));
+    }
+
+    private function batchNotice(int $affected, string $suffix): string
+    {
+        if ($affected < 1) {
+            return 'Nenhum comentario selecionado.';
+        }
+
+        return "{$affected} {$suffix}";
     }
 
     public function render()
