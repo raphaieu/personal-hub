@@ -4,12 +4,14 @@ namespace Tests\Feature\Threads;
 
 use App\Data\AiCompletionResult;
 use App\Jobs\ClassifyCommentsJob;
+use App\Jobs\DispatchPendingThreadsClassificationJob;
 use App\Models\ThreadsCategory;
 use App\Models\ThreadsComment;
 use App\Models\ThreadsPost;
 use App\Services\NeuronAIService;
 use App\Services\Threads\ThreadsClassificationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Config;
 use Tests\TestCase;
 
@@ -87,11 +89,10 @@ final class ThreadsClassificationServiceTest extends TestCase
         $this->assertSame('82.50', (string) $classified->ai_relevance_score);
     }
 
-    public function test_classify_comments_job_processes_comment_ids_on_ai_queue(): void
+    public function test_classify_comments_job_processes_single_comment_on_ai_queue(): void
     {
         $this->mock(NeuronAIService::class)
             ->shouldReceive('complete')
-            ->twice()
             ->andReturn(new AiCompletionResult(
                 success: true,
                 text: json_encode([
@@ -111,16 +112,37 @@ final class ThreadsClassificationServiceTest extends TestCase
             'is_active' => true,
         ]);
 
-        $commentA = $this->makeComment('Comentário A');
-        $commentB = $this->makeComment('Comentário B');
+        $comment = $this->makeComment('Comentário A');
 
-        $job = new ClassifyCommentsJob([$commentA->id, $commentB->id]);
+        $job = new ClassifyCommentsJob($comment->id);
         $this->assertSame('ai', $job->queue);
 
         $job->handle(app(ThreadsClassificationService::class));
 
-        $this->assertSame('pending_review', (string) $commentA->fresh()?->status);
-        $this->assertSame('pending_review', (string) $commentB->fresh()?->status);
+        $this->assertSame('pending_review', (string) $comment->fresh()?->status);
+    }
+
+    public function test_dispatch_pending_classification_job_dispatches_comments_one_by_one(): void
+    {
+        Bus::fake();
+
+        $commentA = $this->makeComment('Comentario sem IA 1');
+        $commentB = $this->makeComment('Comentario sem IA 2');
+
+        $commentB->forceFill(['ai_summary' => 'Ja classificado'])->save();
+
+        $job = new DispatchPendingThreadsClassificationJob(batchSize: 10, spacingSeconds: 30);
+        $this->assertSame('ai', $job->queue);
+
+        $job->handle();
+
+        Bus::assertDispatched(ClassifyCommentsJob::class, function (ClassifyCommentsJob $job) use ($commentA): bool {
+            return $job->commentId === $commentA->id && $job->force === false;
+        });
+
+        Bus::assertNotDispatched(ClassifyCommentsJob::class, function (ClassifyCommentsJob $job) use ($commentB): bool {
+            return $job->commentId === $commentB->id;
+        });
     }
 
     private function makeComment(string $content): ThreadsComment

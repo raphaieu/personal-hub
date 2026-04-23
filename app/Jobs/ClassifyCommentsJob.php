@@ -20,28 +20,29 @@ class ClassifyCommentsJob implements ShouldQueue
 
     public int $tries = 3;
 
-    /**
-     * @param  list<int>  $commentIds
-     */
     public function __construct(
-        public readonly array $commentIds,
+        public readonly int $commentId,
+        public readonly bool $force = false,
     ) {
         $this->onQueue('ai');
     }
 
     public function handle(ThreadsClassificationService $classificationService): void
     {
-        /** @var \Illuminate\Database\Eloquent\Collection<int, ThreadsComment> $comments */
-        $comments = ThreadsComment::query()
-            ->whereIn('id', $this->commentIds)
-            ->get();
-
-        foreach ($comments as $comment) {
-            $classificationService->classifyComment($comment);
+        $comment = ThreadsComment::query()->find($this->commentId);
+        if (! $comment) {
+            return;
         }
 
+        if (! $this->force && $comment->ai_summary !== null) {
+            return;
+        }
+
+        $classificationService->classifyComment($comment);
+
         Log::info('threads.comments.classified', [
-            'count' => $comments->count(),
+            'comment_id' => $comment->id,
+            'forced' => $this->force,
         ]);
     }
 }

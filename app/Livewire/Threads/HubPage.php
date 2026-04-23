@@ -2,8 +2,11 @@
 
 namespace App\Livewire\Threads;
 
+use App\Jobs\ClassifyCommentsJob;
+use App\Jobs\DispatchPendingThreadsClassificationJob;
 use App\Jobs\ScrapeThreadsKeywordJob;
 use App\Jobs\ScrapeThreadsUrlJob;
+use App\Models\ThreadsComment;
 use App\Models\ThreadsSource;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Url;
@@ -14,6 +17,9 @@ final class HubPage extends Component
     #[Url(as: 'tab')]
     public string $currentTab = 'sources';
 
+    #[Url(as: 'review_status')]
+    public string $reviewStatus = 'all';
+
     public string $newSourceType = 'keyword';
 
     public string $newSourceLabel = '';
@@ -23,6 +29,8 @@ final class HubPage extends Component
     public string $newSourceTargetUrl = '';
 
     public bool $newSourceIsActive = true;
+
+    public int $manualDispatchBatchSize = 1;
 
     /**
      * @return array<string, mixed>
@@ -41,8 +49,21 @@ final class HubPage extends Component
                 'last_scraped_at',
             ]);
 
+        $reviewCommentsQuery = ThreadsComment::query()
+            ->with(['post:id,post_url,threads_source_id', 'post.source:id,label', 'category:id,name'])
+            ->orderByRaw('CASE WHEN status = ? THEN 0 WHEN status = ? THEN 1 ELSE 2 END', ['pending_review', 'ignored'])
+            ->orderByDesc('ai_relevance_score')
+            ->orderByDesc('id');
+
+        if ($this->reviewStatus !== 'all') {
+            $reviewCommentsQuery->where('status', $this->reviewStatus);
+        }
+
+        $reviewComments = $reviewCommentsQuery->limit(100)->get();
+
         return [
             'sources' => $sources,
+            'reviewComments' => $reviewComments,
             'tabLabels' => [
                 'sources' => 'Sources',
                 'review' => 'Review',
@@ -51,6 +72,11 @@ final class HubPage extends Component
             'createTypes' => [
                 'keyword' => 'Keyword',
                 'url' => 'URL',
+            ],
+            'reviewStatusOptions' => [
+                'all' => 'Todos',
+                'pending_review' => 'Pending Review',
+                'ignored' => 'Ignored',
             ],
         ];
     }
@@ -75,6 +101,13 @@ final class HubPage extends Component
         $this->resetValidation(['newSourceKeyword', 'newSourceTargetUrl']);
         $this->newSourceKeyword = '';
         $this->newSourceTargetUrl = '';
+    }
+
+    public function updatedReviewStatus(string $value): void
+    {
+        if (! in_array($value, ['all', 'pending_review', 'ignored'], true)) {
+            $this->reviewStatus = 'all';
+        }
     }
 
     /**
@@ -153,6 +186,49 @@ final class HubPage extends Component
         }
 
         session()->flash('threads_hub_notice', 'Source sem alvo válido para scrape.');
+    }
+
+    public function dispatchPendingClassification(): void
+    {
+        $batchSize = max(1, min(200, (int) $this->manualDispatchBatchSize));
+
+        DispatchPendingThreadsClassificationJob::dispatch(
+            batchSize: $batchSize,
+            spacingSeconds: (int) env('THREADS_AI_DISPATCH_SPACING_SECONDS', 30),
+            force: false,
+        );
+
+        session()->flash('threads_hub_notice', "Classificacao pendente enfileirada (batch: {$batchSize}).");
+    }
+
+    public function reclassifyComment(int $commentId): void
+    {
+        ClassifyCommentsJob::dispatch($commentId, true);
+        session()->flash('threads_hub_notice', 'Reclassificacao manual enfileirada.');
+    }
+
+    public function moveCommentToPendingReview(int $commentId): void
+    {
+        $comment = ThreadsComment::query()->findOrFail($commentId);
+        $comment->forceFill(['status' => 'pending_review'])->save();
+
+        session()->flash('threads_hub_notice', 'Comentario movido para pending_review.');
+    }
+
+    public function ignoreComment(int $commentId): void
+    {
+        $comment = ThreadsComment::query()->findOrFail($commentId);
+        $comment->forceFill(['status' => 'ignored'])->save();
+
+        session()->flash('threads_hub_notice', 'Comentario marcado como ignored.');
+    }
+
+    public function toggleCommentPublic(int $commentId): void
+    {
+        $comment = ThreadsComment::query()->findOrFail($commentId);
+        $comment->forceFill(['is_public' => ! $comment->is_public])->save();
+
+        session()->flash('threads_hub_notice', 'Visibilidade publica atualizada.');
     }
 
     public function render()

@@ -4,7 +4,10 @@ namespace Tests\Feature\Threads;
 
 use App\Jobs\ScrapeThreadsKeywordJob;
 use App\Jobs\ScrapeThreadsUrlJob;
+use App\Jobs\DispatchPendingThreadsClassificationJob;
 use App\Livewire\Threads\HubPage;
+use App\Models\ThreadsComment;
+use App\Models\ThreadsPost;
 use App\Models\ThreadsSource;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -141,5 +144,57 @@ final class ThreadsHubPageTest extends TestCase
             ->call('scrapeNow', $source->id);
 
         Bus::assertDispatched(ScrapeThreadsUrlJob::class);
+    }
+
+    public function test_livewire_dispatches_pending_classification_job_manually(): void
+    {
+        Bus::fake();
+        $user = User::factory()->create();
+
+        Livewire::actingAs($user)
+            ->test(HubPage::class)
+            ->set('manualDispatchBatchSize', 3)
+            ->call('dispatchPendingClassification');
+
+        Bus::assertDispatched(DispatchPendingThreadsClassificationJob::class);
+    }
+
+    public function test_livewire_can_move_ignored_comment_back_to_pending_review(): void
+    {
+        $user = User::factory()->create();
+        $comment = $this->makeComment(status: 'ignored');
+
+        Livewire::actingAs($user)
+            ->test(HubPage::class)
+            ->call('moveCommentToPendingReview', $comment->id);
+
+        $this->assertSame('pending_review', (string) $comment->fresh()?->status);
+    }
+
+    public function test_livewire_can_toggle_comment_public_visibility(): void
+    {
+        $user = User::factory()->create();
+        $comment = $this->makeComment(status: 'pending_review');
+
+        Livewire::actingAs($user)
+            ->test(HubPage::class)
+            ->call('toggleCommentPublic', $comment->id);
+
+        $this->assertTrue((bool) $comment->fresh()?->is_public);
+    }
+
+    private function makeComment(string $status = 'pending_review'): ThreadsComment
+    {
+        $post = ThreadsPost::query()->create([
+            'external_id' => uniqid('post-', true),
+        ]);
+
+        return ThreadsComment::query()->create([
+            'threads_post_id' => $post->id,
+            'external_id' => uniqid('comment-', true),
+            'content' => 'Comentário para review',
+            'status' => $status,
+            'is_public' => false,
+        ]);
     }
 }

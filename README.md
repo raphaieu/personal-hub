@@ -258,7 +258,9 @@ Para webhooks e testes externos (mesmo stack em termos de comportamento; URL pú
 - Fase 4.1 concluida: `livewire/livewire` (v4) instalado via Composer, layouts base (`app` e `guest`) preparados com `@livewireStyles`/`@livewireScripts` e smoke test de disponibilidade do pacote no container adicionado.
 - Fase 4.2 concluida: estrutura inicial do dashboard em `/hub/threads` via componente Livewire (`App\Livewire\Threads\HubPage`) com abas `Sources/Review/Published`, tabela inicial de fontes e testes de acesso/render.
 - Fase 5.1 concluida: gerenciamento inicial de sources no dashboard (`/hub/threads`) com criacao (keyword/url), toggle ativo/inativo e acao "scrape agora" enfileirando jobs adequados.
-- Proximo passo: Fase 5.2 (review curation com acoes em lote e edicao assistida).
+- Ajuste de robustez no pipeline IA: classificacao agora roda 1 comentario por job (`ClassifyCommentsJob` com `commentId`), com espaco configuravel entre dispatches (`THREADS_AI_DISPATCH_SPACING_SECONDS`) e job auxiliar `DispatchPendingThreadsClassificationJob` para varrer pendentes.
+- Fase 5.2 iniciada: aba `Review` com filtro por status, destaque visual de `ignored`, acoes manuais (reclassificar, mover para review, ignorar, publicar/despublicar) e gatilho manual para enfileirar classificacao pendente.
+- Proximo passo: consolidar visao `Published` e acoes em lote da curadoria.
 
 ### Médio Prazo
 

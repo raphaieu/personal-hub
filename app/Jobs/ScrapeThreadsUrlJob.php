@@ -43,7 +43,12 @@ class ScrapeThreadsUrlJob implements ShouldQueue
         $result = $ingestionService->ingestUrlPayload($payload, $source);
 
         if (($result['comment_ids'] ?? []) !== []) {
-            ClassifyCommentsJob::dispatch($result['comment_ids']);
+            $spacingSeconds = max(0, (int) env('THREADS_AI_DISPATCH_SPACING_SECONDS', 2));
+
+            foreach ($result['comment_ids'] as $index => $commentId) {
+                ClassifyCommentsJob::dispatch((int) $commentId)
+                    ->delay(now()->addSeconds($index * $spacingSeconds));
+            }
         }
 
         if ($source) {

@@ -686,3 +686,23 @@ docker/
 - Cobertura mínima:
   - `tests/Feature/Threads/ThreadsHubPageTest.php` cobre criação, toggle e dispatch dos jobs por ação Livewire.
 
+## Pipeline IA Threads (ajuste de robustez)
+
+- `ClassifyCommentsJob` passa a processar **1 comentário por execução** (`commentId`, opcional `force`) para reduzir travamentos em lote e permitir reprocessamento manual pontual.
+- `DispatchPendingThreadsClassificationJob` criado para disparar classificação de pendentes (`ai_summary` nulo), com espaçamento entre jobs para respeitar capacidade/cota de providers.
+- `THREADS_AI_DISPATCH_SPACING_SECONDS` controla a cadência dos dispatches no encadeamento da classificação.
+
+## Dashboard Threads (Fase 5.2 — Review inicial)
+
+- Aba `Review` no `HubPage` agora lista comentários com:
+  - ordenação priorizando `pending_review` e `ignored`,
+  - filtro por status (`all`, `pending_review`, `ignored`),
+  - indicação visual para itens `ignored`.
+- Ações manuais por comentário:
+  - `reclassifyComment` (força novo `ClassifyCommentsJob` por id),
+  - `moveCommentToPendingReview`,
+  - `ignoreComment`,
+  - `toggleCommentPublic`.
+- Operação manual de backlog:
+  - botão para `dispatchPendingClassification` (enfileira `DispatchPendingThreadsClassificationJob` com batch size configurável na tela).
+
