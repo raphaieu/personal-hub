@@ -265,6 +265,7 @@ Para webhooks e testes externos (mesmo stack em termos de comportamento; URL pú
 - Coelba usa CapSolver (`ReCaptchaV3TaskProxyLess`) com fallback para submissão sem token quando não houver solução.
 - Coelba possui fluxo step-by-step sem sessão reaproveitada, centralizado na home para estabilidade: login completo por execução, seleção de estado/unidade, leitura de `Última Fatura`, captura opcional de código PIX e download da 2ª via via modal.
 - Bloco 2 no Laravel: contrato mockável `UtilityScraperClientInterface` com implementação HTTP (`UtilityPlaywrightService`) e fake (`FakeUtilityScraperClient`); bind no `AppServiceProvider`; regressão em `tests/Feature/Utilities/UtilityScraperClientTest.php`.
+- Bloco 3 no Laravel: `InvoiceService` (upsert em `invoices`, PDF no disco `local` quando arquivo legível pelo PHP, stub de notificação), job `ScrapeConta` na fila `scraping` com janela `UtilityScrapeWindow`, agendamento em `bootstrap/app.php` (Embasa 08:00, Coelba 08:05); testes em `tests/Feature/Utilities/InvoiceServiceTest.php`, `ScrapeContaJobTest.php` e `tests/Unit/UtilityScrapeWindowTest.php`.
 
 ### Dashboard Threads (fase frontend)
 

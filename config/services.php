@@ -52,6 +52,8 @@ return [
 
     'whatsapp' => [
         'notes_solo_group_jid' => env('WHATSAPP_NOTAS_GRUPO_JID'),
+        /** JID do grupo para lembretes de fatura (Evolution HTTP ainda não acoplado ao método notify). */
+        'utilities_home_group_jid' => env('WHATSAPP_UTILITIES_HOME_GROUP_JID'),
     ],
 
     /*

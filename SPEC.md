@@ -209,15 +209,9 @@ Recebe payload da Evolution, extrai tipo/conteúdo, identifica a source e despac
 
 **Variáveis:** ver `config/services.php` (`ollama`, `iara`, `groq`, `anthropic`, `openai`) e `config/ai.php`; baseline em `.env.example` (perfis VPS vs dev remoto vs Ollama local).
 
-### `PlaywrightService`
+### Cliente Playwright de utilidades (Embasa/Coelba)
 
-HTTP client que se comunica com o container `raphael-playwright` via rede Docker interna (`http://raphael-playwright:3001`).
-
-Métodos:
-
-- `scrapeEmbasa()` → array com faturas + pdf_path
-- `scrapeCoelba()` → array com faturas + pdf_path
-- `healthCheck()` → bool
+Integração HTTP no Laravel via `App\Contracts\UtilityScraperClientInterface` e `App\Services\Utilities\UtilityPlaywrightService` (POST `/embasa/scrape` e `/coelba/scrape` em `services.playwright.url`). O scraper Node continua usando credenciais por ambiente no container Playwright; o job `ScrapeConta` reconcilia o resultado com `utility_accounts.account_ref` (`matricula` / `codigo_cliente` no JSON) ou, se houver **uma** conta ativa na janela, assume essa conta.
 
 ### `EvolutionService`
 
@@ -231,13 +225,13 @@ Métodos:
 
 ### `InvoiceService`
 
-Orquestra o ciclo de vida de uma fatura no banco (`invoices`).
+Implementação: `App\Services\InvoiceService`. Orquestra persistência em `invoices` a partir do payload normalizado do scraper.
 
 Métodos:
 
-- `processScrapeResult(array $payload, UtilityAccount $account)` → upsert invoice, upload PDF, trigger notificação
-- `uploadPdf(string $localPath, UtilityAccount $account, string $billingReference)` → path no MinIO
-- `notifyHomeGroup(Invoice $invoice)` → formata mensagem e chama EvolutionService
+- `processScrapeResult(array $payload, UtilityAccount $account)` → `updateOrCreate` por (`utility_account_id`, `billing_reference`); preenche valores Embasa/Coelba; grava `raw_payload` com a linha da fatura (e `playwright_pdf_path` quando o PDF não pôde ser copiado no app); associa PDF ao faturamento preferencial (pendente/vencida/a_vencer/processando, menor vencimento).
+- `uploadPdf(string $localPath, UtilityAccount $account, string $billingReference)` → se o arquivo existir no filesystem **visível ao PHP**, copia para o disco `local` em `utilities/invoices/{utility_account_id}/…`; caso contrário retorna `null` (caminho só no container Playwright até haver mount/API dedicada).
+- `notifyHomeGroup(Invoice $invoice)` → reservado; se `services.whatsapp.utilities_home_group_jid` estiver vazio, apenas log em nível `debug`; quando Evolution tiver envio HTTP no hub, evoluir para disparo real.
 
 ---
 
@@ -257,7 +251,7 @@ Métodos:
 
 ---
 
-## Schedule (`app/Console/Kernel.php`)
+## Schedule (`bootstrap/app.php` → `withSchedule`)
 
 ```php
 // Scrape completo — X dias antes do vencimento de cada conta
@@ -272,13 +266,13 @@ $schedule->job(new VerificarStatusFaturas())->dailyAt('09:00');
 $schedule->job(new NotificarVencimento())->dailyAt('09:30');
 ```
 
-**Lógica do `ScrapeConta`:**
+**Lógica do `ScrapeConta` (`App\Jobs\ScrapeConta`, fila `scraping`):**
 
-1. Busca conta ativa no banco
-2. Calcula se hoje está dentro da janela `(dia_vencimento - dias_antecedencia)` a `(dia_vencimento + 30)`
-3. Se sim → chama `UtilityScraperClientInterface` (`scrapeEmbasa()` / `scrapeCoelba()`)
-4. Chama `InvoiceService::processScrapeResult()`
-5. Atualiza `utility_accounts.last_scraped_at`
+1. Lista `utility_accounts` ativas do `kind` informado (`embasa`|`coelba`) cuja data de hoje está na janela calculada por `App\Support\UtilityScrapeWindow` (próximo vencimento com base em `due_day`, entre `due_day - reminder_lead_days` e `due_day + 30` dias no calendário).
+2. Se a lista for vazia, encerra sem chamar Playwright.
+3. Executa **um** scrape (`scrapeEmbasa()` ou `scrapeCoelba()`).
+4. Escolhe contas alvo: preferência por `account_ref` igual a `data.matricula` (Embasa) ou `data.codigo_cliente` (Coelba); se nenhuma bater e existir exatamente uma conta na janela, usa essa (modo single-tenant).
+5. Para cada conta alvo: `InvoiceService::processScrapeResult($payload, $account)` e atualiza `utility_accounts.last_scraped_at`.
 
 **Lógica do `NotificarVencimento`:**
 
@@ -339,6 +333,18 @@ Envelope HTTP alinhado ao serviço Node (`success`, `mode`, `concessionaria`, `s
   - Bind em `AppServiceProvider` para jobs/serviços de domínio não acoplarem ao container Node.
 - **Cobertura automática mínima da integração**:
   - `tests/Feature/Utilities/UtilityScraperClientTest.php` cobre resolução da interface, normalização de payload (Embasa), tratamento de erro HTTP (Coelba) e comportamento do fake.
+
+### Integração Laravel (Embasa/Coelba — Bloco 3 concluído)
+
+- **Ingestão e jobs**:
+  - `App\Services\InvoiceService` — upsert de `invoices`, PDF opcional no disco `local`, `notifyHomeGroup` como stub até Evolution HTTP no hub.
+  - `App\Jobs\ScrapeConta` — orquestra janela + scrape + ingestão; depende de `UtilityScraperClientInterface` e `InvoiceService`.
+  - `App\Support\UtilityScrapeWindow` — cálculo de janela por `due_day` / `reminder_lead_days`.
+- **Agendamento**: `bootstrap/app.php` agenda `ScrapeConta('embasa')` às 08:00 e `ScrapeConta('coelba')` às 08:05 (mesma intenção do trecho legado que citava `Kernel.php`).
+- **Testes**:
+  - `tests/Feature/Utilities/InvoiceServiceTest.php` — mapeamento Embasa/Coelba, idempotência, upload local de PDF.
+  - `tests/Feature/Utilities/ScrapeContaJobTest.php` — execução síncrona do job com `FakeUtilityScraperClient` e conta na janela.
+  - `tests/Unit/UtilityScrapeWindowTest.php` — limites da janela.
 
 ### CapSolver (Coelba)
 
@@ -660,9 +666,15 @@ app/
     AiRouterService.php
     NeuronAIService.php
     OllamaService.php
-    PlaywrightService.php
-    EvolutionService.php
+    Utilities/
+      UtilityPlaywrightService.php
+      FakeUtilityScraperClient.php
     InvoiceService.php
+    EvolutionService.php
+  Contracts/
+    UtilityScraperClientInterface.php
+  Support/
+    UtilityScrapeWindow.php
 
 database/
   migrations/
