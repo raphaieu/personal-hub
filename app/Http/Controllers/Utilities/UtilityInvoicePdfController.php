@@ -3,7 +3,7 @@
 namespace App\Http\Controllers\Utilities;
 
 use App\Models\Invoice;
-use Illuminate\Support\Facades\Storage;
+use App\Support\UtilityInvoiceDisk;
 use Symfony\Component\HttpFoundation\StreamedResponse;
 
 final class UtilityInvoicePdfController
@@ -15,10 +15,12 @@ final class UtilityInvoicePdfController
             abort(404);
         }
 
-        $disk = (string) config('services.utilities.pdf_storage_disk', 'local');
-        $storage = Storage::disk($disk);
+        if (! UtilityInvoiceDisk::exists($path)) {
+            abort(404);
+        }
 
-        if (! $storage->exists($path)) {
+        $body = UtilityInvoiceDisk::get($path);
+        if ($body === null) {
             abort(404);
         }
 
@@ -26,8 +28,7 @@ final class UtilityInvoicePdfController
         $filename = $safeRef !== '' ? "{$safeRef}.pdf" : "fatura-{$invoice->id}.pdf";
 
         return response()->streamDownload(
-            static function () use ($storage, $path): void {
-                $body = $storage->get($path);
+            static function () use ($body): void {
                 echo $body;
             },
             $filename,

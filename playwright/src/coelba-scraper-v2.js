@@ -333,15 +333,108 @@ async function downloadInvoiceFromHome(page) {
 
   await slowStep(page, 1000);
 
-  // Modal de motivo para emissão da 2ª via.
-  await clickFirst(page, ['label:has-text("Não Recebi")', 'text=Não Recebi', 'text=Nao Recebi']);
-  await slowStep(page, 500);
+  // Modal de motivo (Angular Material): é obrigatório marcar um radio para habilitar "BAIXAR".
+  await page.waitForSelector("mat-radio-group, mat-radio-button", { timeout: 15000 }).catch(() => {});
+
+  const motivoCandidates = [
+    page.locator("mat-radio-button").filter({ hasText: /Não\s+Recebi/i }).first(),
+    page.locator("mat-radio-button").filter({ hasText: /Nao\s+Recebi/i }).first(),
+    page.locator("mat-radio-button").filter({ hasText: /Fatura\s+Danificada/i }).first(),
+    page.locator("mat-radio-button").filter({ hasText: /Comprovar\s+Residência/i }).first(),
+    page.locator("mat-radio-button").filter({ hasText: /Não\s+Estou\s+Com\s+Fatura/i }).first(),
+  ];
+
+  let motivoSelecionado = false;
+  for (const radio of motivoCandidates) {
+    try {
+      if ((await radio.count()) < 1) {
+        continue;
+      }
+      await radio.waitFor({ state: "visible", timeout: 8000 });
+      const input = radio.locator("input.mat-radio-input");
+      if ((await input.count()) > 0) {
+        await input.click({ force: true, timeout: 8000 });
+      } else {
+        await radio.locator("label.mat-radio-label").click({ force: true, timeout: 8000 });
+      }
+      motivoSelecionado = true;
+      break;
+    } catch {
+      // tenta próximo motivo
+    }
+  }
+
+  if (!motivoSelecionado) {
+    await clickFirst(page, [
+      'mat-radio-button:has-text("Não Recebi")',
+      'mat-radio-button:has-text("Nao Recebi")',
+      'label.mat-radio-label:has-text("Não Recebi")',
+    ]);
+  }
+
+  await slowStep(page, 600);
+
+  await page
+    .waitForFunction(
+      () => {
+        const buttons = Array.from(document.querySelectorAll("button"));
+        return buttons.some((b) => {
+          const text = (b.textContent || "").replace(/\s+/g, " ").trim();
+          if (!/^baixar$/i.test(text)) {
+            return false;
+          }
+          if (b.disabled) {
+            return false;
+          }
+          if (b.getAttribute("aria-disabled") === "true") {
+            return false;
+          }
+          if (b.classList.contains("mat-button-disabled")) {
+            return false;
+          }
+          return true;
+        });
+      },
+      { timeout: 20000 },
+    )
+    .catch(() => {});
 
   const downloadPromise = page.waitForEvent("download", { timeout: 45000 });
 
-  const downloadButtonClicked = await clickFirst(page, ['button:has-text("BAIXAR")', 'button:has-text("Baixar")', 'text=BAIXAR']);
+  const downloadButtonClicked = await page.evaluate(() => {
+    const buttons = Array.from(document.querySelectorAll("button"));
+    const btn = buttons.find((b) => {
+      const text = (b.textContent || "").replace(/\s+/g, " ").trim();
+      if (!/^baixar$/i.test(text)) {
+        return false;
+      }
+      if (b.disabled) {
+        return false;
+      }
+      if (b.getAttribute("aria-disabled") === "true") {
+        return false;
+      }
+      if (b.classList.contains("mat-button-disabled")) {
+        return false;
+      }
+      return true;
+    });
+    if (btn) {
+      btn.click();
+      return true;
+    }
+    return false;
+  });
+
   if (!downloadButtonClicked) {
-    return null;
+    const fallback = await clickFirst(page, [
+      'button:has-text("BAIXAR")',
+      'button:has-text("Baixar")',
+      'button.mat-flat-button:has-text("BAIXAR")',
+    ]);
+    if (!fallback) {
+      return null;
+    }
   }
 
   await fs.mkdir(DOWNLOADS_DIR, { recursive: true });

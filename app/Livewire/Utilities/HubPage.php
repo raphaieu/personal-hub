@@ -5,7 +5,7 @@ namespace App\Livewire\Utilities;
 use App\Jobs\ScrapeConta;
 use App\Models\Invoice;
 use App\Models\UtilityAccount;
-use Illuminate\Support\Facades\Storage;
+use App\Support\UtilityInvoiceDisk;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -136,12 +136,10 @@ final class HubPage extends Component
      */
     private function invoicePdfAvailability(iterable $invoices): array
     {
-        $disk = (string) config('services.utilities.pdf_storage_disk', 'local');
-        $storage = Storage::disk($disk);
         $map = [];
         foreach ($invoices as $invoice) {
             $path = $invoice->pdf_path;
-            $map[(int) $invoice->id] = is_string($path) && $path !== '' && $storage->exists($path);
+            $map[(int) $invoice->id] = is_string($path) && $path !== '' && UtilityInvoiceDisk::exists($path);
         }
 
         return $map;
