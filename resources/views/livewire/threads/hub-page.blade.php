@@ -169,7 +169,15 @@
                     <div class="space-y-4 mb-4">
                         <div class="flex flex-wrap items-center justify-between gap-3">
                             <h3 class="text-lg font-semibold text-gray-900">Review</h3>
-                            <span class="text-sm text-gray-500">{{ $reviewComments->count() }} itens no filtro</span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm text-gray-500">{{ $reviewComments->total() }} itens no filtro</span>
+                                <select wire:model.live="reviewPerPage" class="rounded-md border-gray-300 text-xs">
+                                    <option value="25">25/pag</option>
+                                    <option value="50">50/pag</option>
+                                    <option value="100">100/pag</option>
+                                    <option value="200">200/pag</option>
+                                </select>
+                            </div>
                         </div>
 
                         <div class="grid grid-cols-1 gap-3 md:grid-cols-5">
@@ -262,7 +270,7 @@
                     </div>
 
                     <div class="overflow-x-auto">
-                        <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <table class="min-w-full table-fixed divide-y divide-gray-200 text-sm">
                             <thead class="bg-gray-50">
                                 <tr>
                                     <th class="px-3 py-2 text-left font-medium text-gray-600 w-10">
@@ -276,12 +284,12 @@
                                             <span class="sr-only">Selecionar todos</span>
                                         </label>
                                     </th>
-                                    <th class="px-3 py-2 text-left font-medium text-gray-600">Comentario</th>
-                                    <th class="px-3 py-2 text-left font-medium text-gray-600">Resumo IA</th>
-                                    <th class="px-3 py-2 text-left font-medium text-gray-600">Relevancia</th>
-                                    <th class="px-3 py-2 text-left font-medium text-gray-600">Status</th>
-                                    <th class="px-3 py-2 text-left font-medium text-gray-600">Publico</th>
-                                    <th class="px-3 py-2 text-left font-medium text-gray-600">Acoes</th>
+                                    <th class="px-3 py-2 text-left font-medium text-gray-600 w-[30%]">Comentario</th>
+                                    <th class="px-3 py-2 text-left font-medium text-gray-600 w-[30%]">Resumo IA</th>
+                                    <th class="px-3 py-2 text-left font-medium text-gray-600 w-24">Relevancia</th>
+                                    <th class="px-3 py-2 text-left font-medium text-gray-600 w-28">Status</th>
+                                    <th class="px-3 py-2 text-left font-medium text-gray-600 w-20">Publico</th>
+                                    <th class="px-3 py-2 text-left font-medium text-gray-600 w-[260px] sticky right-0 bg-gray-50">Acoes</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y divide-gray-100">
@@ -295,8 +303,8 @@
                                                 class="rounded border-gray-300 text-indigo-600"
                                             >
                                         </td>
-                                        <td class="px-3 py-2 text-gray-700">
-                                            <div class="max-w-md truncate">{{ $comment->content ?: '-' }}</div>
+                                        <td class="px-3 py-2 text-gray-700 align-top">
+                                            <div class="whitespace-pre-wrap break-words">{{ $comment->content ?: '-' }}</div>
                                             <div class="text-xs text-gray-500 mt-1">
                                                 {{ $comment->author_handle ?: '-' }}
                                                 @if ($comment->post?->source?->label)
@@ -304,13 +312,13 @@
                                                 @endif
                                             </div>
                                         </td>
-                                        <td class="px-3 py-2 text-gray-700">
-                                            <div class="max-w-sm truncate">{{ $comment->ai_summary ?: 'Sem resumo IA' }}</div>
+                                        <td class="px-3 py-2 text-gray-700 align-top">
+                                            <div class="whitespace-pre-wrap break-words">{{ $comment->ai_summary ?: 'Sem resumo IA' }}</div>
                                         </td>
-                                        <td class="px-3 py-2 text-gray-700">
+                                        <td class="px-3 py-2 text-gray-700 align-top">
                                             {{ $comment->ai_relevance_score !== null ? number_format((float) $comment->ai_relevance_score, 2, ',', '.') : '-' }}
                                         </td>
-                                        <td class="px-3 py-2">
+                                        <td class="px-3 py-2 align-top">
                                             <span @class([
                                                 'inline-flex items-center rounded-full px-2 py-1 text-xs font-medium',
                                                 'bg-indigo-100 text-indigo-700' => $comment->status === 'pending_review',
@@ -320,7 +328,7 @@
                                                 {{ $comment->status }}
                                             </span>
                                         </td>
-                                        <td class="px-3 py-2">
+                                        <td class="px-3 py-2 align-top">
                                             <span @class([
                                                 'inline-flex items-center rounded-full px-2 py-1 text-xs font-medium',
                                                 'bg-emerald-100 text-emerald-700' => $comment->is_public,
@@ -329,7 +337,7 @@
                                                 {{ $comment->is_public ? 'Sim' : 'Nao' }}
                                             </span>
                                         </td>
-                                        <td class="px-3 py-2">
+                                        <td class="px-3 py-2 sticky right-0 bg-white align-top">
                                             <div class="flex flex-wrap items-center gap-2">
                                                 <button
                                                     type="button"
@@ -375,11 +383,23 @@
                             </tbody>
                         </table>
                     </div>
+
+                    <div class="mt-4">
+                        {{ $reviewComments->links() }}
+                    </div>
                 @else
                     <div class="space-y-4">
                         <div class="flex flex-wrap items-center justify-between gap-3">
                             <h3 class="text-lg font-semibold text-gray-900">Published</h3>
-                            <span class="text-sm text-gray-500">{{ $publishedComments->count() }} publicado(s) neste filtro</span>
+                            <div class="flex items-center gap-2">
+                                <span class="text-sm text-gray-500">{{ $publishedComments->total() }} publicado(s) neste filtro</span>
+                                <select wire:model.live="publishedPerPage" class="rounded-md border-gray-300 text-xs">
+                                    <option value="10">10/pag</option>
+                                    <option value="25">25/pag</option>
+                                    <option value="50">50/pag</option>
+                                    <option value="100">100/pag</option>
+                                </select>
+                            </div>
                         </div>
 
                         <div class="grid grid-cols-1 gap-3 md:grid-cols-3">
@@ -412,15 +432,15 @@
                         </div>
 
                         <div class="overflow-x-auto">
-                            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                            <table class="min-w-full table-fixed divide-y divide-gray-200 text-sm">
                                 <thead class="bg-gray-50">
                                     <tr>
-                                        <th class="px-3 py-2 text-left font-medium text-gray-600">Resumo</th>
-                                        <th class="px-3 py-2 text-left font-medium text-gray-600">Categoria</th>
-                                        <th class="px-3 py-2 text-left font-medium text-gray-600">Destaque</th>
-                                        <th class="px-3 py-2 text-left font-medium text-gray-600">Metricas</th>
-                                        <th class="px-3 py-2 text-left font-medium text-gray-600">Origem</th>
-                                        <th class="px-3 py-2 text-left font-medium text-gray-600">Acoes</th>
+                                        <th class="px-3 py-2 text-left font-medium text-gray-600 w-[38%]">Resumo</th>
+                                        <th class="px-3 py-2 text-left font-medium text-gray-600 w-36">Categoria</th>
+                                        <th class="px-3 py-2 text-left font-medium text-gray-600 w-28">Destaque</th>
+                                        <th class="px-3 py-2 text-left font-medium text-gray-600 w-24">Metricas</th>
+                                        <th class="px-3 py-2 text-left font-medium text-gray-600 w-[20%]">Origem</th>
+                                        <th class="px-3 py-2 text-left font-medium text-gray-600 w-32 sticky right-0 bg-gray-50">Acoes</th>
                                     </tr>
                                 </thead>
                                 <tbody class="divide-y divide-gray-100">
@@ -429,8 +449,8 @@
                                             <td class="px-3 py-2 align-top">
                                                 <textarea
                                                     wire:model="publishedForms.{{ $comment->id }}.ai_summary"
-                                                    rows="2"
-                                                    class="w-full max-w-md rounded-md border-gray-300 text-xs"
+                                                    rows="4"
+                                                    class="w-full rounded-md border-gray-300 text-xs"
                                                     placeholder="Resumo exibido no feed publico"
                                                 ></textarea>
                                                 @error('publishedForms.'.$comment->id.'.ai_summary')
@@ -472,12 +492,12 @@
                                                 </div>
                                             </td>
                                             <td class="px-3 py-2 text-gray-600 align-top">
-                                                <div class="max-w-xs truncate text-xs">{{ $comment->author_handle ?: '-' }}</div>
+                                                <div class="text-xs break-words">{{ $comment->author_handle ?: '-' }}</div>
                                                 @if ($comment->post?->source?->label)
-                                                    <div class="text-xs text-gray-500 mt-0.5">{{ $comment->post->source->label }}</div>
+                                                    <div class="text-xs text-gray-500 mt-0.5 break-words">{{ $comment->post->source->label }}</div>
                                                 @endif
                                             </td>
-                                            <td class="px-3 py-2 align-top">
+                                            <td class="px-3 py-2 align-top sticky right-0 bg-white">
                                                 <div class="flex flex-col gap-2">
                                                     <button
                                                         type="button"
@@ -505,6 +525,10 @@
                                     @endforelse
                                 </tbody>
                             </table>
+                        </div>
+
+                        <div class="mt-4">
+                            {{ $publishedComments->links() }}
                         </div>
                     </div>
                 @endif

@@ -318,6 +318,23 @@ final class ThreadsHubPageTest extends TestCase
             ->assertDontSee('outra categoria');
     }
 
+    public function test_review_tab_supports_pagination_beyond_first_hundred_items(): void
+    {
+        $user = User::factory()->create();
+
+        for ($i = 1; $i <= 120; $i++) {
+            $comment = $this->makeComment(status: 'pending_review');
+            $comment->forceFill([
+                'content' => sprintf('comentario paginacao %03d', $i),
+            ])->save();
+        }
+
+        Livewire::actingAs($user)
+            ->test(HubPage::class)
+            ->set('currentTab', 'review')
+            ->assertSee('120 itens no filtro');
+    }
+
     public function test_published_tab_lists_only_public_comments(): void
     {
         $user = User::factory()->create();
@@ -379,6 +396,23 @@ final class ThreadsHubPageTest extends TestCase
             ->call('unpublishPublishedComment', $comment->id);
 
         $this->assertFalse((bool) $comment->fresh()?->is_public);
+    }
+
+    public function test_published_tab_supports_pagination_beyond_first_hundred_items(): void
+    {
+        $user = User::factory()->create();
+
+        for ($i = 1; $i <= 120; $i++) {
+            $comment = $this->makeComment(isPublic: true);
+            $comment->forceFill([
+                'ai_summary' => sprintf('resumo publicado %03d', $i),
+            ])->save();
+        }
+
+        Livewire::actingAs($user)
+            ->test(HubPage::class)
+            ->set('currentTab', 'published')
+            ->assertSee('120 publicado(s) neste filtro');
     }
 
     private function makeComment(string $status = 'pending_review', ?int $sourceId = null, bool $isPublic = false): ThreadsComment

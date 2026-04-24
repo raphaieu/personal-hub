@@ -13,9 +13,12 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Url;
 use Livewire\Component;
+use Livewire\WithPagination;
 
 final class HubPage extends Component
 {
+    use WithPagination;
+
     #[Url(as: 'tab')]
     public string $currentTab = 'sources';
 
@@ -34,6 +37,9 @@ final class HubPage extends Component
     #[Url(as: 'review_sort')]
     public string $reviewSort = 'relevance';
 
+    #[Url(as: 'review_per_page')]
+    public int $reviewPerPage = 50;
+
     #[Url(as: 'pub_category')]
     public string $publishedCategory = 'all';
 
@@ -42,6 +48,9 @@ final class HubPage extends Component
 
     #[Url(as: 'pub_sort')]
     public string $publishedSort = 'score';
+
+    #[Url(as: 'pub_per_page')]
+    public int $publishedPerPage = 25;
 
     public string $newSourceType = 'keyword';
 
@@ -82,8 +91,8 @@ final class HubPage extends Component
                 'last_scraped_at',
             ]);
 
-        $reviewComments = $this->reviewCommentsQuery()->limit(100)->get();
-        $reviewCommentIdsOnScreen = $reviewComments->pluck('id')->map(static fn ($id): int => (int) $id)->all();
+        $reviewComments = $this->reviewCommentsQuery()->paginate($this->normalizedReviewPerPage());
+        $reviewCommentIdsOnScreen = $reviewComments->getCollection()->pluck('id')->map(static fn ($id): int => (int) $id)->all();
         $this->selectedReviewCommentIds = array_values(array_map(
             'intval',
             array_intersect($this->selectedReviewCommentIds, $reviewCommentIdsOnScreen)
@@ -121,7 +130,11 @@ final class HubPage extends Component
             $publishedQuery->orderByDesc('score_total')->orderByDesc('id');
         }
 
-        $publishedComments = $publishedQuery->limit(100)->get();
+        $publishedComments = $publishedQuery->paginate(
+            $this->normalizedPublishedPerPage(),
+            ['*'],
+            'publishedPage'
+        );
 
         foreach ($publishedComments as $comment) {
             $cid = $comment->id;
@@ -201,28 +214,36 @@ final class HubPage extends Component
         if (! in_array($value, ['all', 'pending_review', 'ignored'], true)) {
             $this->reviewStatus = 'all';
         }
+
+        $this->resetPage();
     }
 
     public function updatedReviewCategory(string $value): void
     {
         if ($value === 'all') {
+            $this->resetPage();
             return;
         }
 
         if (! ctype_digit($value)) {
             $this->reviewCategory = 'all';
         }
+
+        $this->resetPage();
     }
 
     public function updatedReviewSource(string $value): void
     {
         if ($value === 'all') {
+            $this->resetPage();
             return;
         }
 
         if (! ctype_digit($value)) {
             $this->reviewSource = 'all';
         }
+
+        $this->resetPage();
     }
 
     public function updatedReviewSort(string $value): void
@@ -230,28 +251,47 @@ final class HubPage extends Component
         if (! in_array($value, ['relevance', 'newest', 'score'], true)) {
             $this->reviewSort = 'relevance';
         }
+
+        $this->resetPage();
+    }
+
+    public function updatedReviewWithoutSummary(): void
+    {
+        $this->resetPage();
+    }
+
+    public function updatedReviewPerPage($value): void
+    {
+        $this->reviewPerPage = max(25, min(200, (int) $value));
+        $this->resetPage();
     }
 
     public function updatedPublishedCategory(string $value): void
     {
         if ($value === 'all') {
+            $this->resetPage('publishedPage');
             return;
         }
 
         if (! ctype_digit($value)) {
             $this->publishedCategory = 'all';
         }
+
+        $this->resetPage('publishedPage');
     }
 
     public function updatedPublishedSource(string $value): void
     {
         if ($value === 'all') {
+            $this->resetPage('publishedPage');
             return;
         }
 
         if (! ctype_digit($value)) {
             $this->publishedSource = 'all';
         }
+
+        $this->resetPage('publishedPage');
     }
 
     public function updatedPublishedSort(string $value): void
@@ -259,6 +299,14 @@ final class HubPage extends Component
         if (! in_array($value, ['score', 'newest', 'relevance'], true)) {
             $this->publishedSort = 'score';
         }
+
+        $this->resetPage('publishedPage');
+    }
+
+    public function updatedPublishedPerPage($value): void
+    {
+        $this->publishedPerPage = max(10, min(100, (int) $value));
+        $this->resetPage('publishedPage');
     }
 
     public function updatedSelectedReviewCommentIds(): void
@@ -370,7 +418,8 @@ final class HubPage extends Component
     public function toggleSelectAllReviewOnPage(): void
     {
         $visibleIds = $this->reviewCommentsQuery()
-            ->limit(100)
+            ->paginate($this->normalizedReviewPerPage())
+            ->getCollection()
             ->pluck('id')
             ->map(static fn ($id): int => (int) $id)
             ->sort()
@@ -525,6 +574,16 @@ final class HubPage extends Component
         ))));
     }
 
+    private function normalizedReviewPerPage(): int
+    {
+        return max(25, min(200, (int) $this->reviewPerPage));
+    }
+
+    private function normalizedPublishedPerPage(): int
+    {
+        return max(10, min(100, (int) $this->publishedPerPage));
+    }
+
     private function batchNotice(int $affected, string $suffix): string
     {
         if ($affected < 1) {
@@ -536,10 +595,8 @@ final class HubPage extends Component
 
     /**
      * Lista de review com os mesmos filtros/ordenacao da tabela (sem limite).
-     *
-     * @return Builder<ThreadsComment>
      */
-    private function reviewCommentsQuery(): Builder
+    private function reviewCommentsQuery()
     {
         $query = ThreadsComment::query()
             ->with(['post:id,post_url,threads_source_id', 'post.source:id,label', 'category:id,name'])
@@ -556,6 +613,10 @@ final class HubPage extends Component
             $query->orderByDesc('score_total')->orderByDesc('id');
         } else {
             $query->orderByDesc('ai_relevance_score')->orderByDesc('id');
+        }
+
+        if (! $query instanceof Builder) {
+            return ThreadsComment::query();
         }
 
         return $query;
