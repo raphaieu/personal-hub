@@ -666,6 +666,8 @@ app/
     IaraController.php
     WebhookController.php
     DashboardController.php
+    Utilities/
+      UtilityInvoicePdfController.php
     UtilityAccountController.php
     InvoiceController.php
     ReminderController.php
@@ -700,6 +702,9 @@ app/
   Support/
     UtilityScrapeWindow.php
     UtilityAccountScrapeGate.php
+  Livewire/
+    Utilities/
+      HubPage.php
 
 database/
   migrations/
@@ -824,6 +829,15 @@ docker/
 - Ao disparar classificação pendente, flash descreve quantos jobs foram enfileirados neste clique, batch, espaçamento e pendentes restantes estimados.
 - Aba Review: controle **selecionar todos nesta página** (mesmos filtros/ordenação da tabela, limite 100), método `toggleSelectAllReviewOnPage`.
 - Testes em `tests/Feature/Threads/ThreadsHubPageTest.php` para batch size do job e toggle de seleção.
+
+## Hub Utilidades (Bloco 5 — dashboard autenticado)
+
+- Rota autenticada: `GET /hub/utilities` (`utilities.hub`), componente Livewire `App\Livewire\Utilities\HubPage`, layout `layouts.app`, link na navegação principal (`Utilidades`).
+- Gestão de `utility_accounts`: criação e edição de `kind` (fixo após criação na edição), `account_ref`, `label`, `due_day`, `reminder_lead_days`, `is_active`; alternância rápida ativo/inativo.
+- Painel de faturas por conta: query string `?conta={id}` (`selectedAccountId`), listagem paginada de `invoices` (referência, vencimento, valor, status).
+- PDF: link **Baixar PDF** somente quando `invoices.pdf_path` existe no disco `services.utilities.pdf_storage_disk` (`UTILITIES_INVOICE_PDF_DISK`); download autenticado em `GET /hub/utilities/invoices/{invoice}/pdf` (`utilities.invoice.pdf`, `App\Http\Controllers\Utilities\UtilityInvoicePdfController`).
+- Ação **Scrape agora** (por linha de conta): enfileira `ScrapeConta` com `ignoreScrapeWindow: true` e `force: true` para o `kind` da conta (um scrape Playwright por `kind`; reconciliação por `account_ref` como no job agendado). Feedback via flash `utilities_hub_notice`.
+- Cobertura: `tests/Feature/Utilities/UtilitiesHubPageTest.php`.
 
 ## Página pública Oportunidades (Fase 6 — listagem SSR inicial)
 
