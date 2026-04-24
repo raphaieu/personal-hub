@@ -65,6 +65,18 @@
     @else
         <ul class="space-y-4">
             @foreach ($comments as $comment)
+                @php
+                    $categorySlug = (string) ($comment->category?->slug ?? '');
+                    $categoryPillClass = match ($categorySlug) {
+                        'freela' => 'bg-violet-100 text-violet-800',
+                        'emprego-fixo' => 'bg-blue-100 text-blue-800',
+                        'temporario' => 'bg-amber-100 text-amber-800',
+                        'renda-extra' => 'bg-emerald-100 text-emerald-800',
+                        default => 'bg-gray-100 text-gray-700',
+                    };
+                    $authorHandle = (string) ($comment->author_handle ?: '@desconhecido');
+                    $originalComment = ltrim((string) ($comment->content ?: 'Sem comentario original.'));
+                @endphp
                 <li class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
                     <div class="flex flex-wrap items-start justify-between gap-3">
                         <div class="min-w-0 flex-1">
@@ -73,17 +85,21 @@
                                     Destaque
                                 </span>
                             @endif
-                            <p class="text-base font-medium text-gray-900">
+                            <p class="text-xs font-semibold uppercase tracking-wide text-gray-500">Resumo da IA:</p>
+                            <p class="mt-1 text-base font-medium text-gray-900">
                                 {{ $comment->ai_summary ?: \Illuminate\Support\Str::limit((string) $comment->content, 160) }}
                             </p>
                             @if ($comment->category)
-                                <p class="mt-2 text-xs text-gray-500">{{ $comment->category->name }}</p>
+                                <div class="mt-2">
+                                    <span class="inline-flex rounded-full px-2.5 py-1 text-xs font-semibold {{ $categoryPillClass }}">
+                                        {{ $comment->category->name }}
+                                    </span>
+                                </div>
                             @endif
-                            @if ($comment->post?->post_url)
-                                <a href="{{ $comment->post->post_url }}" target="_blank" rel="noopener noreferrer" class="mt-2 inline-block text-xs text-indigo-600 hover:text-indigo-800">
-                                    Ver thread no Threads
-                                </a>
-                            @endif
+                            <p class="mt-3 text-xs font-semibold uppercase tracking-wide text-gray-500">Comentario Original:</p>
+                            <p class="mt-1 text-sm text-gray-700 break-words">
+                                <span class="font-semibold text-indigo-700">{{ $authorHandle }}:</span> {{ $originalComment }}
+                            </p>
                         </div>
                         <div class="shrink-0 text-right text-xs text-gray-600">
                             <div>Score <span class="font-semibold text-gray-900">{{ $comment->score_total }}</span></div>
@@ -116,9 +132,23 @@
                                     </button>
                                 </form>
                             </div>
-                            <p class="mt-2 max-w-[12rem] text-[10px] leading-snug text-gray-400">
-                                Um voto por dia por dispositivo/rede (anonimo).
-                            </p>
+                            @if ($comment->post?->post_url)
+                                <a
+                                    href="{{ $comment->post->post_url }}"
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    class="mt-3 inline-flex items-center justify-end gap-1 text-xs text-indigo-600 hover:text-indigo-800"
+                                    title="Abrir post no Threads em nova aba"
+                                >
+                                    <span>Ver post no Threads</span>
+                                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" class="h-3.5 w-3.5" aria-hidden="true">
+                                        <path fill-rule="evenodd" d="M5 4.75A.75.75 0 0 1 5.75 4h7.5A2.75 2.75 0 0 1 16 6.75v7.5A.75.75 0 0 1 14.5 14.25v-7.5c0-.69-.56-1.25-1.25-1.25h-7.5A.75.75 0 0 1 5 4.75Z" clip-rule="evenodd" />
+                                        <path fill-rule="evenodd" d="M8.22 12.28a.75.75 0 0 1 0-1.06l5-5a.75.75 0 1 1 1.06 1.06l-5 5a.75.75 0 0 1-1.06 0Z" clip-rule="evenodd" />
+                                        <path fill-rule="evenodd" d="M9 6.75A.75.75 0 0 1 9.75 6h4.5a.75.75 0 0 1 0 1.5h-4.5A.75.75 0 0 1 9 6.75Z" clip-rule="evenodd" />
+                                        <path fill-rule="evenodd" d="M12.5 5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5A.75.75 0 0 1 12.5 5Z" clip-rule="evenodd" />
+                                    </svg>
+                                </a>
+                            @endif
                         </div>
                     </div>
                 </li>
