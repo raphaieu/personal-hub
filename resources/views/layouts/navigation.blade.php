@@ -21,6 +21,9 @@
                     <x-nav-link :href="route('threads.hub')" :active="request()->routeIs('threads.hub')">
                         {{ __('Threads Hub') }}
                     </x-nav-link>
+                    <x-nav-link :href="route('utilities.hub')" :active="request()->routeIs('utilities.hub')">
+                        {{ __('Utilidades') }}
+                    </x-nav-link>
                 </div>
             </div>
 
@@ -81,6 +84,9 @@
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('threads.hub')" :active="request()->routeIs('threads.hub')">
                 {{ __('Threads Hub') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('utilities.hub')" :active="request()->routeIs('utilities.hub')">
+                {{ __('Utilidades') }}
             </x-responsive-nav-link>
         </div>
 

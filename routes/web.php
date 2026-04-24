@@ -5,8 +5,10 @@ use App\Http\Controllers\IaraController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ThreadsCommentVoteController;
 use App\Http\Controllers\ThreadsOpportunitiesController;
+use App\Http\Controllers\Utilities\UtilityInvoicePdfController;
 use App\Http\Controllers\Webhook\WhatsAppWebhookController;
 use App\Livewire\Threads\HubPage as ThreadsHubPage;
+use App\Livewire\Utilities\HubPage as UtilitiesHubPage;
 use Illuminate\Support\Facades\Route;
 
 Route::post('/webhook/whatsapp', WhatsAppWebhookController::class)
@@ -34,6 +36,9 @@ Route::get('/dashboard', function () {
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/chat', [AiChatController::class, 'index'])->name('chat');
     Route::get('/hub/threads', ThreadsHubPage::class)->name('threads.hub');
+    Route::get('/hub/utilities', UtilitiesHubPage::class)->name('utilities.hub');
+    Route::get('/hub/utilities/invoices/{invoice}/pdf', [UtilityInvoicePdfController::class, 'show'])
+        ->name('utilities.invoice.pdf');
 
     Route::middleware('throttle:120,1')->prefix('api/ai')->group(function () {
         Route::get('/chat-options', [AiChatController::class, 'options'])->name('api.ai.chat-options');

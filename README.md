@@ -253,6 +253,23 @@ Para webhooks e testes externos (mesmo stack em termos de comportamento; URL pú
 - Fase 3.2 concluida no Laravel: classificacao IA com `ThreadsClassificationService`, job `ClassifyCommentsJob` na fila `ai`, regra de corte `THREADS_RELEVANCE_THRESHOLD` (`ignored` abaixo / `pending_review` acima) e disparo automatico de classificacao apos ingestao de comentarios.
 - Proximo passo: Fase 4 (orquestracao por scheduler/gatilhos de sources).
 
+### Scraping de utilidades (status atual)
+
+- Serviço Playwright agora expõe endpoints dedicados:
+  - `POST /embasa/scrape`
+  - `POST /coelba/scrape`
+- `GET /health` inclui readiness de sessão por concessionária (`embasa_session_ready`, `coelba_session_ready`).
+- Sessão persistente por provider com `storageState` dedicado:
+  - `EMBASA_SESSION_PATH` (default `/app/storage/embasa-session.json`)
+  - `COELBA_SESSION_PATH` (default `/app/storage/coelba-session.json`)
+- Coelba usa CapSolver (`ReCaptchaV3TaskProxyLess`) com fallback para submissão sem token quando não houver solução.
+- Coelba possui fluxo step-by-step sem sessão reaproveitada, centralizado na home para estabilidade: login completo por execução, seleção de estado/unidade, leitura de `Última Fatura`, captura opcional de código PIX e download da 2ª via via modal.
+- Bloco 2 no Laravel: contrato mockável `UtilityScraperClientInterface` com implementação HTTP (`UtilityPlaywrightService`) e fake (`FakeUtilityScraperClient`); bind no `AppServiceProvider`; regressão em `tests/Feature/Utilities/UtilityScraperClientTest.php`.
+- Bloco 3 no Laravel: `InvoiceService` (upsert em `invoices`, PDF no disco `local` quando arquivo legível pelo PHP), job `ScrapeConta` na fila `scraping` com janela `UtilityScrapeWindow`, agendamento em `bootstrap/app.php` (Embasa 08:00, Coelba 08:05); testes em `tests/Feature/Utilities/InvoiceServiceTest.php`, `ScrapeContaJobTest.php` e `tests/Unit/UtilityScrapeWindowTest.php`.
+- Bloco 4 no Laravel: `EvolutionService` (`sendText` v2), lembretes `NotificarVencimento` (fila `notifications`), `VerificarStatusFaturas` reenfileirando `ScrapeConta` com `ignoreScrapeWindow`, variáveis `EVOLUTION_API_KEY` / `EVOLUTION_INSTANCE`, JID do grupo via `WHATSAPP_UTILITIES_HOME_GROUP_JID` ou fallback `WHATSAPP_GRUPO_CASA_JID`, `UTILITIES_NOTIFY_DAYS_AHEAD`, PDFs em `storage/app/private` por padrão ou `UTILITIES_INVOICE_PDF_DISK=s3` para MinIO/AWS (após upload em S3, opcionalmente apaga o arquivo fonte com `UTILITIES_DELETE_SOURCE_PDF_AFTER_UPLOAD` / default automático); schedule 09:00 / 09:30; testes em `tests/Unit/EvolutionServiceTest.php`, `NotificarVencimentoJobTest.php`, `VerificarStatusFaturasJobTest.php`.
+- Scrape idempotente: `UtilityAccountScrapeGate` evita Playwright quando `pago` ou (`a_vencer`/`pendente` com vencimento ainda futuro); `ScrapeConta` aceita `force` (agendado `false`). Manual: `php artisan utilities:scrape embasa --force` ou `ScrapeConta::dispatch('embasa', false, true)`; testes em `tests/Unit/UtilityAccountScrapeGateTest.php` e cenários extras em `ScrapeContaJobTest`.
+- Bloco 5 (Hub UI): rota autenticada `GET /hub/utilities` (`utilities.hub`) com Livewire `App\Livewire\Utilities\HubPage` — CRUD de contas, lista de faturas por conta (`?conta=`), download de PDF quando o arquivo existe no disco configurado (`GET /hub/utilities/invoices/{invoice}/pdf`), ação **Scrape agora** disparando `ScrapeConta::dispatch($kind, true, true)`; testes em `tests/Feature/Utilities/UtilitiesHubPageTest.php`.
+
 ### Dashboard Threads (fase frontend)
 
 - Fase 4.1 concluida: `livewire/livewire` (v4) instalado via Composer, layouts base (`app` e `guest`) preparados com `@livewireStyles`/`@livewireScripts` e smoke test de disponibilidade do pacote no container adicionado.

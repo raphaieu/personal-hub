@@ -1,6 +1,9 @@
 <?php
 
 use App\Http\Middleware\ValidateIaraAccess;
+use App\Jobs\NotificarVencimento;
+use App\Jobs\ScrapeConta;
+use App\Jobs\VerificarStatusFaturas;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -28,6 +31,10 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->command('horizon:snapshot')->everyFiveMinutes();
 
         // Scrapers / WhatsApp — registrar Jobs aqui com ->onQueue('scraping'|'notifications') (SPEC.md).
+        $schedule->job(new ScrapeConta('embasa'))->dailyAt('08:00');
+        $schedule->job(new ScrapeConta('coelba'))->dailyAt('08:05');
+        $schedule->job(new VerificarStatusFaturas)->dailyAt('09:00');
+        $schedule->job(new NotificarVencimento)->dailyAt('09:30');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

@@ -209,35 +209,27 @@ Recebe payload da Evolution, extrai tipo/conteúdo, identifica a source e despac
 
 **Variáveis:** ver `config/services.php` (`ollama`, `iara`, `groq`, `anthropic`, `openai`) e `config/ai.php`; baseline em `.env.example` (perfis VPS vs dev remoto vs Ollama local).
 
-### `PlaywrightService`
+### Cliente Playwright de utilidades (Embasa/Coelba)
 
-HTTP client que se comunica com o container `raphael-playwright` via rede Docker interna (`http://raphael-playwright:3001`).
-
-Métodos:
-
-- `scrapeEmbasa()` → array com faturas + pdf_path
-- `scrapeCoelba()` → array com faturas + pdf_path
-- `healthCheck()` → bool
+Integração HTTP no Laravel via `App\Contracts\UtilityScraperClientInterface` e `App\Services\Utilities\UtilityPlaywrightService` (POST `/embasa/scrape` e `/coelba/scrape` em `services.playwright.url`). O scraper Node continua usando credenciais por ambiente no container Playwright; o job `ScrapeConta` reconcilia o resultado com `utility_accounts.account_ref` (`matricula` / `codigo_cliente` no JSON) ou, se houver **uma** conta ativa na janela, assume essa conta.
 
 ### `EvolutionService`
 
-Wrapper HTTP para a Evolution API.
+Implementação: `App\Services\EvolutionService`. Cliente HTTP mínimo para Evolution API v2.
 
-Métodos:
-
-- `sendText(jid, text)` → void
-- `sendMedia(jid, url, caption, mediaType)` → void
-- `sendDocument(jid, path, filename, caption)` → void
+- `sendText(string $number, string $text): void` — `POST /message/sendText/{instance}` com header `apikey` (`services.evolution.api_key`), corpo `{ number, text }`. URL base `services.evolution.url`, instância `services.evolution.instance`. Erros HTTP ou conexão → `RuntimeException` para permitir retry no Horizon.
+- `isConfigured(): bool` — exige `EVOLUTION_URL`, `EVOLUTION_API_KEY` e `EVOLUTION_INSTANCE` preenchidos.
+- `sendMedia` / `sendDocument` — ainda não implementados no hub.
 
 ### `InvoiceService`
 
-Orquestra o ciclo de vida de uma fatura no banco (`invoices`).
+Implementação: `App\Services\InvoiceService`. Orquestra persistência em `invoices` a partir do payload normalizado do scraper.
 
 Métodos:
 
-- `processScrapeResult(array $payload, UtilityAccount $account)` → upsert invoice, upload PDF, trigger notificação
-- `uploadPdf(string $localPath, UtilityAccount $account, string $billingReference)` → path no MinIO
-- `notifyHomeGroup(Invoice $invoice)` → formata mensagem e chama EvolutionService
+- `processScrapeResult(array $payload, UtilityAccount $account)` → `updateOrCreate` por (`utility_account_id`, `billing_reference`); preenche valores Embasa/Coelba; grava `raw_payload` com a linha da fatura (e `playwright_pdf_path` quando o PDF não pôde ser copiado no app); associa PDF ao faturamento preferencial (pendente/vencida/a_vencer/processando, menor vencimento).
+- `uploadPdf(string $localPath, UtilityAccount $account, string $billingReference)` → se o arquivo existir no filesystem **visível ao PHP**, grava em `utilities/invoices/{utility_account_id}/…` no disco `services.utilities.pdf_storage_disk` (`UTILITIES_INVOICE_PDF_DISK`, default `local` = `storage/app/private`; use `s3` + credenciais MinIO/AWS para objeto no bucket). Após `put` com sucesso, pode apagar o arquivo fonte (`UTILITIES_DELETE_SOURCE_PDF_AFTER_UPLOAD`; default automático: apaga fonte quando o disco é `s3`) — **só** se o path do Playwright existir no mesmo host/volume que o PHP (bind mount Docker). Caso contrário retorna `null` na cópia ou loga falha ao apagar.
+- `notifyHomeGroup(Invoice $invoice): bool` → monta texto de lembrete e chama `EvolutionService::sendText` com `services.whatsapp.utilities_home_group_jid` (env `WHATSAPP_UTILITIES_HOME_GROUP_JID`, com fallback para `WHATSAPP_GRUPO_CASA_JID`). Retorna `false` se JID ausente ou Evolution incompleta (sem atualizar `last_notified_at` no job); `true` após envio bem-sucedido.
 
 ---
 
@@ -250,6 +242,7 @@ Métodos:
 | `ProcessContactWhatsAppMessage`  | `default`       | Webhook contato monitorado  |
 | `ProcessGroupWhatsAppMessage`    | `default`       | Webhook grupo monitorado    |
 | `ScrapeConta`                    | `scraping`      | Schedule ou on-demand       |
+| `VerificarStatusFaturas`         | `default`       | Schedule diário (reenfileira scrape) |
 | `EnriquecerUrlLembrete`          | `default`       | Após salvar lembrete de URL |
 | `NotificarVencimento`            | `notifications` | Schedule diário             |
 | `RecalculateCommentScoreJob`     | `default`       | Após voto em `/oportunidades` |
@@ -257,7 +250,7 @@ Métodos:
 
 ---
 
-## Schedule (`app/Console/Kernel.php`)
+## Schedule (`bootstrap/app.php` → `withSchedule`)
 
 ```php
 // Scrape completo — X dias antes do vencimento de cada conta
@@ -272,20 +265,31 @@ $schedule->job(new VerificarStatusFaturas())->dailyAt('09:00');
 $schedule->job(new NotificarVencimento())->dailyAt('09:30');
 ```
 
-**Lógica do `ScrapeConta`:**
+**Lógica do `ScrapeConta` (`App\Jobs\ScrapeConta`, fila `scraping`):**
 
-1. Busca conta ativa no banco
-2. Calcula se hoje está dentro da janela `(dia_vencimento - dias_antecedencia)` a `(dia_vencimento + 30)`
-3. Se sim → chama `PlaywrightService::scrapeEmbasa/Coelba()`
-4. Chama `InvoiceService::processScrapeResult()`
-5. Atualiza `utility_accounts.last_scraped_at`
+Construtor: `kind` (`embasa`|`coelba`), opcional `ignoreScrapeWindow` (default `false`) e opcional `force` (default `false`). Quando `ignoreScrapeWindow` é `true`, ignora `UtilityScrapeWindow` (ex.: `VerificarStatusFaturas`). Quando `force` é `true`, chama sempre o Playwright (scrape manual / dashboard).
 
-**Lógica do `NotificarVencimento`:**
+**Heurística sem `force` (`App\Support\UtilityAccountScrapeGate`):** para cada conta candidata, resolve a fatura de referência (`billing_reference` = mês atual `mm/aaaa` ou, se não existir, a mais recente por `due_date`). Se **todas** as contas indicam que não precisa Playwright, o job encerra com log `utilities.scrape_conta.skipped_idempotent` **sem** chamar o scraper: não há fatura; ou status `pago`; ou (`a_vencer` ou `pendente`) **e** hoje é **antes** do `due_date`. Caso contrário (vence hoje ou já passou ainda não pago, ou `vencida`/`processando`/outros, ou sem linha em `invoices`) → executa scrape.
 
-1. Busca invoices com status != pago e vencimento nos próximos N dias
-2. Para cada uma, verifica se já notificou hoje (`last_notified_at`)
-3. Se não → monta mensagem → `EvolutionService::sendText(grupo_da_casa)`
-4. Atualiza `last_notified_at`
+1. Lista `utility_accounts` ativas do `kind` (com filtro de janela, salvo se `ignoreScrapeWindow`).
+2. Se a lista for vazia, encerra sem chamar Playwright.
+3. Se o gate acima dispensar scrape para todas as contas e `force` for `false`, encerra sem Playwright.
+4. Executa **um** scrape (`scrapeEmbasa()` ou `scrapeCoelba()`).
+5. Escolhe contas alvo: preferência por `account_ref` igual a `data.matricula` (Embasa) ou `data.codigo_cliente` (Coelba); se nenhuma bater e existir exatamente uma conta elegível, usa essa (modo single-tenant).
+6. Para cada conta alvo: `InvoiceService::processScrapeResult($payload, $account)` e atualiza `utility_accounts.last_scraped_at`.
+
+**CLI manual:** `php artisan utilities:scrape {embasa|coelba} [--force] [--ignore-window]` — enfileira o mesmo job na fila `scraping`.
+
+**Lógica do `VerificarStatusFaturas` (`App\Jobs\VerificarStatusFaturas`, fila `default`):**
+
+1. Descobre `kind` distintos (`embasa`|`coelba`) em `utility_accounts` ativas que possuem ao menos uma `invoice` com `status != pago`.
+2. Para cada `kind`, enfileira `ScrapeConta` com `ignoreScrapeWindow: true` e `force: false` (respeita o gate; atualização fora da janela principal do agendamento).
+
+**Lógica do `NotificarVencimento` (`App\Jobs\NotificarVencimento`, fila `notifications`):**
+
+1. Seleciona `invoices` com `status != pago`, `last_notified_at` nulo ou **não** no dia corrente (timezone do app), e vencimento **vencido** (`due_date` antes de hoje) **ou** vencimento entre hoje e hoje + `services.utilities.notify_days_ahead` (`UTILITIES_NOTIFY_DAYS_AHEAD`, default 7).
+2. Para cada candidata: chama `InvoiceService::notifyHomeGroup($invoice)`; se retornar `true`, define `last_notified_at = now()`.
+3. Falhas HTTP por fatura são logadas e não interrompem as demais (`try/catch` por item).
 
 ---
 
@@ -296,16 +300,24 @@ Servidor HTTP Node.js rodando na porta `3001` (interno à rede Docker).
 ### Rotas
 
 - `GET /health` → `{ status: 'ok' }`
-- `POST /scrape/embasa` → executa scraper Embasa, retorna JSON
-- `POST /scrape/coelba` → executa scraper Coelba com CapSolver, retorna JSON
+- `POST /embasa/scrape` → executa scraper Embasa, retorna JSON
+- `POST /coelba/scrape` → executa scraper Coelba com CapSolver, retorna JSON
+- `GET /health` também retorna estado de sessão persistente por provider:
+  - `embasa_session_ready`, `embasa_session_path`
+  - `coelba_session_ready`, `coelba_session_path`
 
 ### Resposta padrão dos scrapers
+
+Envelope HTTP alinhado ao serviço Node (`success`, `mode`, `concessionaria`, `scraped_at`, `data`). Coelba inclui em `data` opcionalmente `codigo_cliente`, `pix_code` e o mesmo arranjo de `faturas` / `pdf_path` quando extraídos na home.
 
 ```json
 {
   "success": true,
+  "mode": "embasa",
+  "concessionaria": "embasa",
+  "scraped_at": "ISO8601",
   "data": {
-    "concessionaria": "embasa|coelba",
+    "concessionaria": "embasa",
     "matricula": "...",
     "scraped_at": "ISO8601",
     "faturas": [
@@ -322,6 +334,42 @@ Servidor HTTP Node.js rodando na porta `3001` (interno à rede Docker).
 }
 ```
 
+### Integração Laravel (Embasa/Coelba — Bloco 2 concluído)
+
+- **Contrato mockável + cliente HTTP** (mesmo padrão do Threads):
+  - Contrato: `App\Contracts\UtilityScraperClientInterface`.
+  - Implementação real: `App\Services\Utilities\UtilityPlaywrightService` (POST para `/embasa/scrape` e `/coelba/scrape` em `services.playwright.url`, timeout `services.playwright.timeout`).
+  - Implementação fake para testes: `App\Services\Utilities\FakeUtilityScraperClient`.
+  - Bind em `AppServiceProvider` para jobs/serviços de domínio não acoplarem ao container Node.
+- **Cobertura automática mínima da integração**:
+  - `tests/Feature/Utilities/UtilityScraperClientTest.php` cobre resolução da interface, normalização de payload (Embasa), tratamento de erro HTTP (Coelba) e comportamento do fake.
+
+### Integração Laravel (Embasa/Coelba — Bloco 3 concluído)
+
+- **Ingestão e jobs**:
+  - `App\Services\InvoiceService` — upsert de `invoices`, PDF opcional no disco `local`, lembretes via `notifyHomeGroup` (Bloco 4).
+  - `App\Jobs\ScrapeConta` — orquestra janela + scrape + ingestão; depende de `UtilityScraperClientInterface` e `InvoiceService`; suporta `ignoreScrapeWindow` (Bloco 4).
+  - `App\Support\UtilityScrapeWindow` — cálculo de janela por `due_day` / `reminder_lead_days`.
+- **Agendamento**: `bootstrap/app.php` agenda `ScrapeConta('embasa')` às 08:00 e `ScrapeConta('coelba')` às 08:05 (mesma intenção do trecho legado que citava `Kernel.php`).
+- **Testes**:
+  - `tests/Feature/Utilities/InvoiceServiceTest.php` — mapeamento Embasa/Coelba, idempotência, upload local de PDF.
+  - `tests/Feature/Utilities/ScrapeContaJobTest.php` — execução síncrona do job com `FakeUtilityScraperClient` e conta na janela.
+  - `tests/Unit/UtilityScrapeWindowTest.php` — limites da janela.
+  - `tests/Unit/UtilityAccountScrapeGateTest.php` — heurística de skip do Playwright.
+
+### Integração Laravel (Embasa/Coelba — Bloco 4 concluído)
+
+- **`App\Services\EvolutionService`** — envio de texto via Evolution API v2; config em `services.evolution` (`EVOLUTION_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE`, timeout opcional).
+- **Jobs**:
+  - `App\Jobs\VerificarStatusFaturas` — reenfileira `ScrapeConta` com `ignoreScrapeWindow` por `kind` com fatura não paga.
+  - `App\Jobs\NotificarVencimento` — lembretes WhatsApp para faturas elegíveis; fila `notifications`.
+- **Agendamento**: `VerificarStatusFaturas` às 09:00 e `NotificarVencimento` às 09:30 em `bootstrap/app.php`.
+- **Testes**:
+  - `tests/Unit/EvolutionServiceTest.php`
+  - `tests/Feature/Utilities/VerificarStatusFaturasJobTest.php`
+  - `tests/Feature/Utilities/NotificarVencimentoJobTest.php`
+  - `ScrapeContaJobTest` cobre também `ignoreScrapeWindow`.
+
 ### CapSolver (Coelba)
 
 - Tipo: `ReCaptchaV3TaskProxyLess`
@@ -329,6 +377,27 @@ Servidor HTTP Node.js rodando na porta `3001` (interno à rede Docker).
 - `pageAction`: `login`
 - `minScore`: `0.5`
 - Fallback: tenta submeter sem token se CapSolver falhar
+
+### Sessão persistente de utilidades (Embasa/Coelba)
+
+- Cada scraper mantém `storageState` dedicado em arquivo:
+  - `EMBASA_SESSION_PATH` (default `/app/storage/embasa-session.json`)
+  - `COELBA_SESSION_PATH` (default `/app/storage/coelba-session.json`)
+- Fluxo de execução:
+  1. tenta scraping com sessão existente;
+  2. se a sessão falhar/expirar, faz relogin automático;
+  3. persiste novo `storageState` e repete o scraping.
+- Objetivo: reduzir login repetitivo e deixar scraping diário mais estável.
+
+**Ajuste operacional (Coelba):**
+- O scraper da Coelba opera em modo **login full-flow por execução** (sem reaproveitar sessão), privilegiando estabilidade na SPA.
+- Estratégia atual do MVP:
+  1. login
+  2. selecionar estado Bahia
+  3. selecionar unidade consumidora
+  4. coletar dados principais no card **Última Fatura** da home (`valor`, `vencimento`, `situação`)
+  5. abrir modal PIX para capturar código quando disponível
+  6. baixar PDF por `Mais opções` -> `Opções de fatura` -> `Download` (motivo `Não Recebi` -> `Baixar`)
 
 ---
 
@@ -597,6 +666,8 @@ app/
     IaraController.php
     WebhookController.php
     DashboardController.php
+    Utilities/
+      UtilityInvoicePdfController.php
     UtilityAccountController.php
     InvoiceController.php
     ReminderController.php
@@ -621,9 +692,20 @@ app/
     AiRouterService.php
     NeuronAIService.php
     OllamaService.php
-    PlaywrightService.php
-    EvolutionService.php
+    Utilities/
+      UtilityPlaywrightService.php
+      FakeUtilityScraperClient.php
     InvoiceService.php
+    EvolutionService.php
+  Contracts/
+    UtilityScraperClientInterface.php
+  Support/
+    UtilityScrapeWindow.php
+    UtilityAccountScrapeGate.php
+    UtilityInvoiceDisk.php
+  Livewire/
+    Utilities/
+      HubPage.php
 
 database/
   migrations/
@@ -748,6 +830,15 @@ docker/
 - Ao disparar classificação pendente, flash descreve quantos jobs foram enfileirados neste clique, batch, espaçamento e pendentes restantes estimados.
 - Aba Review: controle **selecionar todos nesta página** (mesmos filtros/ordenação da tabela, limite 100), método `toggleSelectAllReviewOnPage`.
 - Testes em `tests/Feature/Threads/ThreadsHubPageTest.php` para batch size do job e toggle de seleção.
+
+## Hub Utilidades (Bloco 5 — dashboard autenticado)
+
+- Rota autenticada: `GET /hub/utilities` (`utilities.hub`), componente Livewire `App\Livewire\Utilities\HubPage`, layout `layouts.app`, link na navegação principal (`Utilidades`).
+- Gestão de `utility_accounts`: criação e edição de `kind` (fixo após criação na edição), `account_ref`, `label`, `due_day`, `reminder_lead_days`, `is_active`; alternância rápida ativo/inativo.
+- Painel de faturas por conta: query string `?conta={id}` (`selectedAccountId`), listagem paginada de `invoices` (referência, vencimento, valor, status).
+- PDF: link **Baixar PDF** somente quando `invoices.pdf_path` existe no disco `services.utilities.pdf_storage_disk` (`UTILITIES_INVOICE_PDF_DISK`), verificado via `App\Support\UtilityInvoiceDisk::exists` (falhas S3/MinIO ex. `UnableToCheckFileExistence` tratam como indisponível + log `utilities.invoice_disk.*`, sem 500 no Livewire). Download continua sendo pelo Laravel em `GET /hub/utilities/invoices/{invoice}/pdf` (`utilities.invoice.pdf`) — não use URL presignada do console MinIO no Blade; o PHP precisa alcançar `AWS_ENDPOINT` a partir do container app.
+- Ação **Scrape agora** (por linha de conta): enfileira `ScrapeConta` com `ignoreScrapeWindow: true` e `force: true` para o `kind` da conta (um scrape Playwright por `kind`; reconciliação por `account_ref` como no job agendado). Feedback via flash `utilities_hub_notice`.
+- Cobertura: `tests/Feature/Utilities/UtilitiesHubPageTest.php`.
 
 ## Página pública Oportunidades (Fase 6 — listagem SSR inicial)
 
