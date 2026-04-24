@@ -264,6 +264,7 @@ Para webhooks e testes externos (mesmo stack em termos de comportamento; URL pú
   - `COELBA_SESSION_PATH` (default `/app/storage/coelba-session.json`)
 - Coelba usa CapSolver (`ReCaptchaV3TaskProxyLess`) com fallback para submissão sem token quando não houver solução.
 - Coelba possui fluxo step-by-step sem sessão reaproveitada, centralizado na home para estabilidade: login completo por execução, seleção de estado/unidade, leitura de `Última Fatura`, captura opcional de código PIX e download da 2ª via via modal.
+- Bloco 2 no Laravel: contrato mockável `UtilityScraperClientInterface` com implementação HTTP (`UtilityPlaywrightService`) e fake (`FakeUtilityScraperClient`); bind no `AppServiceProvider`; regressão em `tests/Feature/Utilities/UtilityScraperClientTest.php`.
 
 ### Dashboard Threads (fase frontend)
 

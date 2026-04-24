@@ -276,7 +276,7 @@ $schedule->job(new NotificarVencimento())->dailyAt('09:30');
 
 1. Busca conta ativa no banco
 2. Calcula se hoje está dentro da janela `(dia_vencimento - dias_antecedencia)` a `(dia_vencimento + 30)`
-3. Se sim → chama `PlaywrightService::scrapeEmbasa/Coelba()`
+3. Se sim → chama `UtilityScraperClientInterface` (`scrapeEmbasa()` / `scrapeCoelba()`)
 4. Chama `InvoiceService::processScrapeResult()`
 5. Atualiza `utility_accounts.last_scraped_at`
 
@@ -304,11 +304,16 @@ Servidor HTTP Node.js rodando na porta `3001` (interno à rede Docker).
 
 ### Resposta padrão dos scrapers
 
+Envelope HTTP alinhado ao serviço Node (`success`, `mode`, `concessionaria`, `scraped_at`, `data`). Coelba inclui em `data` opcionalmente `codigo_cliente`, `pix_code` e o mesmo arranjo de `faturas` / `pdf_path` quando extraídos na home.
+
 ```json
 {
   "success": true,
+  "mode": "embasa",
+  "concessionaria": "embasa",
+  "scraped_at": "ISO8601",
   "data": {
-    "concessionaria": "embasa|coelba",
+    "concessionaria": "embasa",
     "matricula": "...",
     "scraped_at": "ISO8601",
     "faturas": [
@@ -324,6 +329,16 @@ Servidor HTTP Node.js rodando na porta `3001` (interno à rede Docker).
   }
 }
 ```
+
+### Integração Laravel (Embasa/Coelba — Bloco 2 concluído)
+
+- **Contrato mockável + cliente HTTP** (mesmo padrão do Threads):
+  - Contrato: `App\Contracts\UtilityScraperClientInterface`.
+  - Implementação real: `App\Services\Utilities\UtilityPlaywrightService` (POST para `/embasa/scrape` e `/coelba/scrape` em `services.playwright.url`, timeout `services.playwright.timeout`).
+  - Implementação fake para testes: `App\Services\Utilities\FakeUtilityScraperClient`.
+  - Bind em `AppServiceProvider` para jobs/serviços de domínio não acoplarem ao container Node.
+- **Cobertura automática mínima da integração**:
+  - `tests/Feature/Utilities/UtilityScraperClientTest.php` cobre resolução da interface, normalização de payload (Embasa), tratamento de erro HTTP (Coelba) e comportamento do fake.
 
 ### CapSolver (Coelba)
 
