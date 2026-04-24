@@ -11,6 +11,7 @@
         <link href="https://fonts.bunny.net/css?family=figtree:400,500,600&display=swap" rel="stylesheet" />
 
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+        @include('layouts.partials.ga4')
     </head>
     <body class="font-sans antialiased bg-gray-50 text-gray-900">
         <header class="border-b border-gray-200 bg-white">

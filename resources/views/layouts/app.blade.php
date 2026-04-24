@@ -14,6 +14,7 @@
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
         @livewireStyles
+        @include('layouts.partials.ga4')
     </head>
     <body class="font-sans antialiased">
         <div class="min-h-screen bg-gray-100">

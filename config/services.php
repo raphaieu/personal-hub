@@ -128,4 +128,8 @@ return [
         'vote_fingerprint_salt' => env('THREADS_VOTE_FINGERPRINT_SALT', ''),
     ],
 
+    'analytics' => [
+        'ga4_measurement_id' => env('GA4_MEASUREMENT_ID'),
+    ],
+
 ];
