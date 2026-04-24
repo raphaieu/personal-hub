@@ -296,8 +296,11 @@ Servidor HTTP Node.js rodando na porta `3001` (interno à rede Docker).
 ### Rotas
 
 - `GET /health` → `{ status: 'ok' }`
-- `POST /scrape/embasa` → executa scraper Embasa, retorna JSON
-- `POST /scrape/coelba` → executa scraper Coelba com CapSolver, retorna JSON
+- `POST /embasa/scrape` → executa scraper Embasa, retorna JSON
+- `POST /coelba/scrape` → executa scraper Coelba com CapSolver, retorna JSON
+- `GET /health` também retorna estado de sessão persistente por provider:
+  - `embasa_session_ready`, `embasa_session_path`
+  - `coelba_session_ready`, `coelba_session_path`
 
 ### Resposta padrão dos scrapers
 
@@ -329,6 +332,27 @@ Servidor HTTP Node.js rodando na porta `3001` (interno à rede Docker).
 - `pageAction`: `login`
 - `minScore`: `0.5`
 - Fallback: tenta submeter sem token se CapSolver falhar
+
+### Sessão persistente de utilidades (Embasa/Coelba)
+
+- Cada scraper mantém `storageState` dedicado em arquivo:
+  - `EMBASA_SESSION_PATH` (default `/app/storage/embasa-session.json`)
+  - `COELBA_SESSION_PATH` (default `/app/storage/coelba-session.json`)
+- Fluxo de execução:
+  1. tenta scraping com sessão existente;
+  2. se a sessão falhar/expirar, faz relogin automático;
+  3. persiste novo `storageState` e repete o scraping.
+- Objetivo: reduzir login repetitivo e deixar scraping diário mais estável.
+
+**Ajuste operacional (Coelba):**
+- O scraper da Coelba opera em modo **login full-flow por execução** (sem reaproveitar sessão), privilegiando estabilidade na SPA.
+- Estratégia atual do MVP:
+  1. login
+  2. selecionar estado Bahia
+  3. selecionar unidade consumidora
+  4. coletar dados principais no card **Última Fatura** da home (`valor`, `vencimento`, `situação`)
+  5. abrir modal PIX para capturar código quando disponível
+  6. baixar PDF por `Mais opções` -> `Opções de fatura` -> `Download` (motivo `Não Recebi` -> `Baixar`)
 
 ---
 

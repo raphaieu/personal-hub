@@ -253,6 +253,18 @@ Para webhooks e testes externos (mesmo stack em termos de comportamento; URL pú
 - Fase 3.2 concluida no Laravel: classificacao IA com `ThreadsClassificationService`, job `ClassifyCommentsJob` na fila `ai`, regra de corte `THREADS_RELEVANCE_THRESHOLD` (`ignored` abaixo / `pending_review` acima) e disparo automatico de classificacao apos ingestao de comentarios.
 - Proximo passo: Fase 4 (orquestracao por scheduler/gatilhos de sources).
 
+### Scraping de utilidades (status atual)
+
+- Serviço Playwright agora expõe endpoints dedicados:
+  - `POST /embasa/scrape`
+  - `POST /coelba/scrape`
+- `GET /health` inclui readiness de sessão por concessionária (`embasa_session_ready`, `coelba_session_ready`).
+- Sessão persistente por provider com `storageState` dedicado:
+  - `EMBASA_SESSION_PATH` (default `/app/storage/embasa-session.json`)
+  - `COELBA_SESSION_PATH` (default `/app/storage/coelba-session.json`)
+- Coelba usa CapSolver (`ReCaptchaV3TaskProxyLess`) com fallback para submissão sem token quando não houver solução.
+- Coelba possui fluxo step-by-step sem sessão reaproveitada, centralizado na home para estabilidade: login completo por execução, seleção de estado/unidade, leitura de `Última Fatura`, captura opcional de código PIX e download da 2ª via via modal.
+
 ### Dashboard Threads (fase frontend)
 
 - Fase 4.1 concluida: `livewire/livewire` (v4) instalado via Composer, layouts base (`app` e `guest`) preparados com `@livewireStyles`/`@livewireScripts` e smoke test de disponibilidade do pacote no container adicionado.
