@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Contracts\UtilityScraperClientInterface;
 use App\Models\UtilityAccount;
 use App\Services\InvoiceService;
+use App\Support\UtilityAccountScrapeGate;
 use App\Support\UtilityScrapeWindow;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -27,6 +28,8 @@ class ScrapeConta implements ShouldQueue
 
     public function __construct(
         public readonly string $kind,
+        public readonly bool $ignoreScrapeWindow = false,
+        public readonly bool $force = false,
     ) {
         $this->onQueue('scraping');
     }
@@ -37,15 +40,32 @@ class ScrapeConta implements ShouldQueue
     ): void {
         $kind = $this->validatedKind();
 
-        $accounts = UtilityAccount::query()
+        $query = UtilityAccount::query()
             ->where('kind', $kind)
             ->where('is_active', true)
-            ->orderBy('id')
-            ->get()
-            ->filter(fn (UtilityAccount $account) => UtilityScrapeWindow::isWithinWindow($account));
+            ->orderBy('id');
+
+        $accounts = $this->ignoreScrapeWindow
+            ? $query->get()
+            : $query->get()->filter(fn (UtilityAccount $account) => UtilityScrapeWindow::isWithinWindow($account));
 
         if ($accounts->isEmpty()) {
-            Log::info('utilities.scrape_conta.no_accounts_in_window', ['kind' => $kind]);
+            Log::info(
+                $this->ignoreScrapeWindow
+                    ? 'utilities.scrape_conta.no_active_accounts'
+                    : 'utilities.scrape_conta.no_accounts_in_window',
+                ['kind' => $kind]
+            );
+
+            return;
+        }
+
+        if (! UtilityAccountScrapeGate::anyRequiresPlaywright($accounts, $this->force)) {
+            Log::info('utilities.scrape_conta.skipped_idempotent', [
+                'kind' => $kind,
+                'force' => $this->force,
+                'utility_account_ids' => $accounts->pluck('id')->all(),
+            ]);
 
             return;
         }

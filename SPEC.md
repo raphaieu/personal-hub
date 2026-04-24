@@ -215,13 +215,11 @@ Integração HTTP no Laravel via `App\Contracts\UtilityScraperClientInterface` e
 
 ### `EvolutionService`
 
-Wrapper HTTP para a Evolution API.
+Implementação: `App\Services\EvolutionService`. Cliente HTTP mínimo para Evolution API v2.
 
-Métodos:
-
-- `sendText(jid, text)` → void
-- `sendMedia(jid, url, caption, mediaType)` → void
-- `sendDocument(jid, path, filename, caption)` → void
+- `sendText(string $number, string $text): void` — `POST /message/sendText/{instance}` com header `apikey` (`services.evolution.api_key`), corpo `{ number, text }`. URL base `services.evolution.url`, instância `services.evolution.instance`. Erros HTTP ou conexão → `RuntimeException` para permitir retry no Horizon.
+- `isConfigured(): bool` — exige `EVOLUTION_URL`, `EVOLUTION_API_KEY` e `EVOLUTION_INSTANCE` preenchidos.
+- `sendMedia` / `sendDocument` — ainda não implementados no hub.
 
 ### `InvoiceService`
 
@@ -230,8 +228,8 @@ Implementação: `App\Services\InvoiceService`. Orquestra persistência em `invo
 Métodos:
 
 - `processScrapeResult(array $payload, UtilityAccount $account)` → `updateOrCreate` por (`utility_account_id`, `billing_reference`); preenche valores Embasa/Coelba; grava `raw_payload` com a linha da fatura (e `playwright_pdf_path` quando o PDF não pôde ser copiado no app); associa PDF ao faturamento preferencial (pendente/vencida/a_vencer/processando, menor vencimento).
-- `uploadPdf(string $localPath, UtilityAccount $account, string $billingReference)` → se o arquivo existir no filesystem **visível ao PHP**, copia para o disco `local` em `utilities/invoices/{utility_account_id}/…`; caso contrário retorna `null` (caminho só no container Playwright até haver mount/API dedicada).
-- `notifyHomeGroup(Invoice $invoice)` → reservado; se `services.whatsapp.utilities_home_group_jid` estiver vazio, apenas log em nível `debug`; quando Evolution tiver envio HTTP no hub, evoluir para disparo real.
+- `uploadPdf(string $localPath, UtilityAccount $account, string $billingReference)` → se o arquivo existir no filesystem **visível ao PHP**, grava em `utilities/invoices/{utility_account_id}/…` no disco `services.utilities.pdf_storage_disk` (`UTILITIES_INVOICE_PDF_DISK`, default `local` = `storage/app/private`; use `s3` + credenciais MinIO/AWS para objeto no bucket). Após `put` com sucesso, pode apagar o arquivo fonte (`UTILITIES_DELETE_SOURCE_PDF_AFTER_UPLOAD`; default automático: apaga fonte quando o disco é `s3`) — **só** se o path do Playwright existir no mesmo host/volume que o PHP (bind mount Docker). Caso contrário retorna `null` na cópia ou loga falha ao apagar.
+- `notifyHomeGroup(Invoice $invoice): bool` → monta texto de lembrete e chama `EvolutionService::sendText` com `services.whatsapp.utilities_home_group_jid` (env `WHATSAPP_UTILITIES_HOME_GROUP_JID`, com fallback para `WHATSAPP_GRUPO_CASA_JID`). Retorna `false` se JID ausente ou Evolution incompleta (sem atualizar `last_notified_at` no job); `true` após envio bem-sucedido.
 
 ---
 
@@ -244,6 +242,7 @@ Métodos:
 | `ProcessContactWhatsAppMessage`  | `default`       | Webhook contato monitorado  |
 | `ProcessGroupWhatsAppMessage`    | `default`       | Webhook grupo monitorado    |
 | `ScrapeConta`                    | `scraping`      | Schedule ou on-demand       |
+| `VerificarStatusFaturas`         | `default`       | Schedule diário (reenfileira scrape) |
 | `EnriquecerUrlLembrete`          | `default`       | Após salvar lembrete de URL |
 | `NotificarVencimento`            | `notifications` | Schedule diário             |
 | `RecalculateCommentScoreJob`     | `default`       | Após voto em `/oportunidades` |
@@ -268,18 +267,29 @@ $schedule->job(new NotificarVencimento())->dailyAt('09:30');
 
 **Lógica do `ScrapeConta` (`App\Jobs\ScrapeConta`, fila `scraping`):**
 
-1. Lista `utility_accounts` ativas do `kind` informado (`embasa`|`coelba`) cuja data de hoje está na janela calculada por `App\Support\UtilityScrapeWindow` (próximo vencimento com base em `due_day`, entre `due_day - reminder_lead_days` e `due_day + 30` dias no calendário).
+Construtor: `kind` (`embasa`|`coelba`), opcional `ignoreScrapeWindow` (default `false`) e opcional `force` (default `false`). Quando `ignoreScrapeWindow` é `true`, ignora `UtilityScrapeWindow` (ex.: `VerificarStatusFaturas`). Quando `force` é `true`, chama sempre o Playwright (scrape manual / dashboard).
+
+**Heurística sem `force` (`App\Support\UtilityAccountScrapeGate`):** para cada conta candidata, resolve a fatura de referência (`billing_reference` = mês atual `mm/aaaa` ou, se não existir, a mais recente por `due_date`). Se **todas** as contas indicam que não precisa Playwright, o job encerra com log `utilities.scrape_conta.skipped_idempotent` **sem** chamar o scraper: não há fatura; ou status `pago`; ou (`a_vencer` ou `pendente`) **e** hoje é **antes** do `due_date`. Caso contrário (vence hoje ou já passou ainda não pago, ou `vencida`/`processando`/outros, ou sem linha em `invoices`) → executa scrape.
+
+1. Lista `utility_accounts` ativas do `kind` (com filtro de janela, salvo se `ignoreScrapeWindow`).
 2. Se a lista for vazia, encerra sem chamar Playwright.
-3. Executa **um** scrape (`scrapeEmbasa()` ou `scrapeCoelba()`).
-4. Escolhe contas alvo: preferência por `account_ref` igual a `data.matricula` (Embasa) ou `data.codigo_cliente` (Coelba); se nenhuma bater e existir exatamente uma conta na janela, usa essa (modo single-tenant).
-5. Para cada conta alvo: `InvoiceService::processScrapeResult($payload, $account)` e atualiza `utility_accounts.last_scraped_at`.
+3. Se o gate acima dispensar scrape para todas as contas e `force` for `false`, encerra sem Playwright.
+4. Executa **um** scrape (`scrapeEmbasa()` ou `scrapeCoelba()`).
+5. Escolhe contas alvo: preferência por `account_ref` igual a `data.matricula` (Embasa) ou `data.codigo_cliente` (Coelba); se nenhuma bater e existir exatamente uma conta elegível, usa essa (modo single-tenant).
+6. Para cada conta alvo: `InvoiceService::processScrapeResult($payload, $account)` e atualiza `utility_accounts.last_scraped_at`.
 
-**Lógica do `NotificarVencimento`:**
+**CLI manual:** `php artisan utilities:scrape {embasa|coelba} [--force] [--ignore-window]` — enfileira o mesmo job na fila `scraping`.
 
-1. Busca invoices com status != pago e vencimento nos próximos N dias
-2. Para cada uma, verifica se já notificou hoje (`last_notified_at`)
-3. Se não → monta mensagem → `EvolutionService::sendText(grupo_da_casa)`
-4. Atualiza `last_notified_at`
+**Lógica do `VerificarStatusFaturas` (`App\Jobs\VerificarStatusFaturas`, fila `default`):**
+
+1. Descobre `kind` distintos (`embasa`|`coelba`) em `utility_accounts` ativas que possuem ao menos uma `invoice` com `status != pago`.
+2. Para cada `kind`, enfileira `ScrapeConta` com `ignoreScrapeWindow: true` e `force: false` (respeita o gate; atualização fora da janela principal do agendamento).
+
+**Lógica do `NotificarVencimento` (`App\Jobs\NotificarVencimento`, fila `notifications`):**
+
+1. Seleciona `invoices` com `status != pago`, `last_notified_at` nulo ou **não** no dia corrente (timezone do app), e vencimento **vencido** (`due_date` antes de hoje) **ou** vencimento entre hoje e hoje + `services.utilities.notify_days_ahead` (`UTILITIES_NOTIFY_DAYS_AHEAD`, default 7).
+2. Para cada candidata: chama `InvoiceService::notifyHomeGroup($invoice)`; se retornar `true`, define `last_notified_at = now()`.
+3. Falhas HTTP por fatura são logadas e não interrompem as demais (`try/catch` por item).
 
 ---
 
@@ -337,14 +347,28 @@ Envelope HTTP alinhado ao serviço Node (`success`, `mode`, `concessionaria`, `s
 ### Integração Laravel (Embasa/Coelba — Bloco 3 concluído)
 
 - **Ingestão e jobs**:
-  - `App\Services\InvoiceService` — upsert de `invoices`, PDF opcional no disco `local`, `notifyHomeGroup` como stub até Evolution HTTP no hub.
-  - `App\Jobs\ScrapeConta` — orquestra janela + scrape + ingestão; depende de `UtilityScraperClientInterface` e `InvoiceService`.
+  - `App\Services\InvoiceService` — upsert de `invoices`, PDF opcional no disco `local`, lembretes via `notifyHomeGroup` (Bloco 4).
+  - `App\Jobs\ScrapeConta` — orquestra janela + scrape + ingestão; depende de `UtilityScraperClientInterface` e `InvoiceService`; suporta `ignoreScrapeWindow` (Bloco 4).
   - `App\Support\UtilityScrapeWindow` — cálculo de janela por `due_day` / `reminder_lead_days`.
 - **Agendamento**: `bootstrap/app.php` agenda `ScrapeConta('embasa')` às 08:00 e `ScrapeConta('coelba')` às 08:05 (mesma intenção do trecho legado que citava `Kernel.php`).
 - **Testes**:
   - `tests/Feature/Utilities/InvoiceServiceTest.php` — mapeamento Embasa/Coelba, idempotência, upload local de PDF.
   - `tests/Feature/Utilities/ScrapeContaJobTest.php` — execução síncrona do job com `FakeUtilityScraperClient` e conta na janela.
   - `tests/Unit/UtilityScrapeWindowTest.php` — limites da janela.
+  - `tests/Unit/UtilityAccountScrapeGateTest.php` — heurística de skip do Playwright.
+
+### Integração Laravel (Embasa/Coelba — Bloco 4 concluído)
+
+- **`App\Services\EvolutionService`** — envio de texto via Evolution API v2; config em `services.evolution` (`EVOLUTION_URL`, `EVOLUTION_API_KEY`, `EVOLUTION_INSTANCE`, timeout opcional).
+- **Jobs**:
+  - `App\Jobs\VerificarStatusFaturas` — reenfileira `ScrapeConta` com `ignoreScrapeWindow` por `kind` com fatura não paga.
+  - `App\Jobs\NotificarVencimento` — lembretes WhatsApp para faturas elegíveis; fila `notifications`.
+- **Agendamento**: `VerificarStatusFaturas` às 09:00 e `NotificarVencimento` às 09:30 em `bootstrap/app.php`.
+- **Testes**:
+  - `tests/Unit/EvolutionServiceTest.php`
+  - `tests/Feature/Utilities/VerificarStatusFaturasJobTest.php`
+  - `tests/Feature/Utilities/NotificarVencimentoJobTest.php`
+  - `ScrapeContaJobTest` cobre também `ignoreScrapeWindow`.
 
 ### CapSolver (Coelba)
 
@@ -675,6 +699,7 @@ app/
     UtilityScraperClientInterface.php
   Support/
     UtilityScrapeWindow.php
+    UtilityAccountScrapeGate.php
 
 database/
   migrations/

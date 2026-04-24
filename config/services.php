@@ -38,6 +38,9 @@ return [
     'evolution' => [
         'url' => env('EVOLUTION_URL'),
         'webhook_secret' => env('EVOLUTION_WEBHOOK_SECRET'),
+        'api_key' => env('EVOLUTION_API_KEY'),
+        'instance' => env('EVOLUTION_INSTANCE', 'raphael'),
+        'timeout' => env('EVOLUTION_HTTP_TIMEOUT', 45),
     ],
 
     /*
@@ -52,8 +55,11 @@ return [
 
     'whatsapp' => [
         'notes_solo_group_jid' => env('WHATSAPP_NOTAS_GRUPO_JID'),
-        /** JID do grupo para lembretes de fatura (Evolution HTTP ainda não acoplado ao método notify). */
-        'utilities_home_group_jid' => env('WHATSAPP_UTILITIES_HOME_GROUP_JID'),
+        /**
+         * JID do grupo da casa para lembretes de fatura (`InvoiceService::notifyHomeGroup` + `EvolutionService`).
+         * Preferência: WHATSAPP_UTILITIES_HOME_GROUP_JID; fallback legado: WHATSAPP_GRUPO_CASA_JID (SPEC / .env.example).
+         */
+        'utilities_home_group_jid' => env('WHATSAPP_UTILITIES_HOME_GROUP_JID') ?: env('WHATSAPP_GRUPO_CASA_JID'),
     ],
 
     /*
@@ -132,6 +138,22 @@ return [
 
     'analytics' => [
         'ga4_measurement_id' => env('GA4_MEASUREMENT_ID'),
+    ],
+
+    'utilities' => [
+        /** Inclui faturas com vencimento entre hoje e hoje+N (e vencidas em atraso). */
+        'notify_days_ahead' => (int) env('UTILITIES_NOTIFY_DAYS_AHEAD', 7),
+        /**
+         * Disco Laravel (`config/filesystems.php`) onde gravar PDFs de fatura após leitura do path do Playwright.
+         * Use `s3` com AWS_* / endpoint MinIO para objeto no bucket; `local` = storage/app/private (default).
+         */
+        'pdf_storage_disk' => env('UTILITIES_INVOICE_PDF_DISK', 'local'),
+        /**
+         * Apagar o arquivo fonte após `put` bem-sucedido (ex.: PDF em pasta do Playwright).
+         * null = automático: true quando pdf_storage_disk é `s3`, false quando `local`.
+         * Só funciona se o path existir no mesmo filesystem que o PHP (volume compartilhado app ↔ Playwright).
+         */
+        'delete_source_pdf_after_upload' => env('UTILITIES_DELETE_SOURCE_PDF_AFTER_UPLOAD'),
     ],
 
 ];

@@ -12,6 +12,10 @@ use Throwable;
 
 final class InvoiceService
 {
+    public function __construct(
+        private readonly EvolutionService $evolution,
+    ) {}
+
     /**
      * @param  array<string, mixed>  $payload  Resposta normalizada do cliente de utilidades (contrato `UtilityScraperClientInterface`).
      * @return array{invoices_upserted: int, billing_references: list<string>}
@@ -83,9 +87,9 @@ final class InvoiceService
     }
 
     /**
-     * Copia PDF acessível no filesystem do app para o disco local privado.
+     * Copia PDF acessível no filesystem do PHP para o disco configurado (`services.utilities.pdf_storage_disk`: `local` ou `s3`).
      *
-     * @return non-empty-string|null Caminho relativo ao disco `local` ou null se arquivo inexistente / falha.
+     * @return non-empty-string|null Caminho relativo ao disco escolhido (chave no bucket S3/MinIO) ou null se arquivo inexistente / falha.
      */
     public function uploadPdf(string $localPath, UtilityAccount $account, string $billingReference): ?string
     {
@@ -96,6 +100,7 @@ final class InvoiceService
         }
 
         $relative = sprintf('utilities/invoices/%d/%s.pdf', $account->id, $billingReference);
+        $disk = (string) config('services.utilities.pdf_storage_disk', 'local');
 
         try {
             $binary = @file_get_contents($localPath);
@@ -103,37 +108,94 @@ final class InvoiceService
                 return null;
             }
 
-            Storage::disk('local')->put($relative, $binary);
+            Storage::disk($disk)->put($relative, $binary);
         } catch (Throwable $e) {
             Log::warning('invoice.pdf_upload_failed', [
                 'utility_account_id' => $account->id,
                 'billing_reference' => $billingReference,
+                'disk' => $disk,
                 'message' => $e->getMessage(),
             ]);
 
             return null;
         }
 
+        if ($this->shouldDeleteSourcePdfAfterUpload($disk) && is_file($localPath)) {
+            if (! @unlink($localPath)) {
+                Log::warning('invoice.pdf_source_delete_failed', [
+                    'path' => $localPath,
+                    'utility_account_id' => $account->id,
+                    'hint' => 'Path precisa existir no mesmo host/volume que o PHP (ex.: bind mount com o container Playwright).',
+                ]);
+            }
+        }
+
         return $relative;
     }
 
+    private function shouldDeleteSourcePdfAfterUpload(string $disk): bool
+    {
+        $raw = config('services.utilities.delete_source_pdf_after_upload');
+
+        if ($raw === null || $raw === '') {
+            return $disk === 's3';
+        }
+
+        return filter_var($raw, FILTER_VALIDATE_BOOLEAN);
+    }
+
     /**
-     * Dispara notificação no grupo da casa (Evolution ainda não exposto como serviço HTTP dedicado no hub).
+     * Envia lembrete de fatura no grupo configurado (Evolution `sendText`).
+     *
+     * @return bool true se a mensagem foi enviada; false se ignorado (sem JID ou Evolution incompleta).
      */
-    public function notifyHomeGroup(Invoice $invoice): void
+    public function notifyHomeGroup(Invoice $invoice): bool
     {
         $jid = config('services.whatsapp.utilities_home_group_jid');
 
         if (! is_string($jid) || $jid === '') {
             Log::debug('invoice.notify_skipped_no_jid', ['invoice_id' => $invoice->id]);
 
-            return;
+            return false;
         }
 
-        Log::info('invoice.notify_placeholder_evolution_not_wired', [
-            'invoice_id' => $invoice->id,
-            'jid_configured' => true,
-        ]);
+        if (! $this->evolution->isConfigured()) {
+            Log::warning('invoice.notify_skipped_evolution_not_configured', ['invoice_id' => $invoice->id]);
+
+            return false;
+        }
+
+        $invoice->loadMissing('utilityAccount');
+        $account = $invoice->utilityAccount;
+        if ($account === null) {
+            Log::warning('invoice.notify_skipped_no_account', ['invoice_id' => $invoice->id]);
+
+            return false;
+        }
+
+        $this->evolution->sendText($jid, $this->formatInvoiceReminderMessage($invoice, $account));
+
+        return true;
+    }
+
+    private function formatInvoiceReminderMessage(Invoice $invoice, UtilityAccount $account): string
+    {
+        $label = $account->label !== null && $account->label !== ''
+            ? $account->label
+            : strtoupper((string) $account->kind);
+
+        $valor = $invoice->amount_total !== null
+            ? 'R$ '.number_format((float) $invoice->amount_total, 2, ',', '.')
+            : 'valor não informado';
+
+        return sprintf(
+            "Lembrete de conta (%s)\nRef.: %s\nVencimento: %s\nStatus: %s\n%s",
+            $label,
+            $invoice->billing_reference,
+            Carbon::parse($invoice->due_date)->format('d/m/Y'),
+            $invoice->status,
+            $valor
+        );
     }
 
     /**

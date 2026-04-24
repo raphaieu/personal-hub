@@ -6,6 +6,7 @@ use App\Models\Invoice;
 use App\Models\UtilityAccount;
 use App\Services\InvoiceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
@@ -24,7 +25,7 @@ final class InvoiceServiceTest extends TestCase
             'is_active' => true,
         ]);
 
-        $service = new InvoiceService;
+        $service = app(InvoiceService::class);
 
         $payload = [
             'success' => true,
@@ -69,7 +70,7 @@ final class InvoiceServiceTest extends TestCase
             'is_active' => true,
         ]);
 
-        $service = new InvoiceService;
+        $service = app(InvoiceService::class);
 
         $payload = [
             'success' => true,
@@ -95,6 +96,7 @@ final class InvoiceServiceTest extends TestCase
 
     public function test_upload_pdf_copies_readable_file_to_local_disk(): void
     {
+        Config::set('services.utilities.pdf_storage_disk', 'local');
         Storage::fake('local');
 
         $account = UtilityAccount::query()->create([
@@ -109,7 +111,7 @@ final class InvoiceServiceTest extends TestCase
         $this->assertNotFalse($tmp);
         file_put_contents($tmp, '%PDF-1.4 minimal');
 
-        $service = new InvoiceService;
+        $service = app(InvoiceService::class);
         $stored = $service->uploadPdf($tmp, $account, '04/2026');
 
         $this->assertIsString($stored);
