@@ -7,6 +7,12 @@ const DOWNLOADS_DIR = process.env.PLAYWRIGHT_DOWNLOADS_DIR || path.resolve(proce
 const DEBUG_DIR =
   process.env.PLAYWRIGHT_DEBUG_DIR || path.resolve(process.cwd(), "playwright/downloads/debug");
 
+/** Delays tunáveis (headless/Docker costumam precisar de mais tempo que dev com headful). */
+const COELBA_PAGE_SETTLE_MS = Number(process.env.COELBA_PAGE_SETTLE_MS || 2500);
+const COELBA_AFTER_LOGIN_CLICK_MS = Number(process.env.COELBA_AFTER_LOGIN_CLICK_MS || 1500);
+const COELBA_BEFORE_FILL_MS = Number(process.env.COELBA_BEFORE_FILL_MS || 1200);
+const COELBA_NETWORKIDLE_TIMEOUT_MS = Number(process.env.COELBA_NETWORKIDLE_TIMEOUT_MS || 25000);
+
 function normalizeText(value) {
   return (value || "").replace(/\s+/g, " ").trim();
 }
@@ -93,16 +99,71 @@ async function clickFirst(page, selectors) {
   return false;
 }
 
-async function fillFirst(page, selectors, value) {
+/** Preenche o primeiro campo visível — evita inputs ocultos do Angular/Material em headless. */
+async function fillFirstVisible(page, selectors, value) {
   for (const selector of selectors) {
-    const locator = page.locator(selector).first();
-    if ((await locator.count()) > 0) {
+    const locator = page.locator(selector).filter({ visible: true }).first();
+    try {
+      await locator.waitFor({ state: "visible", timeout: 8000 });
       await locator.fill(value);
       return true;
+    } catch {
+      // tenta próximo seletor
     }
   }
 
   return false;
+}
+
+async function isAccessDeniedPage(page) {
+  const title = (await page.title()).toLowerCase();
+  const body = ((await page.textContent("body").catch(() => "")) || "").toLowerCase();
+  return (
+    title.includes("access denied") ||
+    body.includes("access denied") ||
+    body.includes("you don't have permission") ||
+    body.includes("akamai")
+  );
+}
+
+/**
+ * Espera shell/página estável antes de clicar em LOGIN (DOM + rede + margem para o Angular hidratar).
+ * `networkidle` pode nunca ocorrer em SPA com polling; nesse caso seguimos após timeout.
+ */
+async function waitForCoelbaLoginPageSettled(page) {
+  await page.waitForLoadState("load").catch(() => {});
+  await page
+    .waitForFunction(() => document.readyState === "complete", null, { timeout: 30000 })
+    .catch(() => {});
+
+  try {
+    await page.waitForLoadState("networkidle", { timeout: COELBA_NETWORKIDLE_TIMEOUT_MS });
+  } catch {
+    // Neoenergia/Angular às vezes mantém requisições longas; não bloqueia o fluxo.
+  }
+
+  await page
+    .evaluate(async () => {
+      try {
+        if (document.fonts?.ready) {
+          await document.fonts.ready;
+        }
+      } catch {
+        // ignore
+      }
+    })
+    .catch(() => {});
+
+  await slowStep(page, COELBA_PAGE_SETTLE_MS);
+}
+
+/** Espera o modal/form de login do Angular (headless costuma renderizar mais devagar que com headful). */
+async function waitForCoelbaLoginFields(page, timeoutMs = 45000) {
+  await page
+    .locator('input[type="password"]')
+    .filter({ visible: true })
+    .first()
+    .waitFor({ state: "visible", timeout: timeoutMs });
 }
 
 async function solveRecaptchaV3() {
@@ -734,18 +795,35 @@ export async function scrapeCoelba() {
     const page = await context.newPage();
     setDefaultTimeout(page);
 
-    await page.goto(COELBA_LOGIN_URL, { waitUntil: "domcontentloaded" });
-    await slowStep(page, 1200);
+    await page.goto(COELBA_LOGIN_URL, { waitUntil: "load", timeout: 90000 });
+    await waitForCoelbaLoginPageSettled(page);
+
+    if (await isAccessDeniedPage(page)) {
+      const screenshotPath = await captureDebugScreenshot(page, "coelba-access-denied-before-login");
+      throw new Error(`Coelba bloqueou acesso (anti-bot/WAF) antes do login. Screenshot: ${screenshotPath}`);
+    }
 
     await clickFirst(page, ['button:has-text("LOGIN")', 'a:has-text("LOGIN")']);
-    await slowStep(page, 700);
+    await slowStep(page, COELBA_AFTER_LOGIN_CLICK_MS);
 
-    const cpfFilled = await fillFirst(
-      page,
-      ['input[placeholder*="CPF" i]', 'input[name="documento"]', 'input[type="text"]'],
-      cpf,
-    );
-    const passwordFilled = await fillFirst(page, ['input[type="password"]'], password);
+    try {
+      await waitForCoelbaLoginFields(page, 45000);
+    } catch {
+      const screenshotPath = await captureDebugScreenshot(page, "coelba-login-form-timeout");
+      throw new Error(`Formulário de login não ficou visível a tempo (Angular). Screenshot: ${screenshotPath}`);
+    }
+
+    await slowStep(page, COELBA_BEFORE_FILL_MS);
+
+    const cpfSelectors = [
+      'input[placeholder*="CPF" i]',
+      'input[name="documento"]',
+      'input[formcontrolname="documento"]',
+      'input.mat-input-element:not([type="password"])',
+      'input[type="text"]',
+    ];
+    const cpfFilled = await fillFirstVisible(page, cpfSelectors, cpf);
+    const passwordFilled = await fillFirstVisible(page, ['input[type="password"]'], password);
 
     if (!cpfFilled || !passwordFilled) {
       const screenshotPath = await captureDebugScreenshot(page, "coelba-login-fields-not-found");
