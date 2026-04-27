@@ -21,6 +21,8 @@ services:
       DB_HOST: raphael-postgres
     volumes:
       - .:/var/www/html
+      # Mesmo volume do Playwright: o job lê pdf_path (/app/downloads/...) antes do put no S3/MinIO.
+      - playwright_downloads:/app/downloads
     depends_on:
       postgres:
         condition: service_healthy
@@ -96,6 +98,25 @@ services:
     logging: *default_logging
 
   # ---------------------------------------------------------------------------
+  # Adminer — UI web para PostgreSQL (estilo phpPgAdmin). Apenas localhost: use túnel SSH ou proxy reverso com auth.
+  # Login: servidor = raphael-postgres, usuário/senha/db = mesmo do .env (DB_* / POSTGRES_*).
+  # ---------------------------------------------------------------------------
+  adminer:
+    image: adminer:4
+    container_name: raphael-adminer
+    restart: unless-stopped
+    environment:
+      ADMINER_DEFAULT_SERVER: raphael-postgres
+    ports:
+      - "127.0.0.1:18090:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - raphael-bridge
+    logging: *default_logging
+
+  # ---------------------------------------------------------------------------
   # Redis — filas, cache, sessão do app
   # ---------------------------------------------------------------------------
   redis:
@@ -130,6 +151,7 @@ services:
       DB_HOST: raphael-postgres
     volumes:
       - .:/var/www/html
+      - playwright_downloads:/app/downloads
     depends_on:
       app:
         condition: service_started
@@ -167,6 +189,7 @@ services:
       DB_HOST: raphael-postgres
     volumes:
       - .:/var/www/html
+      - playwright_downloads:/app/downloads
     depends_on:
       app:
         condition: service_started
@@ -203,6 +226,7 @@ services:
       DB_HOST: raphael-postgres
     volumes:
       - .:/var/www/html
+      - playwright_downloads:/app/downloads
     depends_on:
       app:
         condition: service_started
@@ -261,17 +285,12 @@ services:
       dockerfile: Dockerfile.playwright
     image: raphael-playwright:latest
     container_name: raphael-playwright
+    # Credenciais e Capsolver vêm só de playwright/.env.
+    # Evita ${COELBA_*} na raiz (docker-compose) sobrescrever com vazio e "sumir" o que está no playwright/.env.
     env_file:
       - ./playwright/.env
     environment:
       TZ: America/Sao_Paulo
-      CAPSOLVER_API_KEY: ${CAPSOLVER_API_KEY}
-      EMBASA_CPF: ${EMBASA_CPF}
-      EMBASA_PASSWORD: ${EMBASA_PASSWORD}
-      EMBASA_MATRICULA: ${EMBASA_MATRICULA}
-      COELBA_CPF: ${COELBA_CPF}
-      COELBA_PASSWORD: ${COELBA_PASSWORD}
-      COELBA_CODIGO_CLIENTE: ${COELBA_CODIGO_CLIENTE}
       PORT: 3001
     volumes:
       - ./playwright:/app

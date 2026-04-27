@@ -60,7 +60,12 @@ export async function ensureFileDir(filePath) {
 export async function createBrowser() {
   return chromium.launch({
     headless: HEADLESS,
-    args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-blink-features=AutomationControlled",
+    ],
     executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH || undefined,
   });
 }
