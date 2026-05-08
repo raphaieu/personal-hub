@@ -5,6 +5,7 @@ namespace App\Services\Albums;
 use App\Jobs\Albums\ProcessAlbumPhotoJob;
 use App\Models\Album;
 use App\Models\AlbumMedia;
+use App\Models\Contributor;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -28,19 +29,19 @@ final class AlbumMediaUploadService
         'webm' => ['video/webm'],
     ];
 
-    public function store(Album $album, UploadedFile $file): AlbumMedia
+    public function store(Album $album, UploadedFile $file, ?Contributor $contributor = null, string $fileFieldKey = 'uploadFiles'): AlbumMedia
     {
         $maxBytes = (int) config('services.albums.max_upload_bytes');
         if ($file->getSize() > $maxBytes) {
             throw ValidationException::withMessages([
-                'uploadFiles' => 'Cada arquivo deve ter no máximo '.round($maxBytes / (1024 * 1024), 0).' MB.',
+                $fileFieldKey => 'Cada arquivo deve ter no máximo '.round($maxBytes / (1024 * 1024), 0).' MB.',
             ]);
         }
 
         $ext = strtolower($file->getClientOriginalExtension());
         $mime = $file->getMimeType() ?: 'application/octet-stream';
 
-        $this->assertAllowed($ext, $mime);
+        $this->assertAllowed($ext, $mime, $fileFieldKey);
 
         $id = (string) Str::uuid();
         $path = 'albums/'.$album->id.'/original/'.$id.'.'.$ext;
@@ -53,6 +54,8 @@ final class AlbumMediaUploadService
             ->where('album_id', $album->id)
             ->max('sort_position') ?? 0) + 1;
 
+        $uploadedBy = $contributor !== null ? 'contributor' : 'admin';
+
         /** @var AlbumMedia $media */
         $media = AlbumMedia::query()->create([
             'id' => $id,
@@ -63,7 +66,8 @@ final class AlbumMediaUploadService
             'mime_type' => $mime,
             'size_bytes' => $file->getSize(),
             'processing_status' => $type === 'video' ? 'done' : 'pending',
-            'uploaded_by' => 'admin',
+            'uploaded_by' => $uploadedBy,
+            'contributor_id' => $contributor?->id,
             'sort_position' => $nextSort,
         ]);
 
@@ -71,15 +75,21 @@ final class AlbumMediaUploadService
             ProcessAlbumPhotoJob::dispatch($media->id);
         }
 
-        return $media->fresh() ?? $media;
+        $media = $media->fresh() ?? $media;
+
+        if ($contributor !== null) {
+            app(AlbumContributionDigestService::class)->recordUploadedMedia($album, $contributor, $media);
+        }
+
+        return $media;
     }
 
-    private function assertAllowed(string $extension, string $mime): void
+    private function assertAllowed(string $extension, string $mime, string $fileFieldKey = 'uploadFiles'): void
     {
         $allowedMimes = self::ALLOWED[$extension] ?? null;
         if ($allowedMimes === null || ! in_array($mime, $allowedMimes, true)) {
             throw ValidationException::withMessages([
-                'uploadFiles' => 'Tipo de arquivo não permitido. Use imagens (JPEG, PNG, WebP, GIF) ou vídeo (MP4, MOV, WebM).',
+                $fileFieldKey => 'Tipo de arquivo não permitido. Use imagens (JPEG, PNG, WebP, GIF) ou vídeo (MP4, MOV, WebM).',
             ]);
         }
     }
