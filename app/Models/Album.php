@@ -57,6 +57,22 @@ class Album extends Model
     }
 
     /**
+     * @return HasMany<AccessAttempt, $this>
+     */
+    public function accessAttempts(): HasMany
+    {
+        return $this->hasMany(AccessAttempt::class);
+    }
+
+    /**
+     * @return HasMany<AlbumLockout, $this>
+     */
+    public function lockouts(): HasMany
+    {
+        return $this->hasMany(AlbumLockout::class);
+    }
+
+    /**
      * @return BelongsTo<AlbumMedia, $this>
      */
     public function coverMedia(): BelongsTo
