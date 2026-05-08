@@ -6,10 +6,15 @@ use App\Jobs\ClassifyCommentsJob;
 use App\Jobs\DispatchPendingThreadsClassificationJob;
 use App\Jobs\ScrapeThreadsKeywordJob;
 use App\Jobs\ScrapeThreadsUrlJob;
+use App\Models\AnalysisProfile;
 use App\Models\ThreadsCategory;
 use App\Models\ThreadsComment;
 use App\Models\ThreadsSource;
+use App\Services\Threads\Hub\ThreadsPublishedQueryService;
+use App\Services\Threads\Hub\ThreadsSourcesQueryService;
+use App\Services\Threads\Hub\ThreadsReviewQueryService;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Validation\Rule;
 use Livewire\Attributes\Url;
 use Livewire\Component;
@@ -62,10 +67,15 @@ final class HubPage extends Component
 
     public bool $newSourceIsActive = true;
 
+    public string $newSourceProfileId = '';
+
     public int $manualDispatchBatchSize = 1;
 
     /** @var array<int> */
     public array $selectedReviewCommentIds = [];
+
+    /** @var array<int, string> */
+    public array $sourceProfileForms = [];
 
     /**
      * Estado de edição rápida por comentário publicado (somente ids visíveis na lista).
@@ -79,20 +89,29 @@ final class HubPage extends Component
      */
     public function viewData(): array
     {
-        $sources = ThreadsSource::query()
-            ->latest('updated_at')
-            ->get([
-                'id',
-                'type',
-                'label',
-                'keyword',
-                'target_url',
-                'is_active',
-                'last_scraped_at',
-            ]);
+        $sources = app(ThreadsSourcesQueryService::class)->listForHub();
+
+        foreach ($sources as $source) {
+            $sourceId = (int) $source->id;
+            if (! array_key_exists($sourceId, $this->sourceProfileForms)) {
+                $this->sourceProfileForms[$sourceId] = $source->analysis_profile_id !== null
+                    ? (string) $source->analysis_profile_id
+                    : '';
+            }
+        }
+
+        $threadsProfiles = AnalysisProfile::query()
+            ->where('is_active', true)
+            ->where(function ($query): void {
+                $query->where('channel', 'threads')
+                    ->orWhereNull('channel');
+            })
+            ->orderBy('name')
+            ->get(['id', 'slug', 'name']);
+        $defaultThreadsProfileId = AnalysisProfile::defaultThreadsProfileId();
 
         $reviewComments = $this->reviewCommentsQuery()->paginate($this->normalizedReviewPerPage());
-        $reviewCommentIdsOnScreen = $reviewComments->getCollection()->pluck('id')->map(static fn ($id): int => (int) $id)->all();
+        $reviewCommentIdsOnScreen = $this->reviewCommentIdsOnCurrentPage($reviewComments);
         $this->selectedReviewCommentIds = array_values(array_map(
             'intval',
             array_intersect($this->selectedReviewCommentIds, $reviewCommentIdsOnScreen)
@@ -115,20 +134,11 @@ final class HubPage extends Component
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        $publishedQuery = ThreadsComment::query()
-            ->where('is_public', true)
-            ->with(['post:id,post_url,threads_source_id', 'post.source:id,label', 'category:id,name'])
-            ->when($this->publishedCategory !== 'all', fn ($query) => $query->where('threads_category_id', (int) $this->publishedCategory))
-            ->when($this->publishedSource !== 'all', fn ($query) => $query
-                ->whereHas('post', fn ($postQuery) => $postQuery->where('threads_source_id', (int) $this->publishedSource)));
-
-        if ($this->publishedSort === 'newest') {
-            $publishedQuery->orderByDesc('updated_at')->orderByDesc('id');
-        } elseif ($this->publishedSort === 'relevance') {
-            $publishedQuery->orderByDesc('ai_relevance_score')->orderByDesc('id');
-        } else {
-            $publishedQuery->orderByDesc('score_total')->orderByDesc('id');
-        }
+        $publishedQuery = app(ThreadsPublishedQueryService::class)->build(
+            publishedCategory: $this->publishedCategory,
+            publishedSource: $this->publishedSource,
+            publishedSort: $this->publishedSort,
+        );
 
         $publishedComments = $publishedQuery->paginate(
             $this->normalizedPublishedPerPage(),
@@ -165,8 +175,8 @@ final class HubPage extends Component
             'aiDispatchSpacingSeconds' => $aiDispatchSpacingSeconds,
             'tabLabels' => [
                 'sources' => 'Sources',
-                'review' => 'Review',
-                'published' => 'Published',
+                'review' => 'Review Analise',
+                'published' => 'Publicados',
             ],
             'createTypes' => [
                 'keyword' => 'Keyword',
@@ -184,6 +194,8 @@ final class HubPage extends Component
                 'newest' => 'Mais novo',
                 'score' => 'Score',
             ],
+            'threadsProfiles' => $threadsProfiles,
+            'defaultThreadsProfileId' => $defaultThreadsProfileId,
         ];
     }
 
@@ -207,6 +219,13 @@ final class HubPage extends Component
         $this->resetValidation(['newSourceKeyword', 'newSourceTargetUrl']);
         $this->newSourceKeyword = '';
         $this->newSourceTargetUrl = '';
+    }
+
+    public function updatedNewSourceProfileId(string $value): void
+    {
+        if ($value !== '' && ! ctype_digit($value)) {
+            $this->newSourceProfileId = '';
+        }
     }
 
     public function updatedReviewStatus(string $value): void
@@ -325,6 +344,7 @@ final class HubPage extends Component
             'newSourceKeyword' => ['nullable', 'string', 'max:255', Rule::requiredIf($this->newSourceType === 'keyword')],
             'newSourceTargetUrl' => ['nullable', 'string', 'max:2048', Rule::requiredIf($this->newSourceType === 'url')],
             'newSourceIsActive' => ['boolean'],
+            'newSourceProfileId' => ['nullable', 'integer', Rule::exists('analysis_profiles', 'id')],
         ];
     }
 
@@ -338,9 +358,13 @@ final class HubPage extends Component
             'keyword' => $data['newSourceType'] === 'keyword' ? trim((string) $data['newSourceKeyword']) : null,
             'target_url' => $data['newSourceType'] === 'url' ? trim((string) $data['newSourceTargetUrl']) : null,
             'is_active' => (bool) $data['newSourceIsActive'],
+            'analysis_profile_id' => $this->resolvedProfileId(
+                $data['newSourceProfileId'] ?? null,
+                true
+            ),
         ]);
 
-        $this->reset(['newSourceLabel', 'newSourceKeyword', 'newSourceTargetUrl']);
+        $this->reset(['newSourceLabel', 'newSourceKeyword', 'newSourceTargetUrl', 'newSourceProfileId']);
         $this->newSourceType = 'keyword';
         $this->newSourceIsActive = true;
         session()->flash('threads_hub_notice', 'Source criada com sucesso.');
@@ -352,6 +376,26 @@ final class HubPage extends Component
         $source->forceFill(['is_active' => ! $source->is_active])->save();
 
         session()->flash('threads_hub_notice', 'Status da source atualizado.');
+    }
+
+    public function saveSourceProfile(int $sourceId): void
+    {
+        $source = ThreadsSource::query()->findOrFail($sourceId);
+        $rawProfileId = $this->sourceProfileForms[$sourceId] ?? '';
+        $profileId = $this->resolvedProfileId($rawProfileId, false);
+
+        $source->forceFill([
+            'analysis_profile_id' => $profileId,
+        ])->save();
+
+        $this->sourceProfileForms[$sourceId] = $profileId !== null ? (string) $profileId : '';
+
+        session()->flash(
+            'threads_hub_notice',
+            $profileId === null
+                ? 'Source atualizada para usar fallback do profile padrão quando disponível.'
+                : 'Profile da source atualizado.'
+        );
     }
 
     public function scrapeNow(int $sourceId): void
@@ -417,14 +461,10 @@ final class HubPage extends Component
 
     public function toggleSelectAllReviewOnPage(): void
     {
-        $visibleIds = $this->reviewCommentsQuery()
-            ->paginate($this->normalizedReviewPerPage())
-            ->getCollection()
-            ->pluck('id')
-            ->map(static fn ($id): int => (int) $id)
-            ->sort()
-            ->values()
-            ->all();
+        $visibleIds = $this->reviewCommentIdsOnCurrentPage(
+            $this->reviewCommentsQuery()->paginate($this->normalizedReviewPerPage())
+        );
+        sort($visibleIds);
 
         $current = $this->normalizedSelectedReviewCommentIds();
         sort($current);
@@ -593,33 +633,64 @@ final class HubPage extends Component
         return "{$affected} {$suffix}";
     }
 
+    private function resolvedProfileId(mixed $profileValue, bool $fallbackToDefault): ?int
+    {
+        $profileId = null;
+
+        if (is_string($profileValue) && ctype_digit($profileValue)) {
+            $profileId = (int) $profileValue;
+        } elseif (is_int($profileValue) && $profileValue > 0) {
+            $profileId = $profileValue;
+        }
+
+        if ($profileId !== null) {
+            $exists = AnalysisProfile::query()
+                ->whereKey($profileId)
+                ->where('is_active', true)
+                ->where(function ($query): void {
+                    $query->where('channel', 'threads')
+                        ->orWhereNull('channel');
+                })
+                ->exists();
+
+            if ($exists) {
+                return $profileId;
+            }
+        }
+
+        return $fallbackToDefault ? AnalysisProfile::defaultThreadsProfileId() : null;
+    }
+
     /**
      * Lista de review com os mesmos filtros/ordenacao da tabela (sem limite).
      */
     private function reviewCommentsQuery()
     {
-        $query = ThreadsComment::query()
-            ->with(['post:id,post_url,threads_source_id', 'post.source:id,label', 'category:id,name'])
-            ->orderByRaw('CASE WHEN status = ? THEN 0 WHEN status = ? THEN 1 ELSE 2 END', ['pending_review', 'ignored'])
-            ->when($this->reviewStatus !== 'all', fn ($q) => $q->where('status', $this->reviewStatus))
-            ->when($this->reviewCategory !== 'all', fn ($q) => $q->where('threads_category_id', (int) $this->reviewCategory))
-            ->when($this->reviewSource !== 'all', fn ($q) => $q
-                ->whereHas('post', fn ($postQuery) => $postQuery->where('threads_source_id', (int) $this->reviewSource)))
-            ->when($this->reviewWithoutSummary, fn ($q) => $q->whereNull('ai_summary'));
-
-        if ($this->reviewSort === 'newest') {
-            $query->orderByDesc('created_at')->orderByDesc('id');
-        } elseif ($this->reviewSort === 'score') {
-            $query->orderByDesc('score_total')->orderByDesc('id');
-        } else {
-            $query->orderByDesc('ai_relevance_score')->orderByDesc('id');
-        }
+        $query = app(ThreadsReviewQueryService::class)->build(
+            reviewStatus: $this->reviewStatus,
+            reviewCategory: $this->reviewCategory,
+            reviewSource: $this->reviewSource,
+            reviewWithoutSummary: $this->reviewWithoutSummary,
+            reviewSort: $this->reviewSort,
+        );
 
         if (! $query instanceof Builder) {
             return ThreadsComment::query();
         }
 
         return $query;
+    }
+
+    /**
+     * @param  LengthAwarePaginator<int, ThreadsComment>  $comments
+     * @return array<int>
+     */
+    private function reviewCommentIdsOnCurrentPage(LengthAwarePaginator $comments): array
+    {
+        return $comments->getCollection()
+            ->pluck('id')
+            ->map(static fn ($id): int => (int) $id)
+            ->all();
     }
 
     public function render()

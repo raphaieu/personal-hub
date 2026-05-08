@@ -7,6 +7,7 @@ use App\Jobs\DispatchPendingThreadsClassificationJob;
 use App\Jobs\ScrapeThreadsKeywordJob;
 use App\Jobs\ScrapeThreadsUrlJob;
 use App\Livewire\Threads\HubPage;
+use App\Models\AnalysisProfile;
 use App\Models\ThreadsCategory;
 use App\Models\ThreadsComment;
 use App\Models\ThreadsPost;
@@ -56,6 +57,14 @@ final class ThreadsHubPageTest extends TestCase
     public function test_livewire_can_create_keyword_source(): void
     {
         $user = User::factory()->create();
+        $profile = AnalysisProfile::query()->create([
+            'slug' => 'threads-custom',
+            'name' => 'Threads Custom',
+            'channel' => 'threads',
+            'analysis_type' => 'classification',
+            'system_prompt' => 'prompt custom',
+            'is_active' => true,
+        ]);
 
         Livewire::actingAs($user)
             ->test(HubPage::class)
@@ -63,6 +72,7 @@ final class ThreadsHubPageTest extends TestCase
             ->set('newSourceLabel', 'Remoto JS')
             ->set('newSourceKeyword', 'vaga remoto javascript')
             ->set('newSourceIsActive', true)
+            ->set('newSourceProfileId', (string) $profile->id)
             ->call('createSource')
             ->assertHasNoErrors();
 
@@ -71,7 +81,62 @@ final class ThreadsHubPageTest extends TestCase
             'label' => 'Remoto JS',
             'keyword' => 'vaga remoto javascript',
             'is_active' => true,
+            'analysis_profile_id' => $profile->id,
         ]);
+    }
+
+    public function test_livewire_can_update_source_profile_in_sources_tab(): void
+    {
+        $user = User::factory()->create();
+        $profile = AnalysisProfile::query()->create([
+            'slug' => 'threads-novo-profile',
+            'name' => 'Threads Novo Profile',
+            'channel' => 'threads',
+            'analysis_type' => 'classification',
+            'system_prompt' => 'prompt',
+            'is_active' => true,
+        ]);
+        $source = ThreadsSource::query()->create([
+            'type' => 'keyword',
+            'label' => 'Source sem profile',
+            'keyword' => 'php',
+            'analysis_profile_id' => null,
+            'is_active' => true,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(HubPage::class)
+            ->set('sourceProfileForms.'.$source->id, (string) $profile->id)
+            ->call('saveSourceProfile', $source->id);
+
+        $this->assertSame($profile->id, (int) $source->fresh()?->analysis_profile_id);
+    }
+
+    public function test_livewire_ignores_incompatible_channel_profile_when_updating_source_profile(): void
+    {
+        $user = User::factory()->create();
+        $whatsappProfile = AnalysisProfile::query()->create([
+            'slug' => 'whatsapp-only',
+            'name' => 'WhatsApp Only',
+            'channel' => 'whatsapp',
+            'analysis_type' => 'classification',
+            'system_prompt' => 'prompt',
+            'is_active' => true,
+        ]);
+        $source = ThreadsSource::query()->create([
+            'type' => 'keyword',
+            'label' => 'Source sem profile',
+            'keyword' => 'php',
+            'analysis_profile_id' => null,
+            'is_active' => true,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(HubPage::class)
+            ->set('sourceProfileForms.'.$source->id, (string) $whatsappProfile->id)
+            ->call('saveSourceProfile', $source->id);
+
+        $this->assertNull($source->fresh()?->analysis_profile_id);
     }
 
     public function test_livewire_can_toggle_source_status(): void
