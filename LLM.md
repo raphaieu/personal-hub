@@ -16,6 +16,7 @@ captura de lembretes pessoais, e base para futuros projetos pessoais integrados.
 - `PRD.md` — requisitos de produto
 - `SPEC.md` — especificação técnica completa (leia antes de implementar qualquer coisa)
 - `docs/v2.md` — backlog e decisões da evolução V2 (grupos, permissões, pipelines AI); não duplicar no SPEC além do schema acordado
+- `docs/album/SPEC_media_albums.md` — **álbuns de mídia** (hub, viewer, contribuição externa, filas `media`/`notifications`); fonte da verdade para novas alterações nessa feature
 
 ---
 
@@ -64,9 +65,11 @@ Versões abaixo refletem o **ambiente de desenvolvimento local** atual (Node 24,
 ### Filas e Jobs
 
 - Fila `scraping` para Jobs do Playwright (timeout longo: 120s)
-- Fila `notifications` para Jobs de WhatsApp
+- Fila `notifications` para Jobs de WhatsApp e resumos leves (ex.: `NotificarVencimento`, `SendAlbumContributionDigestJob` para contribuições em álbuns)
+- Fila `media` para processamento pesado de mídia de álbuns (`ProcessAlbumPhotoJob` — GD/WebP; timeout maior no Horizon)
+- Fila `ai` para classificação IA (Threads / WhatsApp)
 - Fila `default` para o resto
-- Produção/dev com Redis: rodar `**php artisan horizon**` (workers para `default`+`notifications` e supervisor dedicado para `scraping`). Scripts Composer: `composer dev:horizon` em um terminal separado do `composer dev`.
+- Produção/dev com Redis: rodar `**php artisan horizon**` (supervisores para `default`+`notifications`, `scraping`, `ai`, `media`, etc.). Scripts Composer: `composer dev:horizon` em um terminal separado do `composer dev`.
 - Scheduler: `**php artisan schedule:work**` em dev (`composer dev:schedule`), ou cron em produção com `schedule:run` a cada minuto. Tasks novas ficam em `bootstrap/app.php` (`withSchedule`).
 - Sempre implementar `failed()` nos Jobs para logar erros
 - `$tries = 3` como padrão
@@ -169,7 +172,7 @@ Ordem fixa na cadeia: **Ollama (condicional) → Groq → Anthropic → OpenAI**
 - Acesso: `https://api.raphael-martins.com/horizon`
 - Protegido por email no `.env` (`HORIZON_AUTH_EMAILS`)
 - Publicar assets: `php artisan horizon:publish`
-- Filas configuradas: `default`, `scraping`, `notifications`
+- Filas configuradas: `default`, `scraping`, `notifications`, `ai`, `media` (ver `config/horizon.php`; worker Docker também pode listar `media` em `queue:work`)
 
 ---
 

@@ -161,6 +161,17 @@ timestamps
 
 Índices: `(monitored_source_id, created_at)`, `(chat_jid, created_at)`, `sender_jid`.
 
+#### Álbuns de mídia (`albums`, `album_media`, `contributors`, …)
+
+Domínio incremental para galerias públicas/privadas com armazenamento no disco `s3` (MinIO). Detalhes completos, endpoints e fases A–F em **[docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md)**.
+
+Resumo de tabelas principais:
+
+- **`albums`** — `slug` único, hierarquia opcional (`parent_id`, máximo 2 níveis), `access_type` (`public|password|token|one_time`), `token` / `token_expires_at` / `one_time_used_at`, `cover_media_id`, metadados de thumb, `download_enabled`, `is_locked`, campos de **contribuição externa** (`contribution_invite_token`, `contribution_upload_ttl_hours`).
+- **`album_media`** — `type` (`photo|video`), paths S3 (`original_path`, `thumb_path`, `medium_path`, …), `processing_status`, `uploaded_by` (`admin|contributor`), `contributor_id` (FK nullable para `contributors`), `metadata` (JSON).
+- **`contributors`** — convites por álbum: e-mail, verificação (`verify_token`, `verify_expires_at`), upload (`upload_token`, `upload_expires_at`); único `(album_id, email)`.
+- **`access_attempts`** / **`album_lockouts`** — proteção contra força bruta no acesso por senha ao viewer (ver `AlbumAccessService`).
+
 #### `message_attachments`
 
 Mídia/arquivos ligados a `message_logs`; objeto no MinIO usando `media_storage_prefix` da fonte quando aplicável.
@@ -283,7 +294,35 @@ Métodos:
 | `EnriquecerUrlLembrete`          | `default`       | Após salvar lembrete de URL |
 | `NotificarVencimento`            | `notifications` | Schedule diário             |
 | `RecalculateCommentScoreJob`     | `default`       | Após voto em `/oportunidades` |
+| `ProcessAlbumPhotoJob`           | `media`         | Após upload de foto no hub ou por contribuidor — gera WebP thumb/medium (GD) |
+| `SendAlbumContributionDigestJob` | `notifications` | Debounce após upload por contribuidor — e-mail admin + WhatsApp (Evolution) |
 
+
+---
+
+## Media Albums (feature — 2026)
+
+Implementação faseada documentada em [docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md). **Fases A–E** concluídas no código; **Fase F** (ZIP, watermark, FFmpeg, tags, download ZIP) é backlog.
+
+### Rotas principais
+
+| Contexto | Exemplos |
+| -------- | -------- |
+| Hub (auth) | `GET /hub/albums`, `GET /hub/albums/{album}` — Livewire `HubPage` / `AlbumDetailPage` |
+| Viewer público | `GET /albums/{slug}`, `POST /albums/{slug}/auth`, `GET /albums/{slug}/media/{media}/view|download` (URLs assinadas) |
+| Contribuição | `GET /contribute/{album_uuid}/{token}`, `POST /contribute/verify`, `GET /contribute/confirm/{verify_token}`, `GET|POST /contribute/{upload_token}/upload` |
+
+### Serviços (pasta `App\Services\Albums`)
+
+Incluem `AlbumService`, `AlbumMediaUploadService`, `AlbumMediaService`, `AlbumAccessService`, `AlbumContributionService`, `AlbumContributionDigestService`, e integração com `EvolutionService` para resumos de contribuição.
+
+### Configuração
+
+Variáveis `ALBUMS_*` e bloco `services.albums` em `config/services.php`. Upload temporário do Livewire permanece em disco `local` quando o app usa S3 (ver `config/livewire.php`). **FFmpeg** ainda não é requisito de imagem Docker — apenas na Fase F para vídeo.
+
+### Testes
+
+`tests/Feature/Albums/` — inclui serviço, hub, viewer, upload, job de foto, contribuições.
 
 ---
 

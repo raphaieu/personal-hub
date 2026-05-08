@@ -93,6 +93,12 @@ Roadmap detalhado de **monitoramento profundo de grupos**, **transcrição**, **
 
 **Nota (2026):** a pilha técnica de IA (NeuronAI, roteamento Ollama→nuvem, gateway `/iara`) já está implementada — ver [SPEC.md](SPEC.md) / [LLM.md](LLM.md). No PRD permanece como **gap de produto** ligar os jobs WhatsApp e persistir classificações até o comportamento MVP (F2/F6) ficar verdadeiro ponta a ponta.
 
+### Álbuns de mídia (hub + viewer + contribuição)
+
+Produto **incremental** para organizar e compartilhar fotos/vídeos em álbuns (incluindo sub-álbuns), com armazenamento em **MinIO/S3**, painel autenticado e páginas públicas protegíveis (senha, token, one-time, lockout).
+
+**Estado (2026-05):** entregue em grande parte — CRUD e upload no hub (`/hub/albums`), viewer público com miniaturas e lightbox, processamento assíncrono de fotos, tipos de acesso endurecidos, **contribuição externa** (convidados enviam mídia após verificação por e-mail, com resumo ao dono por e-mail/WhatsApp). Documentação e roadmap da feature: [docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md). **Pendente:** Fase F (ZIP em lote, watermark, thumbs/transcode de vídeo via FFmpeg, tags, download ZIP do álbum).
+
 - RAG sobre histórico de faturas e lembretes (pgvector)
 - OCR em imagens recebidas via WhatsApp
 - Código PIX copiável enviado junto com o lembrete de vencimento

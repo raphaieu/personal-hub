@@ -2,7 +2,9 @@
 **Projeto:** raphael-hub  
 **Stack base:** Laravel 13 + PHP 8.4 · Livewire 4 · PostgreSQL 17 · Redis 7 · Horizon · MinIO S3 (bucket padrão do Hub: `pessoal`)  
 **Data:** 2026-05-08  
-**Status:** alinhado para implementação faseada
+**Status:** fases A–E implementadas; Fase F em backlog
+
+**Índice na documentação do projeto:** esta SPEC é a fonte de verdade **da feature** álbuns. Visão geral do produto e stack: [README.md](../../README.md), [PRD.md](../../PRD.md), [SPEC.md](../../SPEC.md) (secção *Media Albums*), [LLM.md](../../LLM.md). Alterações relevantes: [CHANGELOG.md](../../CHANGELOG.md).
 
 ---
 

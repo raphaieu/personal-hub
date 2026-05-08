@@ -247,6 +247,14 @@ Para webhooks e testes externos (mesmo stack em termos de comportamento; URL pú
 
 ## Roadmap
 
+### Álbuns de mídia (MinIO / viewer / contribuição)
+
+Feature dedicada ao armazenamento e exibição de fotos e vídeos em álbuns hierárquicos, com painel em `/hub/albums` e páginas públicas em `/albums/{slug}`. Documentação canônica da implementação: **[docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md)**.
+
+**Estado (2026-05):** fases **A–E concluídas** (domínio, hub, upload S3, processamento de fotos GD/WebP, viewer com lightbox, hardening de acesso, contribuição externa com notificações consolidadas). Restam os **recursos avançados da Fase F** (ZIP, watermark, FFmpeg para vídeo, tags, download ZIP do álbum), descritos na mesma SPEC.
+
+Histórico de entregas relacionado: [CHANGELOG.md](CHANGELOG.md).
+
 ### Curto Prazo
 
 * webhook estável
