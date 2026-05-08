@@ -158,6 +158,10 @@ return [
 
     'albums' => [
         'brute_force_max_attempts' => (int) env('ALBUMS_BRUTE_FORCE_MAX_ATTEMPTS', 5),
+        /** Tamanho máximo por arquivo no upload do hub (bytes). */
+        'max_upload_bytes' => (int) env('ALBUMS_MAX_UPLOAD_BYTES', 100 * 1024 * 1024),
+        /** Largura máxima (px) da variante `medium` gerada pelo ProcessAlbumPhotoJob. */
+        'medium_max_width' => (int) env('ALBUMS_MEDIUM_MAX_WIDTH', 1200),
     ],
 
 ];

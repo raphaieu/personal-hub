@@ -2,10 +2,14 @@
 FROM php:8.4-fpm
 
 # SO + libs
+# libpng/libjpeg/libwebp/freetype são exigidas pelo GD (ProcessAlbumPhotoJob: imagewebp/imagecreatefromstring).
+# ffmpeg ainda não é necessário (vídeo é arquivado sem transcode); adicionar quando entrarmos na fase F (thumb de vídeo).
 RUN apt-get update && apt-get install -y \
     git unzip tzdata curl \
     libzip-dev libpq-dev libicu-dev libonig-dev libxml2-dev \
- && docker-php-ext-install pdo pdo_pgsql pgsql intl zip bcmath pcntl \
+    libpng-dev libjpeg62-turbo-dev libwebp-dev libfreetype6-dev \
+ && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
+ && docker-php-ext-install pdo pdo_pgsql pgsql intl zip bcmath pcntl gd \
  && pecl install redis \
  && docker-php-ext-enable redis \
  && rm -rf /var/lib/apt/lists/*
