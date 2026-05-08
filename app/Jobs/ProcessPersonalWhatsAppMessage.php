@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Services\Analysis\ProcessMessageLogAnalysisService;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -22,15 +23,12 @@ class ProcessPersonalWhatsAppMessage implements ShouldQueue
         public readonly int $messageLogId,
         public readonly string $correlationId,
     ) {
-        $this->onQueue('default');
+        $this->onQueue('ai');
     }
 
-    public function handle(): void
+    public function handle(ProcessMessageLogAnalysisService $analysisService): void
     {
-        Log::debug('ProcessPersonalWhatsAppMessage stub', [
-            'message_log_id' => $this->messageLogId,
-            'correlation_id' => $this->correlationId,
-        ]);
+        $analysisService->process($this->messageLogId);
     }
 
     public function failed(\Throwable $exception): void

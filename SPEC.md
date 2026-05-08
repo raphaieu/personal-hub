@@ -200,6 +200,30 @@ Recebe payload da Evolution, extrai tipo/conteúdo, identifica a source e despac
 4. JID em `monitored_sources` com `kind = group` (e não coberto pelo item 2) → `ProcessGroupWhatsAppMessage`
 5. Qualquer outro → persiste `message_logs` com rota ignorada e sem job
 
+Nos caminhos `personal`, `contact` e `group`, os jobs executam `ProcessMessageLogAnalysisService`, que aplica profile-driven analysis e persiste resultado em `message_logs` (`intent`, `category`, `sentiment`, `confidence`, `ai_pipeline_status` e `metadata.analysis`).
+
+Escopo atual: **text-first**. A classificação estruturada roda somente quando há texto disponível no item. Para mensagens sem texto:
+
+- `classified` quando a análise textual conclui com sucesso (`is_processed=true`).
+- `pending_media_processing` para mídia/anexos (`audio`, `image`, `video`, `document`, etc.) ou quando metadados indicam conteúdo binário.
+- `pending_text_extraction` para casos sem texto útil, mas com potencial de enriquecimento futuro.
+- `skipped_no_profile` quando não há profile aplicável (`is_processed=true`, aguardando ajuste operacional da source).
+
+Importante: itens em estados `pending_*` **não** são finalizados (`is_processed=false`), preservando reprocessamento em fase futura de extraction.
+Observação: no payload de metadados, `metadata.analysis.status` pode aparecer como `completed` enquanto `ai_pipeline_status` fica `classified` (camadas semânticas distintas).
+
+### Camada genérica de análise por profile
+
+| Classe | Papel |
+|--------|--------|
+| `AnalysisProfileResolver` | Resolve profile ativo por source (Threads/WhatsApp) com fallback para `threads-opportunities` no fluxo Threads. |
+| `AnalysisExecutionService` | Executa classificação JSON via `NeuronAIService` com `system_prompt`, `output_schema` e `settings` vindos do profile (foco em análise textual estruturada). |
+| `ThreadsCommentToNormalizedContentAdapter` | Normaliza comentários Threads para contrato único de entrada. |
+| `MessageLogToNormalizedContentAdapter` | Normaliza mensagens WhatsApp (`message_logs`) no mesmo contrato. |
+| `ProcessMessageLogAnalysisService` | Orquestra análise de WhatsApp e persistência auditável por status, separando classificação textual atual de estados pendentes para futura extração de conteúdo. |
+
+Operação de hardening de vínculo legado: `php artisan analysis:repair-profile-linkage` (idempotente) garante o profile padrão `threads-opportunities` e repara `analysis_profile_id` nulo em `threads_sources`/`threads_categories`.
+
 ### Camada de IA (NeuronAI + roteamento)
 
 **Pacote:** `neuron-core/neuron-ai` — providers oficiais (`Ollama`, `OpenAILike` para Groq, `Anthropic`, `OpenAI\OpenAI`).

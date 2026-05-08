@@ -8,9 +8,8 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
-use Illuminate\Support\Facades\Log;
 
-class ProcessContactWhatsAppMessage implements ShouldQueue
+class ReprocessMessageLogAnalysisJob implements ShouldQueue
 {
     use Dispatchable;
     use InteractsWithQueue;
@@ -21,7 +20,6 @@ class ProcessContactWhatsAppMessage implements ShouldQueue
 
     public function __construct(
         public readonly int $messageLogId,
-        public readonly string $correlationId,
     ) {
         $this->onQueue('ai');
     }
@@ -29,14 +27,5 @@ class ProcessContactWhatsAppMessage implements ShouldQueue
     public function handle(ProcessMessageLogAnalysisService $analysisService): void
     {
         $analysisService->process($this->messageLogId);
-    }
-
-    public function failed(\Throwable $exception): void
-    {
-        Log::error('ProcessContactWhatsAppMessage failed', [
-            'message_log_id' => $this->messageLogId,
-            'correlation_id' => $this->correlationId,
-            'error' => $exception->getMessage(),
-        ]);
     }
 }
