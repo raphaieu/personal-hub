@@ -4,6 +4,7 @@ namespace Tests\Feature\Albums;
 
 use App\Livewire\Albums\HubPage;
 use App\Models\Album;
+use App\Models\AlbumLockout;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -97,5 +98,49 @@ final class AlbumsHubPageTest extends TestCase
             ->set('formAccessType', 'public')
             ->call('saveAlbum')
             ->assertHasErrors(['formParentId']);
+    }
+
+    public function test_livewire_can_create_token_album_with_expiration(): void
+    {
+        $user = User::factory()->create();
+
+        Livewire::actingAs($user)
+            ->test(HubPage::class)
+            ->set('formTitle', 'Privado por token')
+            ->set('formSlug', 'privado-token')
+            ->set('formAccessType', 'token')
+            ->set('formToken', 'meu-token-seguro')
+            ->set('formTokenExpiresAt', '2030-01-01T10:00')
+            ->call('saveAlbum')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseHas('albums', [
+            'slug' => 'privado-token',
+            'access_type' => 'token',
+            'token' => 'meu-token-seguro',
+        ]);
+    }
+
+    public function test_livewire_can_unlock_active_lockout(): void
+    {
+        $user = User::factory()->create();
+        $album = Album::query()->create([
+            'title' => 'Raiz',
+            'slug' => 'raiz',
+            'access_type' => 'public',
+        ]);
+
+        $lockout = AlbumLockout::query()->create([
+            'album_id' => $album->id,
+            'ip' => '127.0.0.1',
+            'locked_at' => now(),
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(HubPage::class)
+            ->call('unlockLockout', $lockout->id)
+            ->assertHasNoErrors();
+
+        $this->assertNotNull($lockout->fresh()?->unlocked_at);
     }
 }

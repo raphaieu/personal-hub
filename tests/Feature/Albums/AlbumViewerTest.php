@@ -3,6 +3,7 @@
 namespace Tests\Feature\Albums;
 
 use App\Models\Album;
+use App\Models\AlbumLockout;
 use App\Models\AlbumMedia;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Storage;
@@ -69,6 +70,69 @@ final class AlbumViewerTest extends TestCase
 
         $this->get(route('albums.viewer', ['slug' => $album->slug]))
             ->assertNotFound();
+    }
+
+    public function test_token_album_requires_valid_token_query_param(): void
+    {
+        $album = Album::query()->create([
+            'slug' => 'album-token',
+            'title' => 'Album Token',
+            'access_type' => 'token',
+            'token' => 'abc123token',
+            'token_expires_at' => now()->addHour(),
+        ]);
+
+        $this->get(route('albums.viewer', ['slug' => $album->slug]))
+            ->assertNotFound();
+
+        $this->get(route('albums.viewer', ['slug' => $album->slug, 'token' => 'abc123token']))
+            ->assertOk()
+            ->assertSee('Album Token');
+    }
+
+    public function test_one_time_album_allows_first_access_and_blocks_second_session(): void
+    {
+        $album = Album::query()->create([
+            'slug' => 'album-one-time',
+            'title' => 'Album One Time',
+            'access_type' => 'one_time',
+            'token' => 'one-time-token',
+            'token_expires_at' => now()->addHour(),
+        ]);
+
+        $this->get(route('albums.viewer', ['slug' => $album->slug, 'token' => 'one-time-token']))
+            ->assertOk()
+            ->assertSee('Album One Time');
+
+        $this->flushSession();
+
+        $this->get(route('albums.viewer', ['slug' => $album->slug, 'token' => 'one-time-token']))
+            ->assertNotFound();
+    }
+
+    public function test_password_album_creates_lockout_after_consecutive_failures(): void
+    {
+        config(['services.albums.brute_force_max_attempts' => 2]);
+
+        $album = Album::query()->create([
+            'slug' => 'album-lockout',
+            'title' => 'Album Lockout',
+            'access_type' => 'password',
+            'password_hash' => bcrypt('1234'),
+        ]);
+
+        $this->post(route('albums.viewer.auth', ['slug' => $album->slug]), ['password' => 'wrong'])
+            ->assertSessionHasErrors('password');
+        $this->post(route('albums.viewer.auth', ['slug' => $album->slug]), ['password' => 'wrong'])
+            ->assertSessionHasErrors('password');
+
+        $this->assertDatabaseHas('album_lockouts', [
+            'album_id' => $album->id,
+            'unlocked_at' => null,
+        ]);
+
+        $lockout = AlbumLockout::query()->where('album_id', $album->id)->first();
+        $this->assertNotNull($lockout);
     }
 
     public function test_media_view_requires_signed_url_and_streams_file(): void
