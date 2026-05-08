@@ -117,6 +117,74 @@
                     </table>
                 </div>
 
+                <div class="mt-6 pt-6 border-t border-gray-200 space-y-3">
+                    <h3 class="text-sm font-semibold text-gray-900">Contribuição externa</h3>
+                    <p class="text-xs text-gray-600">
+                        Gere um link para convidados enviarem mídias após confirmarem o e-mail. Você pode revogar uploads ou girar o token do convite a qualquer momento.
+                    </p>
+                    <div class="flex flex-wrap gap-2">
+                        @if (! $album->contribution_invite_token)
+                            <button
+                                type="button"
+                                wire:click="generateContributionInvite"
+                                wire:loading.attr="disabled"
+                                class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-xs font-medium text-white hover:bg-indigo-700 disabled:opacity-50"
+                            >
+                                Gerar link de contribuição
+                            </button>
+                        @else
+                            <button
+                                type="button"
+                                wire:click="rotateContributionInvite"
+                                wire:loading.attr="disabled"
+                                wire:confirm="Gerar novo token? O link antigo deixará de funcionar."
+                                class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+                            >
+                                Novo token de convite
+                            </button>
+                            <button
+                                type="button"
+                                wire:click="revokeContributorUploads"
+                                wire:loading.attr="disabled"
+                                wire:confirm="Revogar todos os tokens de upload dos contribuidores deste álbum?"
+                                class="inline-flex items-center rounded-md border border-red-200 bg-white px-3 py-2 text-xs font-medium text-red-700 hover:bg-red-50 disabled:opacity-50"
+                            >
+                                Revogar uploads
+                            </button>
+                        @endif
+                    </div>
+                    @if ($album->contribution_invite_token)
+                        <div class="rounded-md bg-gray-50 border border-gray-200 p-3 text-xs break-all font-mono text-gray-800">
+                            {{ route('albums.contribute.invite', ['album' => $album->id, 'token' => $album->contribution_invite_token]) }}
+                        </div>
+                        <div class="flex flex-wrap items-end gap-2">
+                            <div>
+                                <label for="contrib-ttl" class="block text-xs font-medium text-gray-600 mb-1">Prazo do link de upload após confirmação (horas)</label>
+                                <input
+                                    id="contrib-ttl"
+                                    type="number"
+                                    wire:model="contributionUploadTtlHours"
+                                    min="1"
+                                    max="8760"
+                                    placeholder="{{ (int) config('services.albums.contribution_upload_ttl_hours', 72) }} (padrão)"
+                                    class="w-40 rounded-md border-gray-300 text-sm shadow-sm"
+                                >
+                                @error('contributionUploadTtlHours')
+                                    <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
+                                @enderror
+                            </div>
+                            <button
+                                type="button"
+                                wire:click="saveContributionUploadTtl"
+                                class="inline-flex items-center rounded-md border border-gray-300 bg-white px-3 py-2 text-xs font-medium text-gray-700 hover:bg-gray-50"
+                            >
+                                Salvar prazo
+                            </button>
+                        </div>
+                        <p class="text-xs text-gray-500">Deixe em branco para usar o padrão global ({{ (int) config('services.albums.contribution_upload_ttl_hours', 72) }} h).</p>
+                    @endif
+                </div>
+
                 <p class="mt-6 text-xs text-gray-500">
                     Viewer público:
                     <a href="{{ route('albums.viewer', ['slug' => $album->slug]) }}" target="_blank" rel="noopener noreferrer" class="font-medium text-indigo-600 hover:text-indigo-800">
