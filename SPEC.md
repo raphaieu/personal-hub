@@ -797,13 +797,41 @@ docker/
 - Componente `App\Livewire\Threads\HubPage` evoluído com ações de gestão de `threads_sources`:
   - criação de source `keyword` ou `url`,
   - alternância de status `is_active`,
+  - visualização/edição de `analysis_profile_id` por source (incluindo fallback para profile padrão quando não há vínculo explícito),
   - ação `scrape agora` para enfileirar o job compatível com o tipo.
+- Refactor leve de view: `resources/views/livewire/threads/hub-page.blade.php` foi fragmentada em partials (`resources/views/livewire/threads/hub/*.blade.php`) para reduzir acoplamento sem alterar comportamento.
 - Regras de enfileiramento:
   - `keyword` -> `ScrapeThreadsKeywordJob` (`onlyNew=true`, `knownPostIds` da própria source, limite padrão via env),
   - `url` -> `ScrapeThreadsUrlJob`.
 - UI de `Sources` inclui formulário de criação e botões de ação por linha (toggle/scrape).
 - Cobertura mínima:
-  - `tests/Feature/Threads/ThreadsHubPageTest.php` cobre criação, toggle e dispatch dos jobs por ação Livewire.
+  - `tests/Feature/Threads/ThreadsHubPageTest.php` cobre criação, toggle, atualização de profile e dispatch dos jobs por ação Livewire.
+
+## Hub Fontes Monitoradas (consolidação profile-driven)
+
+- Rota autenticada: `GET /hub/monitored-sources` (`monitored-sources.hub`), componente Livewire `App\Livewire\MonitoredSources\HubPage`.
+- Escopo operacional desta fase:
+  - criar/editar `monitored_sources` com `kind` (`self|contact|group`), `identifier` (único), `label`, `notes`, `is_active` e `analysis_profile_id`;
+  - permitir atualização rápida de `analysis_profile_id` e toggle ativo/inativo na listagem;
+  - validar compatibilidade de canal para profile selecionado (`channel = whatsapp|null`);
+  - exibir visão resumida do pipeline (`classified`, `pending_*`, `skipped_no_profile`) por source.
+- Reprocessamento manual mínimo:
+  - ação de reprocessar item em `message_logs` via `ReprocessMessageLogAnalysisJob` (fila `ai`) com feedback operacional e bloqueio quando não há source vinculada.
+- Cobertura:
+  - `tests/Feature/Analysis/MonitoredSourcesHubPageTest.php`.
+
+## Hub Analysis Profiles (admin mínimo)
+
+- Rota autenticada: `GET /hub/analysis-profiles` (`analysis-profiles.hub`), componente Livewire `App\Livewire\AnalysisProfiles\HubPage`.
+- Escopo operacional desta fase:
+  - listagem, criação, edição e ativação/desativação de `analysis_profiles`;
+  - edição de campos básicos (`slug`, `name`, `description`, `channel`, `analysis_type`, `system_prompt`, `score_threshold`, `is_active`);
+  - edição pragmática dos campos complexos (`output_schema`, `allowed_categories`, `settings`) via JSON validado;
+  - proteção parcial do profile padrão `threads-opportunities` (slug e status protegidos para evitar quebra acidental do fallback).
+- Guardrail de domínio:
+  - profiles continuam entidade banco-driven; não mover configurações de profile para `.env`.
+- Cobertura:
+  - `tests/Feature/Analysis/AnalysisProfilesHubPageTest.php`.
 
 ## Pipeline IA Threads (ajuste de robustez)
 

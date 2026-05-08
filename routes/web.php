@@ -7,6 +7,8 @@ use App\Http\Controllers\ThreadsCommentVoteController;
 use App\Http\Controllers\ThreadsOpportunitiesController;
 use App\Http\Controllers\Utilities\UtilityInvoicePdfController;
 use App\Http\Controllers\Webhook\WhatsAppWebhookController;
+use App\Livewire\AnalysisProfiles\HubPage as AnalysisProfilesHubPage;
+use App\Livewire\MonitoredSources\HubPage as MonitoredSourcesHubPage;
 use App\Livewire\Threads\HubPage as ThreadsHubPage;
 use App\Livewire\Utilities\HubPage as UtilitiesHubPage;
 use Illuminate\Support\Facades\Route;
@@ -36,6 +38,8 @@ Route::get('/dashboard', function () {
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/chat', [AiChatController::class, 'index'])->name('chat');
     Route::get('/hub/threads', ThreadsHubPage::class)->name('threads.hub');
+    Route::get('/hub/analysis-profiles', AnalysisProfilesHubPage::class)->name('analysis-profiles.hub');
+    Route::get('/hub/monitored-sources', MonitoredSourcesHubPage::class)->name('monitored-sources.hub');
     Route::get('/hub/utilities', UtilitiesHubPage::class)->name('utilities.hub');
     Route::get('/hub/utilities/invoices/{invoice}/pdf', [UtilityInvoicePdfController::class, 'show'])
         ->name('utilities.invoice.pdf');

@@ -21,6 +21,12 @@
                     <x-nav-link :href="route('threads.hub')" :active="request()->routeIs('threads.hub')">
                         {{ __('Threads Hub') }}
                     </x-nav-link>
+                    <x-nav-link :href="route('analysis-profiles.hub')" :active="request()->routeIs('analysis-profiles.hub')">
+                        {{ __('Profiles IA') }}
+                    </x-nav-link>
+                    <x-nav-link :href="route('monitored-sources.hub')" :active="request()->routeIs('monitored-sources.hub')">
+                        {{ __('Fontes Monitoradas') }}
+                    </x-nav-link>
                     <x-nav-link :href="route('utilities.hub')" :active="request()->routeIs('utilities.hub')">
                         {{ __('Utilidades') }}
                     </x-nav-link>
@@ -84,6 +90,12 @@
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('threads.hub')" :active="request()->routeIs('threads.hub')">
                 {{ __('Threads Hub') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('analysis-profiles.hub')" :active="request()->routeIs('analysis-profiles.hub')">
+                {{ __('Profiles IA') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('monitored-sources.hub')" :active="request()->routeIs('monitored-sources.hub')">
+                {{ __('Fontes Monitoradas') }}
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('utilities.hub')" :active="request()->routeIs('utilities.hub')">
                 {{ __('Utilidades') }}
