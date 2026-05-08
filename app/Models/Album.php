@@ -17,6 +17,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'cover_media_id',
     'access_type',
     'password_hash',
+    'token',
+    'token_expires_at',
+    'one_time_used_at',
     'download_enabled',
     'sort_order',
     'is_locked',
@@ -69,6 +72,8 @@ class Album extends Model
             'thumb_width' => 'integer',
             'thumb_height' => 'integer',
             'thumb_quality' => 'integer',
+            'token_expires_at' => 'datetime',
+            'one_time_used_at' => 'datetime',
         ];
     }
 }
