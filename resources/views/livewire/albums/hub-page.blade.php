@@ -41,6 +41,8 @@
                             <select wire:model="formAccessType" class="w-full rounded-md border-gray-300 text-sm">
                                 <option value="public">public</option>
                                 <option value="password">password</option>
+                                <option value="token">token</option>
+                                <option value="one_time">one_time</option>
                             </select>
                             @error('formAccessType') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                         </div>
@@ -66,6 +68,23 @@
                             <label class="block text-xs font-medium text-gray-600 mb-1">Senha (quando password)</label>
                             <input wire:model="formPassword" type="password" class="w-full rounded-md border-gray-300 text-sm" placeholder="••••">
                             @error('formPassword') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Token (token/one_time)</label>
+                            <div class="flex items-center gap-2">
+                                <input wire:model="formToken" type="text" class="w-full rounded-md border-gray-300 text-sm font-mono" placeholder="gerado automaticamente se vazio">
+                                <button type="button" wire:click="generateToken" class="inline-flex items-center rounded-md bg-gray-100 px-2 py-2 text-xs font-medium text-gray-800 hover:bg-gray-200">
+                                    Gerar
+                                </button>
+                            </div>
+                            @error('formToken') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                        </div>
+
+                        <div>
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Expira em</label>
+                            <input wire:model="formTokenExpiresAt" type="datetime-local" class="w-full rounded-md border-gray-300 text-sm">
+                            @error('formTokenExpiresAt') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
                         </div>
 
                         <div>
@@ -130,6 +149,7 @@
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Slug</th>
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Pai</th>
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acesso</th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Token expira</th>
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Download</th>
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lock</th>
                                     <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
@@ -147,6 +167,9 @@
                                         <td class="px-3 py-2 font-mono text-xs text-gray-800">{{ $row->slug }}</td>
                                         <td class="px-3 py-2 text-gray-700">{{ $row->parent?->title ?? '—' }}</td>
                                         <td class="px-3 py-2 text-gray-700">{{ $row->access_type }}</td>
+                                        <td class="px-3 py-2 text-xs text-gray-700">
+                                            {{ $row->token_expires_at ? $row->token_expires_at->format('d/m/Y H:i') : '—' }}
+                                        </td>
                                         <td class="px-3 py-2 text-gray-700">{{ $row->download_enabled ? 'Sim' : 'Não' }}</td>
                                         <td class="px-3 py-2 text-gray-700">{{ $row->is_locked ? 'Sim' : 'Não' }}</td>
                                         <td class="px-3 py-2 text-right whitespace-nowrap space-x-2">
@@ -163,7 +186,45 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="7" class="px-3 py-6 text-center text-sm text-gray-500">Nenhum álbum cadastrado.</td>
+                                        <td colspan="8" class="px-3 py-6 text-center text-sm text-gray-500">Nenhum álbum cadastrado.</td>
+                                    </tr>
+                                @endforelse
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="mt-8">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-3">Lockouts ativos</h3>
+                    <div class="overflow-x-auto border border-gray-200 rounded-lg">
+                        <table class="min-w-full divide-y divide-gray-200 text-sm">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Álbum</th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">IP</th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Locked at</th>
+                                    <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                @forelse ($activeLockouts as $lockout)
+                                    <tr>
+                                        <td class="px-3 py-2 text-gray-900">
+                                            {{ $lockout->album?->title ?? 'Álbum removido' }}
+                                        </td>
+                                        <td class="px-3 py-2 font-mono text-xs text-gray-800">{{ $lockout->ip }}</td>
+                                        <td class="px-3 py-2 text-gray-700">
+                                            {{ $lockout->locked_at ? $lockout->locked_at->format('d/m/Y H:i') : '—' }}
+                                        </td>
+                                        <td class="px-3 py-2 text-right">
+                                            <button type="button" wire:click="unlockLockout({{ (int) $lockout->id }})" class="text-indigo-600 hover:text-indigo-900 text-xs font-medium">
+                                                Desbloquear
+                                            </button>
+                                        </td>
+                                    </tr>
+                                @empty
+                                    <tr>
+                                        <td colspan="4" class="px-3 py-6 text-center text-sm text-gray-500">Sem lockouts ativos.</td>
                                     </tr>
                                 @endforelse
                             </tbody>

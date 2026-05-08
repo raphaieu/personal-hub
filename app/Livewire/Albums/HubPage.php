@@ -3,10 +3,13 @@
 namespace App\Livewire\Albums;
 
 use App\Models\Album;
+use App\Models\AlbumLockout;
 use App\Services\Albums\AlbumService;
+use Carbon\Carbon;
 use Illuminate\Validation\Rule;
 use InvalidArgumentException;
 use Livewire\Component;
+use Illuminate\Support\Str;
 
 final class HubPage extends Component
 {
@@ -23,6 +26,10 @@ final class HubPage extends Component
     public string $formAccessType = 'public';
 
     public string $formPassword = '';
+
+    public string $formToken = '';
+
+    public ?string $formTokenExpiresAt = null;
 
     public bool $formDownloadEnabled = false;
 
@@ -53,6 +60,8 @@ final class HubPage extends Component
         $this->formDescription = (string) ($album->description ?? '');
         $this->formAccessType = (string) $album->access_type;
         $this->formPassword = '';
+        $this->formToken = (string) ($album->token ?? '');
+        $this->formTokenExpiresAt = $album->token_expires_at?->format('Y-m-d\TH:i');
         $this->formDownloadEnabled = (bool) $album->download_enabled;
         $this->formSortOrder = (string) $album->sort_order;
         $this->formIsLocked = (bool) $album->is_locked;
@@ -87,6 +96,20 @@ final class HubPage extends Component
 
         if ($this->formAccessType === 'password' && $this->formPassword !== '') {
             $payload['password_hash'] = bcrypt($this->formPassword);
+        }
+
+        if (in_array($this->formAccessType, ['token', 'one_time'], true)) {
+            $payload['token'] = $this->formToken !== '' ? $this->formToken : Str::random(40);
+            $payload['token_expires_at'] = $this->formTokenExpiresAt !== null && $this->formTokenExpiresAt !== ''
+                ? Carbon::parse($this->formTokenExpiresAt)
+                : null;
+            if ($this->formAccessType === 'token') {
+                $payload['one_time_used_at'] = null;
+            }
+        } else {
+            $payload['token'] = null;
+            $payload['token_expires_at'] = null;
+            $payload['one_time_used_at'] = null;
         }
 
         try {
@@ -126,6 +149,22 @@ final class HubPage extends Component
         session()->flash('albums_hub_notice', 'Status de bloqueio atualizado.');
     }
 
+    public function generateToken(): void
+    {
+        $this->formToken = Str::random(40);
+    }
+
+    public function unlockLockout(int $lockoutId): void
+    {
+        $lockout = AlbumLockout::query()->whereKey($lockoutId)->whereNull('unlocked_at')->firstOrFail();
+        $lockout->forceFill([
+            'unlocked_at' => now(),
+            'unlocked_by' => 'admin',
+        ])->save();
+
+        session()->flash('albums_hub_notice', 'Lockout desbloqueado.');
+    }
+
     private function resetFormDefaults(): void
     {
         $this->formParentId = '';
@@ -134,6 +173,8 @@ final class HubPage extends Component
         $this->formDescription = '';
         $this->formAccessType = 'public';
         $this->formPassword = '';
+        $this->formToken = '';
+        $this->formTokenExpiresAt = null;
         $this->formDownloadEnabled = false;
         $this->formSortOrder = 'date';
         $this->formIsLocked = false;
@@ -157,8 +198,10 @@ final class HubPage extends Component
             ],
             'formTitle' => ['required', 'string', 'max:255'],
             'formDescription' => ['nullable', 'string'],
-            'formAccessType' => ['required', Rule::in(['public', 'password'])],
+            'formAccessType' => ['required', Rule::in(['public', 'password', 'token', 'one_time'])],
             'formPassword' => ['nullable', 'string', 'min:4', 'max:255'],
+            'formToken' => ['nullable', 'string', 'min:8', 'max:64'],
+            'formTokenExpiresAt' => ['nullable', 'date'],
             'formDownloadEnabled' => ['boolean'],
             'formSortOrder' => ['required', Rule::in(['date', 'manual'])],
             'formIsLocked' => ['boolean'],
@@ -184,9 +227,17 @@ final class HubPage extends Component
             ->orderBy('id')
             ->get();
 
+        $activeLockouts = AlbumLockout::query()
+            ->with('album:id,title,slug')
+            ->whereNull('unlocked_at')
+            ->orderByDesc('locked_at')
+            ->limit(50)
+            ->get();
+
         return view('livewire.albums.hub-page', [
             'albums' => $albums,
             'rootAlbums' => $rootAlbums,
+            'activeLockouts' => $activeLockouts,
         ])->layout('layouts.app');
     }
 }
