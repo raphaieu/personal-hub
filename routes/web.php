@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\AiChatController;
+use App\Http\Controllers\Albums\AlbumMediaController;
+use App\Http\Controllers\Albums\AlbumViewerController;
 use App\Http\Controllers\IaraController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ThreadsCommentVoteController;
@@ -31,6 +33,11 @@ Route::get('/oportunidades', ThreadsOpportunitiesController::class)->name('threa
 Route::post('/oportunidades/votos/{comment}', [ThreadsCommentVoteController::class, 'store'])
     ->middleware('throttle:120,1')
     ->name('threads.opportunities.vote');
+
+Route::get('/albums/{slug}', [AlbumViewerController::class, 'show'])->name('albums.viewer');
+Route::post('/albums/{slug}/auth', [AlbumViewerController::class, 'auth'])->name('albums.viewer.auth');
+Route::get('/albums/{slug}/media/{media}/view', [AlbumMediaController::class, 'view'])->name('albums.media.view');
+Route::get('/albums/{slug}/media/{media}/download', [AlbumMediaController::class, 'download'])->name('albums.media.download');
 
 Route::get('/dashboard', function () {
     return view('dashboard');
