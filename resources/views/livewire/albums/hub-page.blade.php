@@ -15,7 +15,7 @@
                 @endif
 
                 <p class="text-sm text-gray-600 mb-4">
-                    Gestão inicial de álbuns (fase B): CRUD com hierarquia de até 2 níveis.
+                    Gestão de álbuns: CRUD com hierarquia de até 2 níveis. Use <strong>Upload / lista</strong> para enviar mídias (S3/MinIO) e ver o status de processamento.
                 </p>
 
                 <div class="border-b border-gray-200 pb-4 mb-6">
@@ -152,6 +152,7 @@
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Token expira</th>
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Download</th>
                                     <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lock</th>
+                                    <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Mídias</th>
                                     <th class="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Ações</th>
                                 </tr>
                             </thead>
@@ -172,6 +173,15 @@
                                         </td>
                                         <td class="px-3 py-2 text-gray-700">{{ $row->download_enabled ? 'Sim' : 'Não' }}</td>
                                         <td class="px-3 py-2 text-gray-700">{{ $row->is_locked ? 'Sim' : 'Não' }}</td>
+                                        <td class="px-3 py-2">
+                                            <a
+                                                href="{{ route('albums.hub.show', $row) }}"
+                                                wire:navigate
+                                                class="text-indigo-600 hover:text-indigo-900 text-xs font-medium"
+                                            >
+                                                Upload / lista
+                                            </a>
+                                        </td>
                                         <td class="px-3 py-2 text-right whitespace-nowrap space-x-2">
                                             <button type="button" wire:click="startEdit('{{ $row->id }}')" class="text-indigo-600 hover:text-indigo-900 text-xs font-medium">
                                                 Editar
@@ -186,7 +196,7 @@
                                     </tr>
                                 @empty
                                     <tr>
-                                        <td colspan="8" class="px-3 py-6 text-center text-sm text-gray-500">Nenhum álbum cadastrado.</td>
+                                        <td colspan="9" class="px-3 py-6 text-center text-sm text-gray-500">Nenhum álbum cadastrado.</td>
                                     </tr>
                                 @endforelse
                             </tbody>
