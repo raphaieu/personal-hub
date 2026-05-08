@@ -81,12 +81,24 @@ global_role: super_admin | member (default member)
 
 Seed opcional via `SuperAdminUserSeeder` (`HUB_SEED_*` no `.env`; senha nunca no repositório).
 
+#### `analysis_profiles`
+
+Perfis reutilizáveis para classificação/análise por canal.
+
+```
+id, slug (unique), name, description,
+channel (nullable), analysis_type, system_prompt,
+output_schema (json nullable), allowed_categories (json nullable),
+score_threshold (decimal nullable), settings (json nullable),
+is_active (bool), timestamps
+```
+
 #### `monitored_sources`
 
 ```
 id, kind (self|contact|group), identifier (unique JID), label,
 permissions (json nullable), is_active (bool), notes,
-media_storage_prefix (nullable), timestamps
+media_storage_prefix (nullable), analysis_profile_id (FK nullable), timestamps
 ```
 
 #### `monitored_source_user` (pivot — V2 / multi-admin de grupo)
