@@ -156,4 +156,8 @@ return [
         'delete_source_pdf_after_upload' => env('UTILITIES_DELETE_SOURCE_PDF_AFTER_UPLOAD'),
     ],
 
+    'albums' => [
+        'brute_force_max_attempts' => (int) env('ALBUMS_BRUTE_FORCE_MAX_ATTEMPTS', 5),
+    ],
+
 ];
