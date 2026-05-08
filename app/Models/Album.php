@@ -26,6 +26,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'thumb_width',
     'thumb_height',
     'thumb_quality',
+    'contribution_invite_token',
+    'contribution_upload_ttl_hours',
 ])]
 class Album extends Model
 {
@@ -73,6 +75,14 @@ class Album extends Model
     }
 
     /**
+     * @return HasMany<Contributor, $this>
+     */
+    public function contributors(): HasMany
+    {
+        return $this->hasMany(Contributor::class);
+    }
+
+    /**
      * @return BelongsTo<AlbumMedia, $this>
      */
     public function coverMedia(): BelongsTo
@@ -88,6 +98,7 @@ class Album extends Model
             'thumb_width' => 'integer',
             'thumb_height' => 'integer',
             'thumb_quality' => 'integer',
+            'contribution_upload_ttl_hours' => 'integer',
             'token_expires_at' => 'datetime',
             'one_time_used_at' => 'datetime',
         ];

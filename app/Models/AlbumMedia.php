@@ -42,6 +42,14 @@ class AlbumMedia extends Model
         return $this->belongsTo(Album::class);
     }
 
+    /**
+     * @return BelongsTo<Contributor, $this>
+     */
+    public function contributor(): BelongsTo
+    {
+        return $this->belongsTo(Contributor::class);
+    }
+
     protected function casts(): array
     {
         return [
