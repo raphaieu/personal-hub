@@ -39,7 +39,7 @@ Ordem efetiva de entrega:
 | 2 | **MVP mídia** | Upload admin no hub (`/hub/albums/{album}`), persistência em `albums/{album_id}/original/{uuid}.{ext}`, job `ProcessAlbumPhotoJob` (thumb/medium WebP), vídeo só original + `processing_status=done`. |
 | 3 | Viewer público | Fase C — grid, URLs assinadas, fallback para original quando derivadas ainda não existem no disco. |
 | 4 | Hardening de acesso | Fase D — token, lockout, etc. (pode coexistir com o MVP; não bloqueia upload). |
-| 5 | Contribuição externa | **Fase E — depois** do MVP de mídia estável. |
+| 5 | Contribuição externa | **Fase E** — convite por token no álbum, verificação por e-mail, upload público com `upload_token`, digest ao admin (e-mail + Evolution). |
 | 6 | Avançados | Fase F (ZIP, watermark, thumb de vídeo, …). |
 
 As subseções abaixo mantêm a numeração histórica A–F para compatibilidade com PRs e commits anteriores.
@@ -196,6 +196,8 @@ Regras:
 
 ## Fase E — Contribuição externa
 
+**Status:** entregue (schema, fluxo público, hub, digest, testes em `tests/Feature/Albums/AlbumContributionsTest.php`).
+
 ### E.1 Tabela
 
 `contributors`
@@ -207,25 +209,39 @@ Regras:
 - `upload_token` + `upload_expires_at`
 - timestamps
 
+Índice único `(album_id, email)`.
+
+**Álbum (`albums`):** `contribution_invite_token` (nullable, único) — segredo do link público de convite; `contribution_upload_ttl_hours` (nullable) — sobrescreve o TTL padrão do token de upload após a confirmação.
+
+`album_media.contributor_id` → FK `contributors.id` (`nullOnDelete`).
+
 ### E.2 Fluxo
 
-1. admin gera link de contribuição por álbum;
-2. convidado informa email;
-3. recebe verificação por email;
-4. após confirmar, pode enviar mídias com token temporário;
-5. upload cria `album_media` com `uploaded_by=contributor`.
+1. admin gera ou renova o token de convite no hub (`/hub/albums/{album}`) e copia a URL `/contribute/{album_uuid}/{token}`;
+2. convidado informa o e-mail na página do convite;
+3. recebe e-mail com link `GET /contribute/confirm/{verify_token}` (validade configurável, default 24 h);
+4. após confirmar, recebe `upload_token` com `upload_expires_at` (default global 72 h ou por álbum);
+5. `GET/POST /contribute/{upload_token}/upload` envia mídias; `AlbumMediaUploadService::store(..., Contributor)` grava S3, define `uploaded_by=contributor`, dispara `ProcessAlbumPhotoJob` nas fotos (fila `media`).
+6. admin pode **revogar** todos os `upload_token` dos contribuidores do álbum ou **gerar novo token de convite** (invalida URLs antigas do passo 1).
 
 ### E.3 Notificação
 
-- evento de contribuição + debounce em Redis;
-- envio para email admin;
-- envio de resumo via `EvolutionService`.
+- Cada upload de contribuidor acumula uma linha em buffer (Laravel **Cache** com lock; em produção multi-processo recomenda-se `CACHE_STORE=redis` para equivalência ao debounce centralizado).
+- Um único `SendAlbumContributionDigestJob` é agendado por janela (`ALBUMS_CONTRIBUTION_NOTIFY_DEBOUNCE_SECONDS`, default 600 s), fila **`notifications`** (mesmo padrão de jobs leves como `NotificarVencimento`).
+- E-mail ao admin: `ALBUMS_CONTRIBUTION_NOTIFY_EMAIL` ou fallback `mail.from.address`; resumo em Markdown (`AlbumContributionDigestMail`).
+- WhatsApp: `ALBUMS_CONTRIBUTIONS_WHATSAPP_JID` ou fallback `WHATSAPP_UTILITIES_HOME_GROUP_JID`, via `App\Services\EvolutionService::sendText` (telão alinhado a faturas).
 
 ### E.4 Testes mínimos
 
 - verify token;
 - upload autorizado por token válido;
 - notificação consolidada por janela.
+
+Cobertos: token de convite inválido; verificação expirada; link de confirmação já usado / inexistente; upload após revogação; múltiplos arquivos no mesmo POST geram um único dispatch do digest job; hub exige autenticação; geração de convite no Livewire.
+
+### E.5 Configuração (`.env`)
+
+Ver `.env.example`: `ALBUMS_CONTRIBUTION_*` e opcional `ALBUMS_CONTRIBUTIONS_WHATSAPP_JID`.
 
 ---
 
@@ -269,12 +285,17 @@ GET    /albums/{slug}/media/{media}/download
 
 ### 4.3 Contribuição (fase E+)
 
+Implementado (ordem de registro: `confirm` e `verify` antes das rotas parametrizadas):
+
 ```
-GET    /contribute/{album}/{token}
-POST   /contribute/verify
 GET    /contribute/confirm/{verify_token}
+POST   /contribute/verify
+GET    /contribute/{album_uuid}/{token}
+GET    /contribute/{upload_token}/upload
 POST   /contribute/{upload_token}/upload
 ```
+
+`{album_uuid}` validado com `whereUuid('album')`. Throttle aplicado ao grupo e rotas sensíveis.
 
 ---
 
@@ -312,6 +333,7 @@ Possível para validar integração real, **somente** com consciência de risco:
 ## 6. Filas e operação
 
 - processamento de mídia é assíncrono na fila **`media`**;
+- resumo de contribuições externas: `SendAlbumContributionDigestJob` na fila **`notifications`** (debounce por álbum antes do envio);
 - jobs devem registrar falhas e manter `processing_status` consistente (`pending|processing|done|failed`);
 - manter retries padrão (`$tries = 3`) e `failed()` com log estruturado;
 - monitoramento no Horizon (`supervisor-media`); fallback `queue:work` do `docker-compose.yml` também consome `media`.
@@ -337,10 +359,5 @@ Uma fase só é considerada concluída quando houver:
 
 ## 8. Próximo passo recomendado
 
-Com domínio e hub base prontos, o foco é **fechar o MVP de mídia**:
-
-1. Rotina de upload no hub (`GET /hub/albums/{album}`) + validações de MIME/tamanho + gravação no S3.
-2. `ProcessAlbumPhotoJob` + fila/Horizon em ambientes reais.
-3. Viewer servindo **medium → thumb → original** conforme existência dos arquivos no disco.
-4. Testes automatizados (hub, viewer, job).
-5. **Depois**: retomar prioridade da **Fase E** (contribuição externa) quando o fluxo admin + público estiver estável.
+1. Operar contribuição externa em staging (e-mail real, Evolution, `CACHE_STORE=redis` se múltiplos workers).
+2. **Fase F** quando fizer sentido: ZIP, watermark, thumb de vídeo (FFmpeg), tags, download ZIP do álbum.
