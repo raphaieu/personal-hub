@@ -33,16 +33,28 @@ final class AlbumViewerController
             abort(404);
         }
 
-        $mediaItems = $album->media->map(function ($media) use ($album): array {
-            $viewUrl = URL::temporarySignedRoute(
-                'albums.media.view',
-                now()->addMinutes(15),
-                ['slug' => $album->slug, 'media' => $media->id]
-            );
+        $signedView = function (string $variant) use ($album): \Closure {
+            return function ($media) use ($album, $variant): string {
+                $params = ['slug' => $album->slug, 'media' => $media->id];
+                if ($variant !== '') {
+                    $params['variant'] = $variant;
+                }
 
+                return URL::temporarySignedRoute(
+                    'albums.media.view',
+                    now()->addMinutes(60),
+                    $params
+                );
+            };
+        };
+
+        $thumbUrlFor = $signedView('thumb');
+        $mediumUrlFor = $signedView('medium');
+
+        $mediaItems = $album->media->map(function ($media) use ($album, $thumbUrlFor, $mediumUrlFor): array {
             $downloadUrl = URL::temporarySignedRoute(
                 'albums.media.download',
-                now()->addMinutes(15),
+                now()->addMinutes(60),
                 ['slug' => $album->slug, 'media' => $media->id]
             );
 
@@ -51,7 +63,8 @@ final class AlbumViewerController
                 'type' => $media->type,
                 'filename_original' => $media->filename_original,
                 'processing_status' => $media->processing_status,
-                'view_url' => $viewUrl,
+                'thumb_url' => $thumbUrlFor($media),
+                'medium_url' => $mediumUrlFor($media),
                 'download_url' => $downloadUrl,
             ];
         });
