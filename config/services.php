@@ -162,6 +162,24 @@ return [
         'max_upload_bytes' => (int) env('ALBUMS_MAX_UPLOAD_BYTES', 100 * 1024 * 1024),
         /** Largura máxima (px) da variante `medium` gerada pelo ProcessAlbumPhotoJob. */
         'medium_max_width' => (int) env('ALBUMS_MEDIUM_MAX_WIDTH', 1200),
+        /** Validade do link de confirmação por e-mail (horas). */
+        'contribution_verify_ttl_hours' => (int) env('ALBUMS_CONTRIBUTION_VERIFY_TTL_HOURS', 24),
+        /**
+         * Validade padrão do token de upload após confirmação (horas).
+         * Por álbum: `albums.contribution_upload_ttl_hours` (nullable) sobrescreve.
+         */
+        'contribution_upload_ttl_hours' => (int) env('ALBUMS_CONTRIBUTION_UPLOAD_TTL_HOURS', 72),
+        /** Janela de debounce para notificar o admin sobre novas mídias de contribuidores (segundos). */
+        'contribution_notify_debounce_seconds' => (int) env('ALBUMS_CONTRIBUTION_NOTIFY_DEBOUNCE_SECONDS', 600),
+        /** Máximo de arquivos enviados por contribuidor por álbum (total). */
+        'contribution_max_media_per_contributor' => (int) env('ALBUMS_CONTRIBUTION_MAX_MEDIA_PER_CONTRIBUTOR', 100),
+        /** E-mail do admin para resumo de contribuições (fallback: mail.from.address). */
+        'contribution_notify_email' => env('ALBUMS_CONTRIBUTION_NOTIFY_EMAIL'),
+        /**
+         * JID WhatsApp (Evolution) para resumo de contribuições.
+         * Fallback: `services.whatsapp.utilities_home_group_jid`.
+         */
+        'contributions_whatsapp_jid' => env('ALBUMS_CONTRIBUTIONS_WHATSAPP_JID'),
     ],
 
 ];
