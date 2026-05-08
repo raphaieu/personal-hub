@@ -115,6 +115,7 @@ return [
         'redis:notifications' => 90,
         'redis:scraping' => 180,
         'redis:ai' => 180,
+        'redis:media' => 180,
     ],
 
     /*
@@ -214,7 +215,8 @@ return [
     */
 
     /*
-    | Filas default + notifications; scraping e ai em supervisores dedicados.
+    | Filas default + notifications; scraping, ai e media em supervisores dedicados.
+    | media: ProcessAlbumPhotoJob (GD/imagewebp), timeout maior por arquivo grande.
     */
 
     'defaults' => [
@@ -257,6 +259,19 @@ return [
             'timeout' => 120,
             'nice' => 0,
         ],
+        'supervisor-media' => [
+            'connection' => 'redis',
+            'queue' => ['media'],
+            'balance' => 'auto',
+            'autoScalingStrategy' => 'time',
+            'maxProcesses' => 1,
+            'maxTime' => 0,
+            'maxJobs' => 0,
+            'memory' => 384,
+            'tries' => 3,
+            'timeout' => 300,
+            'nice' => 0,
+        ],
     ],
 
     'environments' => [
@@ -272,6 +287,9 @@ return [
             'supervisor-ai' => [
                 'maxProcesses' => 2,
             ],
+            'supervisor-media' => [
+                'maxProcesses' => 2,
+            ],
         ],
 
         'local' => [
@@ -282,6 +300,9 @@ return [
                 'maxProcesses' => 1,
             ],
             'supervisor-ai' => [
+                'maxProcesses' => 1,
+            ],
+            'supervisor-media' => [
                 'maxProcesses' => 1,
             ],
         ],
