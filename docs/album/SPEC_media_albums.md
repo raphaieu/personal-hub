@@ -27,7 +27,24 @@ Este documento substitui a visão "big bang" por uma implementação incremental
 
 ---
 
-## 3. Escopo por fase
+## 3. Priorização do roadmap (2026)
+
+Objetivo imediato: **MVP funcional de upload + armazenamento S3/MinIO + viewer público + processamento mínimo de fotos**, com fluxo ponta a ponta testável **antes** da fase de contribuição por terceiros.
+
+Ordem efetiva de entrega:
+
+| Prioridade | Bloco | Conteúdo |
+|------------|------|----------|
+| 1 | Domínio + hub CRUD | Fase A + parte listagem da Fase B (já consolidados). |
+| 2 | **MVP mídia** | Upload admin no hub (`/hub/albums/{album}`), persistência em `albums/{album_id}/original/{uuid}.{ext}`, job `ProcessAlbumPhotoJob` (thumb/medium WebP), vídeo só original + `processing_status=done`. |
+| 3 | Viewer público | Fase C — grid, URLs assinadas, fallback para original quando derivadas ainda não existem no disco. |
+| 4 | Hardening de acesso | Fase D — token, lockout, etc. (pode coexistir com o MVP; não bloqueia upload). |
+| 5 | Contribuição externa | **Fase E — depois** do MVP de mídia estável. |
+| 6 | Avançados | Fase F (ZIP, watermark, thumb de vídeo, …). |
+
+As subseções abaixo mantêm a numeração histórica A–F para compatibilidade com PRs e commits anteriores.
+
+---
 
 ## Fase A — Fundação de domínio (schema + models)
 
@@ -90,9 +107,8 @@ Este documento substitui a visão "big bang" por uma implementação incremental
 
 ### B.1 Rotas
 
-- `GET /hub/albums` — listagem/gestão (Livewire)
-- `GET /hub/albums/{album}` — detalhes e mídias (Livewire ou blade + Livewire)
-- endpoints auxiliares autenticados para upload/reordenação (se necessário)
+- `GET /hub/albums` — listagem/gestão (`HubPage`)
+- `GET /hub/albums/{album}` — upload múltiplo + lista de mídias (`AlbumDetailPage`)
 
 ### B.2 Funcionalidades
 
@@ -103,8 +119,8 @@ Este documento substitui a visão "big bang" por uma implementação incremental
 
 ### B.3 Jobs
 
-- `ProcessAlbumPhotoJob` (fila `default` inicialmente; evoluir para fila dedicada `media` se necessário)
-- `ProcessAlbumVideoJob` (thumbnail de vídeo pode entrar aqui já, ou ficar para fase F)
+- `ProcessAlbumPhotoJob` — fila dedicada **`media`** (Horizon: `supervisor-media`, `timeout=300`, `memory=384`).
+- `ProcessAlbumVideoJob` — adiado para fase F (transcode/thumbnail via FFmpeg).
 
 ### B.4 Testes mínimos
 
@@ -240,6 +256,8 @@ PATCH  /hub/albums/{album}/media/reorder
 DELETE /hub/media/{media}
 ```
 
+Nota: upload admin implementado em `GET /hub/albums/{album}` (Livewire, ação `uploadMedia` + `AlbumMediaUploadService`); as rotas `POST /hub/albums/{album}/media` permanecem como alvo de evolução (ex. API/reordenação) se necessário.
+
 ### 4.2 Público
 
 ```
@@ -262,6 +280,8 @@ POST   /contribute/{upload_token}/upload
 
 ## 5. Storage (S3/MinIO)
 
+### 5.1 Chaves de objeto
+
 Estrutura recomendada de chave:
 
 ```
@@ -272,14 +292,35 @@ Estrutura recomendada de chave:
 /albums/watermark/logo.png
 ```
 
+### 5.2 Configuração (Laravel)
+
+- Credenciais e endpoint vêm de **`config/filesystems.php`** (`disks.s3`) + variáveis **`AWS_*`** no `.env` — sem valores fixos no código.
+- **MinIO** (e endpoints compatíveis S3 self-hosted) costumam exigir **`AWS_USE_PATH_STYLE_ENDPOINT=true`**.
+- O disco **padrão da aplicação** pode ser `s3` em produção; o **upload temporário do Livewire** deve usar disco **`local`** (ver `config/livewire.php` → `temporary_file_upload.disk`), senão o componente não aceita `multiple` no `<input type="file">` quando o driver temporário é S3.
+
+### 5.3 Dev local apontando para MinIO de produção (cuidado operacional)
+
+Possível para validar integração real, **somente** com consciência de risco:
+
+- Use credenciais com permissão **mínima** (idealmente um usuário/somente bucket de staging, não root MinIO).
+- Conferir **`AWS_ENDPOINT`** acessível da máquina/container onde roda o PHP (URL interna vs pública).
+- Evitar testes destrutivos em bucket compartilhado; preferir prefixo ou bucket dedicado a dev.
+- Nunca commitar segredos; espelhar apenas nomes de variáveis no `.env.example`.
+
 ---
 
 ## 6. Filas e operação
 
-- processamento de mídia é assíncrono;
-- jobs devem registrar falhas e manter `processing_status` consistente;
+- processamento de mídia é assíncrono na fila **`media`**;
+- jobs devem registrar falhas e manter `processing_status` consistente (`pending|processing|done|failed`);
 - manter retries padrão (`$tries = 3`) e `failed()` com log estruturado;
-- monitoramento no Horizon seguindo padrão atual do projeto.
+- monitoramento no Horizon (`supervisor-media`); fallback `queue:work` do `docker-compose.yml` também consome `media`.
+
+### 6.1 Dependências de runtime (containers)
+
+- **PHP GD** com suporte a **JPEG/PNG/WebP/Freetype** — necessário para `ProcessAlbumPhotoJob` (`imagecreatefromstring`, `imagewebp`, `imagescale`). No `Dockerfile` está com `libpng-dev libjpeg62-turbo-dev libwebp-dev libfreetype6-dev` + `docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp` + `docker-php-ext-install gd`.
+- **FFmpeg**: ainda **não é necessário no MVP**. Vídeos vão ao S3 sem transcode (`processing_status=done`). Adicionar `ffmpeg` ao Dockerfile quando entrarmos na fase F (thumbnail e/ou transcode de vídeo).
+- Para Horizon enxergar jobs em dev, **`QUEUE_CONNECTION=redis`** (com `sync`, jobs executam inline no request e não aparecem na UI).
 
 ---
 
@@ -296,9 +337,10 @@ Uma fase só é considerada concluída quando houver:
 
 ## 8. Próximo passo recomendado
 
-Iniciar **Fase A** com:
+Com domínio e hub base prontos, o foco é **fechar o MVP de mídia**:
 
-1. migrations (`albums`, `album_media`);
-2. models e relações;
-3. testes de domínio/hierarquia;
-4. scaffold do hub `GET /hub/albums` sem upload ainda.
+1. Rotina de upload no hub (`GET /hub/albums/{album}`) + validações de MIME/tamanho + gravação no S3.
+2. `ProcessAlbumPhotoJob` + fila/Horizon em ambientes reais.
+3. Viewer servindo **medium → thumb → original** conforme existência dos arquivos no disco.
+4. Testes automatizados (hub, viewer, job).
+5. **Depois**: retomar prioridade da **Fase E** (contribuição externa) quando o fluxo admin + público estiver estável.
