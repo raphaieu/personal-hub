@@ -30,7 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
         // Métricas do Horizon — rodar `php artisan schedule:work` local ou cron em produção.
         $schedule->command('horizon:snapshot')->everyFiveMinutes();
 
-        // Scrapers / WhatsApp — registrar Jobs aqui com ->onQueue('scraping'|'notifications') (SPEC.md).
+        // Scrapers / WhatsApp — registrar Jobs aqui com ->onQueue('scraping'|'notifications'|'ai') (SPEC.md).
         $schedule->job(new ScrapeConta('embasa'))->dailyAt('08:00');
         $schedule->job(new ScrapeConta('coelba'))->dailyAt('08:05');
         $schedule->job(new VerificarStatusFaturas)->dailyAt('09:00');

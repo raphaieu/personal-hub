@@ -197,6 +197,19 @@ Objetivo: custo baixo, velocidade alta e qualidade quando necessário.
 - **`NeuronAIService`** — ponto de entrada único (`complete` + `AiCompletionResult`).
 - **`POST /iara`** — gateway JSON para debug e para **chamar a API de produção sem Ollama local** (header `X-Internal-Key` em produção). Config: `IARA_*` no `.env.example`.
 
+### Camada genérica de análise (profile-driven)
+
+- A classificação de IA agora é guiada por **profiles em banco** (`analysis_profiles`) e não apenas por hardcode de feature.
+- O profile padrão `threads-opportunities` mantém o comportamento atual de Threads oportunidades (prompt, schema, categorias e threshold).
+- `threads_sources`, `monitored_sources` e `threads_categories` podem apontar para `analysis_profile_id`.
+- Hardening de deploy: migration de repair + comando `php artisan analysis:repair-profile-linkage` garantem profile padrão e backfill idempotente em `threads_sources`/`threads_categories`.
+- A execução reutilizável está centralizada em `AnalysisExecutionService` + `AnalysisProfileResolver`, recebendo item normalizado por canal.
+- Threads usa a camada nova via `ThreadsClassificationService`; jobs WhatsApp (`ProcessPersonal/Contact/GroupWhatsAppMessage`) também já passam pelo pipeline genérico na fila `ai`.
+- Semântica operacional do WhatsApp text-first: `classified` (processado), `pending_media_processing`/`pending_text_extraction` (não processado) e `skipped_no_profile` (processado e aguardando ajuste de profile na source).
+- Operação admin mínima já disponível por painel autenticado:
+  - `GET /hub/analysis-profiles`: CRUD mínimo de profiles (listagem/criação/edição/ativação), validação JSON para `output_schema`/`allowed_categories`/`settings` e proteção parcial do profile padrão.
+  - `GET /hub/monitored-sources`: CRUD mínimo de fontes monitoradas (`kind`, `identifier`, `label`, `notes`, `is_active`, `analysis_profile_id`), visão de pipeline e reprocessamento manual assistido.
+
 ### Comunicação Docker ↔ Ollama
 
 Os containers do Laravel não rodam no host network: o endpoint típico de Ollama para o app é **`http://172.23.0.1:11434`** (gateway da rede Docker na VPS). No host, o serviço Ollama escuta na porta **11434**; o firewall deve restringir esse porto à rede Docker, não à internet aberta.

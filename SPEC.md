@@ -274,9 +274,10 @@ Métodos:
 
 | Job                              | Fila            | Trigger                     |
 | -------------------------------- | --------------- | --------------------------- |
-| `ProcessPersonalWhatsAppMessage` | `default`       | Webhook isFromMe            |
-| `ProcessContactWhatsAppMessage`  | `default`       | Webhook contato monitorado  |
-| `ProcessGroupWhatsAppMessage`    | `default`       | Webhook grupo monitorado    |
+| `ProcessPersonalWhatsAppMessage` | `ai`            | Webhook isFromMe            |
+| `ProcessContactWhatsAppMessage`  | `ai`            | Webhook contato monitorado  |
+| `ProcessGroupWhatsAppMessage`    | `ai`            | Webhook grupo monitorado    |
+| `ReprocessMessageLogAnalysisJob` | `ai`            | Reprocessamento manual no hub de fontes monitoradas |
 | `ScrapeConta`                    | `scraping`      | Schedule ou on-demand       |
 | `VerificarStatusFaturas`         | `default`       | Schedule diário (reenfileira scrape) |
 | `EnriquecerUrlLembrete`          | `default`       | Após salvar lembrete de URL |

@@ -214,7 +214,7 @@ return [
     */
 
     /*
-    | Fila default + notifications (WhatsApp); scraping isolado com timeout alto (Playwright).
+    | Filas default + notifications; scraping e ai em supervisores dedicados.
     */
 
     'defaults' => [
