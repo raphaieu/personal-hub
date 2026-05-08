@@ -1,6 +1,8 @@
 @extends('layouts.public')
 
 @section('title', $album->title)
+@section('public_header_title', $album->parent ? ($album->parent->title.' > '.$album->title) : $album->title)
+@section('public_header_href', route('albums.viewer', ['slug' => $album->slug]))
 
 @section('content')
     <div class="max-w-md mx-auto rounded-lg border border-gray-200 bg-white p-6 shadow-sm">

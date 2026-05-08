@@ -16,8 +16,8 @@
     <body class="font-sans antialiased bg-gray-50 text-gray-900">
         <header class="border-b border-gray-200 bg-white">
             <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex flex-wrap items-center justify-between gap-3">
-                <a href="{{ route('threads.opportunities') }}" class="text-lg font-semibold text-gray-900 hover:text-indigo-700">
-                    Oportunidades
+                <a href="@yield('public_header_href', route('threads.opportunities'))" class="text-lg font-semibold text-gray-900 hover:text-indigo-700">
+                    @yield('public_header_title', 'Oportunidades')
                 </a>
                 <div class="flex items-center gap-4 text-sm">
                     @auth

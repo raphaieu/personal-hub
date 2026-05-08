@@ -14,7 +14,10 @@ final class AlbumViewerController
     public function show(Request $request, string $slug, AlbumAccessService $accessService): View
     {
         $album = Album::query()
-            ->with(['media' => fn ($query) => $query->orderBy('sort_position')->orderBy('created_at')])
+            ->with([
+                'parent',
+                'media' => fn ($query) => $query->orderBy('sort_position')->orderBy('created_at'),
+            ])
             ->where('slug', $slug)
             ->firstOrFail();
 
@@ -22,8 +25,12 @@ final class AlbumViewerController
             abort(404);
         }
 
-        if (! $accessService->canAccess($request, $album)) {
+        $canAccess = $accessService->canAccess($request, $album);
+        if (! $canAccess && (string) $album->access_type === 'password') {
             return view('albums.password', ['album' => $album]);
+        }
+        if (! $canAccess) {
+            abort(404);
         }
 
         $mediaItems = $album->media->map(function ($media) use ($album): array {

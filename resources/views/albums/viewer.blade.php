@@ -1,8 +1,20 @@
 @extends('layouts.public')
 
 @section('title', $album->title)
+@section('public_header_title', $album->parent ? ($album->parent->title.' > '.$album->title) : $album->title)
+@section('public_header_href', route('albums.viewer', ['slug' => $album->slug]))
 
 @section('content')
+    <nav class="mb-4 text-xs text-gray-500" aria-label="Breadcrumb">
+        @if ($album->parent)
+            <a href="{{ route('albums.viewer', ['slug' => $album->parent->slug]) }}" class="hover:text-indigo-700">
+                {{ $album->parent->title }}
+            </a>
+            <span class="mx-1">/</span>
+        @endif
+        <span class="font-medium text-gray-700">{{ $album->title }}</span>
+    </nav>
+
     <div class="mb-8">
         <h1 class="text-2xl font-bold text-gray-900">{{ $album->title }}</h1>
         @if ($album->description)
