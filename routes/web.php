@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AiChatController;
+use App\Http\Controllers\Albums\AlbumContributionController;
 use App\Http\Controllers\Albums\AlbumMediaController;
 use App\Http\Controllers\Albums\AlbumViewerController;
 use App\Http\Controllers\IaraController;
@@ -39,6 +40,22 @@ Route::get('/albums/{slug}', [AlbumViewerController::class, 'show'])->name('albu
 Route::post('/albums/{slug}/auth', [AlbumViewerController::class, 'auth'])->name('albums.viewer.auth');
 Route::get('/albums/{slug}/media/{media}/view', [AlbumMediaController::class, 'view'])->name('albums.media.view');
 Route::get('/albums/{slug}/media/{media}/download', [AlbumMediaController::class, 'download'])->name('albums.media.download');
+
+Route::prefix('contribute')->middleware('throttle:120,1')->group(function (): void {
+    Route::get('/confirm/{verify_token}', [AlbumContributionController::class, 'confirm'])
+        ->name('albums.contribute.confirm');
+    Route::post('/verify', [AlbumContributionController::class, 'requestVerify'])
+        ->middleware('throttle:30,1')
+        ->name('albums.contribute.verify');
+    Route::get('/{album}/{token}', [AlbumContributionController::class, 'showInvite'])
+        ->whereUuid('album')
+        ->name('albums.contribute.invite');
+    Route::get('/{upload_token}/upload', [AlbumContributionController::class, 'showUpload'])
+        ->name('albums.contribute.upload.form');
+    Route::post('/{upload_token}/upload', [AlbumContributionController::class, 'upload'])
+        ->middleware('throttle:30,1')
+        ->name('albums.contribute.upload');
+});
 
 Route::get('/dashboard', function () {
     return view('dashboard');
