@@ -15,6 +15,7 @@ class DatabaseSeeder extends Seeder
     public function run(): void
     {
         $this->call(SuperAdminUserSeeder::class);
+        $this->call(AnalysisProfileSeeder::class);
         $this->call(NotesSoloGroupMonitoredSourceSeeder::class);
         $this->call(ThreadsCategorySeeder::class);
     }
