@@ -202,4 +202,106 @@ final class AlbumViewerTest extends TestCase
 
         $this->get($signed)->assertForbidden();
     }
+
+    public function test_viewer_renders_photo_while_processing_uses_original_stream(): void
+    {
+        Storage::fake('s3');
+
+        $album = Album::query()->create([
+            'slug' => 'viewer-pending',
+            'title' => 'Viewer Pending',
+            'access_type' => 'public',
+        ]);
+
+        $media = AlbumMedia::query()->create([
+            'album_id' => $album->id,
+            'type' => 'photo',
+            'original_path' => 'albums/'.$album->id.'/original/p.jpg',
+            'filename_original' => 'p.jpg',
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 100,
+            'processing_status' => 'pending',
+        ]);
+
+        Storage::disk('s3')->put($media->original_path, 'fake-bytes');
+
+        $this->get(route('albums.viewer', ['slug' => $album->slug]))
+            ->assertOk()
+            ->assertSee('Viewer Pending', false)
+            ->assertSee('<img', false)
+            ->assertSee('Gerando miniaturas', false);
+    }
+
+    public function test_viewer_grid_uses_thumb_url_and_lightbox_data_includes_medium(): void
+    {
+        Storage::fake('s3');
+
+        $album = Album::query()->create([
+            'slug' => 'lightbox',
+            'title' => 'Lightbox',
+            'access_type' => 'public',
+            'download_enabled' => true,
+        ]);
+
+        $media = AlbumMedia::query()->create([
+            'album_id' => $album->id,
+            'type' => 'photo',
+            'original_path' => 'albums/'.$album->id.'/original/o.jpg',
+            'thumb_path' => 'albums/'.$album->id.'/thumbs/t.webp',
+            'medium_path' => 'albums/'.$album->id.'/medium/m.webp',
+            'filename_original' => 'foto.jpg',
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 100,
+            'processing_status' => 'done',
+        ]);
+
+        Storage::disk('s3')->put($media->original_path, 'orig');
+        Storage::disk('s3')->put($media->thumb_path, 'thumb');
+        Storage::disk('s3')->put($media->medium_path, 'medium');
+
+        $response = $this->get(route('albums.viewer', ['slug' => $album->slug]));
+
+        $response->assertOk()
+            ->assertSee('data-album-open', false)
+            ->assertSee('album-lightbox', false)
+            ->assertSee('variant=thumb', false)
+            ->assertSee('variant=medium', false);
+    }
+
+    public function test_media_view_variant_thumb_streams_thumb_path_and_webp_mime(): void
+    {
+        Storage::fake('s3');
+
+        $album = Album::query()->create([
+            'slug' => 'variant-thumb',
+            'title' => 'Variant Thumb',
+            'access_type' => 'public',
+        ]);
+
+        $media = AlbumMedia::query()->create([
+            'album_id' => $album->id,
+            'type' => 'photo',
+            'original_path' => 'albums/'.$album->id.'/original/o.jpg',
+            'thumb_path' => 'albums/'.$album->id.'/thumbs/t.webp',
+            'medium_path' => 'albums/'.$album->id.'/medium/m.webp',
+            'filename_original' => 'foto.jpg',
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 100,
+            'processing_status' => 'done',
+        ]);
+
+        Storage::disk('s3')->put($media->original_path, 'orig');
+        Storage::disk('s3')->put($media->thumb_path, 'thumb-bytes');
+        Storage::disk('s3')->put($media->medium_path, 'medium-bytes');
+
+        $signed = URL::temporarySignedRoute(
+            'albums.media.view',
+            now()->addMinutes(15),
+            ['slug' => $album->slug, 'media' => $media->id, 'variant' => 'thumb']
+        );
+
+        $response = $this->get($signed);
+        $response->assertOk()->assertHeader('content-type', 'image/webp');
+        $this->assertSame('thumb-bytes', $response->streamedContent());
+    }
 }
