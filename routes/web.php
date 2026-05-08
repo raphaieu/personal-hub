@@ -8,6 +8,7 @@ use App\Http\Controllers\ThreadsOpportunitiesController;
 use App\Http\Controllers\Utilities\UtilityInvoicePdfController;
 use App\Http\Controllers\Webhook\WhatsAppWebhookController;
 use App\Livewire\AnalysisProfiles\HubPage as AnalysisProfilesHubPage;
+use App\Livewire\Albums\HubPage as AlbumsHubPage;
 use App\Livewire\MonitoredSources\HubPage as MonitoredSourcesHubPage;
 use App\Livewire\Threads\HubPage as ThreadsHubPage;
 use App\Livewire\Utilities\HubPage as UtilitiesHubPage;
@@ -41,6 +42,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/hub/analysis-profiles', AnalysisProfilesHubPage::class)->name('analysis-profiles.hub');
     Route::get('/hub/monitored-sources', MonitoredSourcesHubPage::class)->name('monitored-sources.hub');
     Route::get('/hub/utilities', UtilitiesHubPage::class)->name('utilities.hub');
+    Route::get('/hub/albums', AlbumsHubPage::class)->name('albums.hub');
     Route::get('/hub/utilities/invoices/{invoice}/pdf', [UtilityInvoicePdfController::class, 'show'])
         ->name('utilities.invoice.pdf');
 
