@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Albums;
 use App\Models\Album;
 use App\Services\Albums\AlbumContributionService;
 use App\Services\Albums\AlbumMediaUploadService;
+use App\Support\AlbumUploadLimits;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
@@ -83,6 +84,9 @@ final class AlbumContributionController
             'contributor' => $contributor,
             'album' => $contributor->album,
             'uploadToken' => $upload_token,
+            'effectiveMaxUploadFiles' => AlbumUploadLimits::maxFilesPerHttpRequest(),
+            'phpMaxFileUploads' => AlbumUploadLimits::phpMaxFileUploads(),
+            'configuredMaxFilesPerBatch' => max(1, (int) config('services.albums.max_files_per_batch')),
         ]);
     }
 
@@ -103,8 +107,9 @@ final class AlbumContributionController
         }
 
         $maxKb = max(1, (int) ceil(config('services.albums.max_upload_bytes') / 1024));
+        $maxFiles = AlbumUploadLimits::maxFilesPerHttpRequest();
         $request->validate([
-            'files' => ['required', 'array', 'min:1', 'max:20'],
+            'files' => ['required', 'array', 'min:1', 'max:'.$maxFiles],
             'files.*' => ['file', 'max:'.$maxKb],
         ], [], [
             'files' => 'arquivos',

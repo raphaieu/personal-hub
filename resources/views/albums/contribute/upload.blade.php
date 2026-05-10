@@ -12,8 +12,12 @@
             Conta: <span class="font-mono text-xs">{{ $contributor->email }}</span>
         </p>
         <p class="mt-2 text-xs text-gray-500">
-            Limite por contribuidor neste álbum: {{ (int) config('services.albums.contribution_max_media_per_contributor', 100) }} arquivos.
+            Limite por contribuidor neste álbum: {{ (int) config('services.albums.contribution_max_media_per_contributor', 100) }} arquivos (total).
             Tamanho máximo por arquivo: {{ round(config('services.albums.max_upload_bytes') / (1024 * 1024), 0) }} MB.
+            Até <strong>{{ $effectiveMaxUploadFiles }}</strong> arquivo(s) por envio.
+            @if ($effectiveMaxUploadFiles < $configuredMaxFilesPerBatch)
+                <span class="block mt-1 text-amber-800">Limite do PHP por requisição: {{ $phpMaxFileUploads }} (<code class="text-[10px] bg-amber-100 px-1 rounded">max_file_uploads</code>). Envie em vários lotes ou ajuste o php.ini.</span>
+            @endif
         </p>
 
         @if (session('contribute_upload_ok'))
