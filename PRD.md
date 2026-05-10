@@ -78,6 +78,7 @@ Um hub pessoal que:
 
 ### F7 — Dashboard Web (Blade + Livewire)
 - Autenticação padrão Laravel Breeze
+- **Dashboard inicial (`/dashboard`):** cards com ícone, título e descrição para cada módulo do hub (config `hub_dashboard.php`), além do menu superior — novas áreas devem entrar nos dois até eventual simplificação
 - Contas: status atual, próximo vencimento, valor, histórico
 - Gráfico de consumo histórico (Embasa: m³ | Coelba: kWh e R$)
 - Lista de lembretes pessoais com filtro por categoria

@@ -783,6 +783,14 @@ app/
     Utilities/
       HubPage.php
 
+config/
+  hub_dashboard.php
+
+resources/
+  views/
+    dashboard.blade.php
+    components/hub/dashboard-icon.blade.php
+
 database/
   migrations/
     ..._create_monitored_sources_table.php
@@ -814,6 +822,12 @@ docker/
 ```
 
 ---
+
+## Dashboard principal (hub)
+
+- Rota autenticada `GET /dashboard` (`dashboard`): view Blade `resources/views/dashboard.blade.php` — grade responsiva de **cards** (link, ícone, título, descrição) para cada módulo do hub.
+- Conteúdo dos cards: **`config/hub_dashboard.php`** (chave `cards`: `route`, `title`, `description`, `icon`). Ícones: componente **`resources/views/components/hub/dashboard-icon.blade.php`**.
+- A navegação global **`resources/views/layouts/navigation.blade.php`** deve permanecer alinhada às mesmas rotas; novas features com UI no hub entram nos dois lugares até eventual simplificação (só menu ou só cards).
 
 ## Livewire (Fase 4.1)
 

@@ -126,6 +126,7 @@ Se não pagar, o sistema insiste.
 
 * Blade
 * Livewire 4
+* Dashboard autenticado (`/dashboard`): grade de **cards** para módulos do hub (`config/hub_dashboard.php`), alinhada ao menu em `resources/views/layouts/navigation.blade.php`
 
 ### Banco
 

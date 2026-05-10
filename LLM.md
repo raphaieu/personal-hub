@@ -33,6 +33,15 @@ Versões abaixo refletem o **ambiente de desenvolvimento local** atual (Node 24,
 
 ---
 
+## Dashboard e navegação do hub
+
+- O **`GET /dashboard`** lista as áreas do produto em **cards** (ícone, título, descrição curta). Os itens vêm de **`config/hub_dashboard.php`** (`route`, `title`, `description`, `icon`).
+- Ícones SVG: **`resources/views/components/hub/dashboard-icon.blade.php`** — ao criar `icon` novo, adicionar um `@case` correspondente.
+- **Nova área autenticada no hub:** atualizar **`config/hub_dashboard.php`**, **`resources/views/layouts/navigation.blade.php`** (links desktop e menu responsivo) e o componente de ícone se precisar de símbolo novo.
+- O **menu superior** permanece para acesso rápido; cards e menu devem refletir o mesmo conjunto de rotas até decidir reduzir um dos dois quando o espaço apertar.
+
+---
+
 ## Regras de código
 
 ### Geral
