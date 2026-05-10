@@ -51,6 +51,10 @@ final class AlbumContributionService
                 'upload_token' => null,
                 'upload_expires_at' => null,
             ]);
+
+        $album->forceFill([
+            'contribution_invite_token' => null,
+        ])->save();
     }
 
     public function normalizeEmail(string $email): string
