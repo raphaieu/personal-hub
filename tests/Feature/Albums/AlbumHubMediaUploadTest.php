@@ -18,10 +18,10 @@ final class AlbumHubMediaUploadTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_upload_photo_persists_on_s3_and_dispatches_processing_job(): void
+    public function test_upload_photo_persists_on_s3_and_generates_thumbnails(): void
     {
+        Storage::fake('local');
         Storage::fake('s3');
-        Queue::fake();
 
         $user = User::factory()->create();
         $album = Album::query()->create([
@@ -43,19 +43,15 @@ final class AlbumHubMediaUploadTest extends TestCase
         $media = AlbumMedia::query()->where('album_id', $album->id)->first();
         $this->assertNotNull($media);
         $this->assertSame('photo', $media->type);
-        $this->assertSame('pending', $media->processing_status);
+        $this->assertSame('done', $media->processing_status);
         $this->assertTrue(Storage::disk('s3')->exists($media->original_path));
-
-        Queue::assertPushed(ProcessAlbumPhotoJob::class, function (ProcessAlbumPhotoJob $job) use ($media): bool {
-            return $job->albumMediaId === $media->id
-                && $job->queue === 'media';
-        });
+        $this->assertNotNull($media->thumb_path);
     }
 
     public function test_upload_video_is_marked_done_without_photo_job(): void
     {
+        Storage::fake('local');
         Storage::fake('s3');
-        Queue::fake();
 
         $user = User::factory()->create();
         $album = Album::query()->create([
@@ -76,8 +72,6 @@ final class AlbumHubMediaUploadTest extends TestCase
         $this->assertNotNull($media);
         $this->assertSame('video', $media->type);
         $this->assertSame('done', $media->processing_status);
-
-        Queue::assertNotPushed(ProcessAlbumPhotoJob::class);
     }
 
     public function test_guest_cannot_open_album_detail_hub(): void
@@ -229,5 +223,199 @@ final class AlbumHubMediaUploadTest extends TestCase
             ->assertHasNoErrors();
 
         $this->assertDatabaseHas('album_media', ['id' => $mediaB->id]);
+    }
+
+    public function test_reorder_media_updates_sort_positions(): void
+    {
+        $user = User::factory()->create();
+        $album = Album::query()->create([
+            'slug' => 'reorder-test',
+            'title' => 'Reorder',
+            'access_type' => 'public',
+        ]);
+
+        $m1 = AlbumMedia::query()->create([
+            'album_id' => $album->id,
+            'type' => 'photo',
+            'original_path' => 'albums/'.$album->id.'/original/a.jpg',
+            'filename_original' => 'a.jpg',
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 1,
+            'processing_status' => 'done',
+            'sort_position' => 1,
+        ]);
+
+        $m2 = AlbumMedia::query()->create([
+            'album_id' => $album->id,
+            'type' => 'photo',
+            'original_path' => 'albums/'.$album->id.'/original/b.jpg',
+            'filename_original' => 'b.jpg',
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 1,
+            'processing_status' => 'done',
+            'sort_position' => 2,
+        ]);
+
+        $m3 = AlbumMedia::query()->create([
+            'album_id' => $album->id,
+            'type' => 'photo',
+            'original_path' => 'albums/'.$album->id.'/original/c.jpg',
+            'filename_original' => 'c.jpg',
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 1,
+            'processing_status' => 'done',
+            'sort_position' => 3,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(AlbumDetailPage::class, ['album' => $album])
+            ->call('reorderMedia', [(string) $m3->id, (string) $m1->id, (string) $m2->id])
+            ->assertHasNoErrors();
+
+        $this->assertSame(1, $m3->fresh()->sort_position);
+        $this->assertSame(2, $m1->fresh()->sort_position);
+        $this->assertSame(3, $m2->fresh()->sort_position);
+    }
+
+    public function test_set_media_position_moves_row(): void
+    {
+        $user = User::factory()->create();
+        $album = Album::query()->create([
+            'slug' => 'pos-test',
+            'title' => 'Pos',
+            'access_type' => 'public',
+        ]);
+
+        $m1 = AlbumMedia::query()->create([
+            'album_id' => $album->id,
+            'type' => 'photo',
+            'original_path' => 'albums/'.$album->id.'/original/a.jpg',
+            'filename_original' => 'a.jpg',
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 1,
+            'processing_status' => 'done',
+            'sort_position' => 1,
+        ]);
+
+        $m2 = AlbumMedia::query()->create([
+            'album_id' => $album->id,
+            'type' => 'photo',
+            'original_path' => 'albums/'.$album->id.'/original/b.jpg',
+            'filename_original' => 'b.jpg',
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 1,
+            'processing_status' => 'done',
+            'sort_position' => 2,
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(AlbumDetailPage::class, ['album' => $album])
+            ->call('setMediaPosition', (string) $m1->id, '2')
+            ->assertHasNoErrors();
+
+        $this->assertSame(2, $m1->fresh()->sort_position);
+        $this->assertSame(1, $m2->fresh()->sort_position);
+    }
+
+    public function test_bulk_delete_removes_selected_media(): void
+    {
+        Storage::fake('s3');
+
+        $user = User::factory()->create();
+        $album = Album::query()->create([
+            'slug' => 'bulk-del',
+            'title' => 'Bulk del',
+            'access_type' => 'public',
+        ]);
+
+        $m1 = AlbumMedia::query()->create([
+            'album_id' => $album->id,
+            'type' => 'photo',
+            'original_path' => 'albums/'.$album->id.'/original/a.jpg',
+            'filename_original' => 'a.jpg',
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 1,
+            'processing_status' => 'done',
+        ]);
+
+        $m2 = AlbumMedia::query()->create([
+            'album_id' => $album->id,
+            'type' => 'photo',
+            'original_path' => 'albums/'.$album->id.'/original/b.jpg',
+            'filename_original' => 'b.jpg',
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 1,
+            'processing_status' => 'done',
+        ]);
+
+        Storage::disk('s3')->put($m1->original_path, 'x');
+        Storage::disk('s3')->put($m2->original_path, 'y');
+
+        Livewire::actingAs($user)
+            ->test(AlbumDetailPage::class, ['album' => $album])
+            ->set('selectedMediaIds', [(string) $m1->id, (string) $m2->id])
+            ->call('deleteSelectedMedia')
+            ->assertHasNoErrors();
+
+        $this->assertDatabaseMissing('album_media', ['id' => $m1->id]);
+        $this->assertDatabaseMissing('album_media', ['id' => $m2->id]);
+    }
+
+    public function test_delete_album_redirects_to_hub_and_soft_deletes(): void
+    {
+        Storage::fake('s3');
+
+        $user = User::factory()->create();
+        $album = Album::query()->create([
+            'slug' => 'album-zap',
+            'title' => 'Zap',
+            'access_type' => 'public',
+        ]);
+
+        $media = AlbumMedia::query()->create([
+            'album_id' => $album->id,
+            'type' => 'photo',
+            'original_path' => 'albums/'.$album->id.'/original/a.jpg',
+            'filename_original' => 'a.jpg',
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 1,
+            'processing_status' => 'done',
+        ]);
+
+        Storage::disk('s3')->put($media->original_path, 'z');
+
+        Livewire::actingAs($user)
+            ->test(AlbumDetailPage::class, ['album' => $album])
+            ->call('deleteAlbum')
+            ->assertRedirect(route('albums.hub'));
+
+        $this->assertSoftDeleted('albums', ['id' => $album->id]);
+        $this->assertDatabaseMissing('album_media', ['id' => $media->id]);
+        $this->assertFalse(Storage::disk('s3')->exists($media->original_path));
+    }
+
+    public function test_delete_album_aborts_when_subalbums_exist(): void
+    {
+        $user = User::factory()->create();
+        $parent = Album::query()->create([
+            'slug' => 'parent-album',
+            'title' => 'Parent',
+            'access_type' => 'public',
+        ]);
+
+        Album::query()->create([
+            'parent_id' => $parent->id,
+            'slug' => 'child-album',
+            'title' => 'Child',
+            'access_type' => 'public',
+        ]);
+
+        Livewire::actingAs($user)
+            ->test(AlbumDetailPage::class, ['album' => $parent])
+            ->call('deleteAlbum')
+            ->assertHasNoErrors()
+            ->assertNoRedirect();
+
+        $this->assertDatabaseHas('albums', ['id' => $parent->id, 'deleted_at' => null]);
     }
 }

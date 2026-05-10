@@ -15,6 +15,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Livewire;
 use Tests\TestCase;
@@ -26,6 +27,7 @@ final class AlbumContributionsTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
+        Storage::fake('s3');
         Cache::flush();
         config([
             'mail.from.address' => 'admin@example.test',
@@ -264,5 +266,26 @@ final class AlbumContributionsTest extends TestCase
 
         $album->refresh();
         $this->assertNotNull($album->contribution_invite_token);
+    }
+
+    public function test_revoke_uploads_clears_invite_token_and_invalidates_invite_url(): void
+    {
+        $user = User::factory()->create();
+        $album = $this->albumWithInvite();
+        $oldInviteToken = $album->contribution_invite_token;
+        $this->assertNotNull($oldInviteToken);
+
+        Livewire::actingAs($user)
+            ->test(AlbumDetailPage::class, ['album' => $album])
+            ->call('revokeContributorUploads')
+            ->assertHasNoErrors();
+
+        $album->refresh();
+        $this->assertNull($album->contribution_invite_token);
+
+        $this->get(route('albums.contribute.invite', [
+            'album' => $album->id,
+            'token' => $oldInviteToken,
+        ]))->assertNotFound();
     }
 }
