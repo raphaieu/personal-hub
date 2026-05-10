@@ -631,7 +631,7 @@ Status:      "Aguardando pagamento" → pendente
 PDF:         botão "BAIXAR 2ª VIA" em cada fatura
 ```
 
-**Implementação Playwright (`playwright/src/embasa-scraper.js`):** quando não há débitos em aberto, a 2ª via pode exibir *“A Matrícula informada não possui débitos”* em vez da tabela. Nesse caso o scraper navega para **`/home`**, reutiliza a seleção de matrícula e extrai o histórico do carrossel **MINHAS CONTAS** (`.card-minhas-contas .inner-card`: mês/ano → `referencia` `mm/aaaa`, vencimento, consumo, valor total, texto do botão de status). Não há PDF nesse cenário se não existir fatura **pendente** para download na 2ª via — o payload segue `success: true` com `faturas` preenchidas e `pdf_path` nulo quando aplicável. Se a tabela da 2ª via existir mas o parse falhar, há fallback para o mesmo carrossel na home.
+**Implementação Playwright (`playwright/src/embasa-scraper.js`):** quando não há débitos em aberto, a 2ª via pode exibir *“A Matrícula informada não possui débitos”* em vez da tabela. Nesse caso o scraper navega para **`/home`**, reutiliza a seleção de matrícula e extrai o histórico do carrossel **MINHAS CONTAS** (`.card-minhas-contas .inner-card`: mês/ano → `referencia` `mm/aaaa`, vencimento, consumo, valor total, texto do botão de status). Não há PDF nesse cenário se não existir fatura **pendente** para download na 2ª via — o payload segue `success: true` com `faturas` preenchidas e `pdf_path` nulo quando aplicável. Se a tabela da 2ª via existir mas o parse falhar, há fallback para o mesmo carrossel na home. Modais **`section.blk-modal`** (avisos/overlays) podem interceptar o clique na matrícula — o script chama `dismissEmbasaBlockingModals` antes do fluxo e usa `span.matricula` com clique forçado quando necessário.
 
 ---
 

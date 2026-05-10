@@ -12,6 +12,10 @@ Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *chan
 
 - **Álbuns de mídia — Fase F:** upload ZIP, tags, watermark on-the-fly, thumbnail/transcode de vídeo (FFmpeg), download ZIP do álbum. Ver [docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md) §F.
 
+### Fixed
+
+- **Playwright Embasa:** modais `section.blk-modal` que interceptavam o clique na matrícula (`span.matricula`) — fechamento de overlays (`dismissEmbasaBlockingModals`) e seleção com escopo no modal + `force` quando necessário (`playwright/src/embasa-scraper.js`).
+
 ### Added
 
 - **Dashboard hub:** página `GET /dashboard` redesenhada com **cards** (ícone SVG, título, descrição, link) para Dashboard, Chat IA, Threads Hub, Profiles IA, Fontes monitoradas, Utilidades e Álbuns. Dados em **`config/hub_dashboard.php`**; ícones em **`resources/views/components/hub/dashboard-icon.blade.php`**. Menu superior mantido; documentado em [LLM.md](LLM.md), [SPEC.md](SPEC.md) (*Dashboard principal*), [PRD.md](PRD.md) (F7), [README.md](README.md). Teste: `tests/Feature/DashboardHubCardsTest.php`.

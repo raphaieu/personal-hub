@@ -88,6 +88,123 @@ async function captureDebugScreenshot(page, prefix) {
   return filePath;
 }
 
+/**
+ * Modais `.blk-modal` (avisos, propagandas) ficam por cima e interceptam o clique na matrícula.
+ */
+async function dismissEmbasaBlockingModals(page) {
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    const modal = page.locator("section.blk-modal").first();
+    if ((await modal.count()) === 0) {
+      break;
+    }
+    const visible = await modal.isVisible().catch(() => false);
+    if (!visible) {
+      break;
+    }
+
+    const ackButtons = modal.locator(
+      'button:has-text("OK"), button:has-text("Ok"), button:has-text("Entendi"), button:has-text("Continuar"), button:has-text("Fechar")',
+    );
+    if ((await ackButtons.count()) > 0) {
+      await ackButtons.first().click({ timeout: 3000 }).catch(() => {});
+      await page.waitForTimeout(350);
+      continue;
+    }
+
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(350);
+
+    const stillThere = await modal.isVisible().catch(() => false);
+    if (!stillThere) {
+      break;
+    }
+
+    const closeBtn = modal
+      .locator('[aria-label*="Fechar" i], button.close, .btn-close, button[class*="close"]')
+      .first();
+    if ((await closeBtn.count()) > 0) {
+      await closeBtn.click({ timeout: 3000 }).catch(() => {});
+      await page.waitForTimeout(350);
+    }
+  }
+}
+
+/**
+ * Clica na linha da matrícula no dropdown/modal (evita locator genérico `text=` pegar span coberto por overlay).
+ */
+async function clickEmbasaMatriculaOption(page, matricula) {
+  const safeMatricula = matricula.trim();
+
+  const tryClick = async (locator, preferForce = false) => {
+    const target = locator.first();
+    if ((await target.count()) === 0) {
+      return false;
+    }
+    if (preferForce) {
+      try {
+        await target.click({ force: true, timeout: 12000 });
+        return true;
+      } catch {
+        try {
+          await target.click({ timeout: 8000 });
+          return true;
+        } catch {
+          return false;
+        }
+      }
+    }
+    try {
+      await target.click({ timeout: 12000 });
+      return true;
+    } catch {
+      try {
+        await target.click({ force: true, timeout: 8000 });
+        return true;
+      } catch {
+        return false;
+      }
+    }
+  };
+
+  const inPickerModal = page
+    .locator("section.blk-modal")
+    .locator(`span.matricula`)
+    .filter({ hasText: safeMatricula });
+
+  /* Overlay .blk-modal costuma interceptar pointer — force no span correto costuma bastar */
+  if (await tryClick(inPickerModal, true)) {
+    return;
+  }
+
+  const spanMatricula = page.locator(`span.matricula`).filter({ hasText: safeMatricula });
+  if (await tryClick(spanMatricula)) {
+    return;
+  }
+
+  const rowLike = page.locator(`section.blk-modal li, section.blk-modal tr, .modal-body li`).filter({ hasText: safeMatricula });
+  if (await tryClick(rowLike)) {
+    return;
+  }
+
+  await dismissEmbasaBlockingModals(page);
+
+  if (await tryClick(inPickerModal, true)) {
+    return;
+  }
+  if (await tryClick(spanMatricula, true)) {
+    return;
+  }
+
+  const fallback = page.getByText(safeMatricula, { exact: true }).first();
+  if (await tryClick(fallback)) {
+    return;
+  }
+
+  throw new Error(
+    `Embasa: não foi possível selecionar a matrícula ${safeMatricula} (modal .blk-modal ou overlay bloqueando).`,
+  );
+}
+
 async function fillEmbasaLoginFields(page, cpf, password) {
   const cpfSelectors = [
     'input[placeholder*="CPF" i]',
@@ -164,6 +281,8 @@ async function embasaLoginAndSession(context) {
 }
 
 async function selectEmbasaMatricula(page, matricula) {
+  await dismissEmbasaBlockingModals(page);
+
   const clickedDropdown = await clickFirst(page, [
     'button:has-text("Matrícula")',
     'div:has-text("Matrícula: Selecionar")',
@@ -174,10 +293,8 @@ async function selectEmbasaMatricula(page, matricula) {
   }
 
   await page.waitForTimeout(800);
-  const matriculaOption = page.locator(`text=${matricula}`).first();
-  if ((await matriculaOption.count()) > 0) {
-    await matriculaOption.click();
-  }
+
+  await clickEmbasaMatriculaOption(page, matricula);
 
   await clickFirst(page, ['button:has-text("SELECIONAR MATRÍCULA")', 'button:has-text("Selecionar")']);
 }
@@ -439,6 +556,7 @@ export async function scrapeEmbasa() {
 
         await page.goto(EMBASA_SECOND_VIA_URL, { waitUntil: "domcontentloaded" });
         await page.waitForTimeout(1200);
+        await dismissEmbasaBlockingModals(page);
         await selectEmbasaMatricula(page, matricula);
         await page.goto(EMBASA_SECOND_VIA_URL, { waitUntil: "domcontentloaded" });
 
