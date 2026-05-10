@@ -52,11 +52,11 @@ Um hub pessoal que:
 - Confirma recebimento com emoji + categoria
 
 ### F3 — Scraping Embasa
-- Fluxo: login CPF/senha → modal matrícula → `/segunda-via?pay=true` → extrai faturas
+- Fluxo: login CPF/senha → modal matrícula → `/segunda-via?pay=true` → extrai faturas; **se não houver débitos em aberto** na 2ª via (mensagem tipo *não possui débitos*), o scraper usa o carrossel **MINHAS CONTAS** na `/home` para referência, vencimento, consumo, valor total e status — sem quebrar o job; PDF só quando há fatura pendente para baixar na 2ª via
 - Sem CAPTCHA — Playwright puro
-- Extrai: referência, vencimento, consumo m³, valor água, valor esgoto, valor serviço, valor total, status
+- Extrai: referência, vencimento, consumo m³, valor água, valor esgoto, valor serviço, valor total, status (na home, água/esgoto/serviço podem não vir no HTML — total e consumo sim)
 - Status mapeados: `Aguardando pagamento` → pendente | `Conta Paga ✓` → pago | `Pagamento em processamento bancário` → processando
-- Baixa PDF da fatura pendente mais recente
+- Baixa PDF da fatura pendente mais recente quando o fluxo da 2ª via expõe o botão de download
 
 ### F4 — Scraping Coelba (Neoenergia)
 - Fluxo: login → modal CPF/senha → reCAPTCHA v3 (CapSolver) → selecionar estado Bahia → selecionar unidade consumidora → `/home/servicos/consultar-debitos`

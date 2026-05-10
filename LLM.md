@@ -196,6 +196,7 @@ Ordem fixa na cadeia: **Ollama (condicional) → Groq → Anthropic → OpenAI**
 5. **MinIO path style**: Sem `AWS_USE_PATH_STYLE_ENDPOINT=true` as requests falham com 403. Sempre incluir.
 6. **Evolution webhook**: Payload em `data` com `key` + `message`; ignorar `status@broadcast` e itens sem `message`. Mídia “para si mesmo” no 1:1 pode não gerar evento — ver grupo notas solo acima.
 7. **Postgres no Docker**: `DB_HOST` deve ser `raphael-postgres` (nome do container), não `127.0.0.1`, dentro dos containers. Com infra externa no host, usar `127.0.0.1` + porta mapeada.
+8. **Embasa sem débitos na 2ª via**: o site pode mostrar *“não possui débitos”*; o scraper em `playwright/src/embasa-scraper.js` extrai então o carrossel **MINHAS CONTAS** na `/home`. Esperado: JSON de sucesso com `faturas` e sem `pdf_path` quando não há pendência para baixar — não tratar como falha de scrape.
 
 ---
 
