@@ -1,8 +1,8 @@
 # SPEC — Feature: Media Albums (V2 incremental)
 **Projeto:** raphael-hub  
 **Stack base:** Laravel 13 + PHP 8.4 · Livewire 4 · PostgreSQL 17 · Redis 7 · Horizon · MinIO S3 (bucket padrão do Hub: `pessoal`)  
-**Data:** 2026-05-08  
-**Status:** fases A–E implementadas; Fase F em backlog
+**Data da última revisão:** 2026-05-09  
+**Status:** fases A–E implementadas; melhorias de hub/viewer/ limites de upload / revogação de convite documentadas abaixo (§3.1); Fase F em backlog
 
 **Índice na documentação do projeto:** esta SPEC é a fonte de verdade **da feature** álbuns. Visão geral do produto e stack: [README.md](../../README.md), [PRD.md](../../PRD.md), [SPEC.md](../../SPEC.md) (secção *Media Albums*), [LLM.md](../../LLM.md). Alterações relevantes: [CHANGELOG.md](../../CHANGELOG.md).
 
@@ -390,5 +390,19 @@ Uma fase só é considerada concluída quando houver:
 
 ## 8. Próximo passo recomendado
 
-1. Operar contribuição externa em staging (e-mail real, Evolution, `CACHE_STORE=redis` se múltiplos workers).
+1. Operar contribuição externa em staging (e-mail real, Evolution, `CACHE_STORE=redis` se múltiplos workers). Confirmar `max_file_uploads` no PHP em produção se uploads grandes forem comuns.
 2. **Fase F** quando fizer sentido: ZIP, watermark, thumb de vídeo (FFmpeg), tags, download ZIP do álbum.
+
+---
+
+## 9. Referência rápida de classes e arquivos (atualização contínua)
+
+| Área | Principais pontos no código |
+|------|-----------------------------|
+| Hub detalhe | `App\Livewire\Albums\AlbumDetailPage`, view `resources/views/livewire/albums/album-detail-page.blade.php` |
+| Limites de upload | `App\Support\AlbumUploadLimits`, `config('services.albums.max_upload_bytes')`, `max_files_per_batch` |
+| Contribuição | `App\Services\Albums\AlbumContributionService`, `App\Http\Controllers\Albums\AlbumContributionController` |
+| Viewer | `App\Http\Controllers\Albums\AlbumViewerController`, `resources/views/albums/viewer.blade.php` |
+| Payload Livewire | `config/livewire.php` → `payload.max_components` |
+| Histórico de produto | [CHANGELOG.md](../../CHANGELOG.md) (entradas datadas, ex.: 2026-05-09) |
+| Limpeza disco local | `php artisan albums:prune-local-staging` (§5.4) |

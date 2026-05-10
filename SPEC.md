@@ -302,7 +302,7 @@ Métodos:
 
 ## Media Albums (feature — 2026)
 
-Implementação faseada documentada em [docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md). **Fases A–E** concluídas no código; **Fase F** (ZIP, watermark, FFmpeg, tags, download ZIP) é backlog.
+Implementação faseada documentada em [docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md). **Fases A–E** concluídas no código; refinamentos de hub/viewer/limites de upload/revogação de convite em §3.1 da SPEC e no [CHANGELOG](CHANGELOG.md) (**2026-05-09**). **Fase F** (ZIP, watermark, FFmpeg, tags, download ZIP) é backlog.
 
 ### Rotas principais
 

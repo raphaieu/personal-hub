@@ -14,6 +14,35 @@ Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *chan
 
 ---
 
+## 2026-05-09
+
+### Added
+
+- **Álbuns (hub):** exclusão de mídias em lote (checkboxes na tabela, “Apagar selecionadas”) e **apagar álbum inteiro** (remove objetos no S3, apaga mídias, soft delete do álbum; bloqueado se existir subálbum). Redirecionamento para `/hub/albums` com flash `albums_hub_notice`.
+- **`App\Support\AlbumUploadLimits`:** teto real de arquivos por requisição HTTP = `min(ALBUMS_MAX_FILES_PER_BATCH, PHP max_file_uploads)`; usado na validação do envio no hub (`AlbumDetailPage::uploadMedia`) e no POST de contribuição (`AlbumContributionController::upload`). Texto de ajuda no hub e na página pública de upload de contribuição quando o limite do PHP for o gargalo.
+- **`albums:prune-local-staging`:** comando Artisan para podar arquivos antigos em `album-ingest` e `livewire-tmp` sob `storage/app/private` (classe `App\Console\Commands\AlbumsPruneLocalStagingCommand`).
+- **Testes:** `AlbumHubMediaUploadTest` (bulk delete, delete album, bloqueio com subálbum); `AlbumContributionsTest` (revogação limpa `contribution_invite_token` e invalida URL do convite); `IngestAlbumUploadBatchJobTest` (arquivo rejeitado removido, diretório do lote apagado).
+
+### Changed
+
+- **Hub detalhe do álbum (`AlbumDetailPage`):** reordenação por **arrastar e soltar** (SortableJS via CDN, coluna com handle) e por **número de posição** (coluna “Nº”); remoção do fluxo antigo por setas. Métodos Livewire `reorderMedia`, `setMediaPosition`, `persistSortOrder`.
+- **Listagem de mídias sem teto artificial:** viewer público e admin carregam todas as mídias do álbum (ordenadas por `sort_position`, `created_at`). O limite de ~20 itens que aparecia no passado vinha do **payload Livewire** (`max_components`); o padrão passou a ser **sem limite** (`null` em `config/livewire.php`), com override opcional `LIVEWIRE_PAYLOAD_MAX_COMPONENTS` no `.env` (documentado no `.env.example`).
+- **Upload admin em lote:** arquivos seguem para disco `local` e o job `IngestAlbumUploadBatchJob` roda após a resposta (fila padrão), alinhado a envios grandes sem estourar o request.
+- **Contribuição externa — “Revogar uploads”:** além de zerar `upload_token` / `upload_expires_at` dos contribuidores, agora **limpa `albums.contribution_invite_token`**, invalidando o link público de convite; a UI do hub atualiza o estado (botão “Gerar link de contribuição” volta a aparecer).
+- **UI hub detalhe do álbum:** bloco destacado **Galeria pública** (URL absoluta, rota relativa, botão “Abrir galeria”); **duas colunas** em `lg+` — “Envio de arquivos (hub)” e “Contribuição externa”.
+
+### Fixed
+
+- **Convite de contribuição ainda ativo após “Revogar uploads”** — o token de convite do álbum não era apagado; corrigido em `AlbumContributionService::revokeAllUploadTokens`.
+- **Resíduos em `storage/app/private/album-ingest`:** validação de tipo/tamanho em `ingestFromStoredLocalPath` podia deixar arquivo local sem apagar (fora do `finally`). Agora o arquivo local é sempre removido no `finally` após tentativa de ingestão.
+- **Pastas vazias em `album-ingest/`:** ao concluir `IngestAlbumUploadBatchJob`, o diretório do lote (`album-ingest/{album_id}/{uuid}/`) é removido.
+
+### Operação
+
+- Comando **`php artisan albums:prune-local-staging`** (`--hours=48` por padrão, `--dry-run` para simular): remove arquivos antigos em **`album-ingest`** e **`livewire-tmp`** no disco local. Agendamento **semanal** (segunda 03:30) em `bootstrap/app.php` quando o scheduler estiver ativo.
+
+---
+
 ## 2026-05-08
 
 ### Added
