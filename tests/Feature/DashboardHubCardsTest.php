@@ -23,7 +23,9 @@ final class DashboardHubCardsTest extends TestCase
         $response->assertSee('Threads Hub', false);
         $response->assertSee('Utilidades', false);
         $response->assertSee('Álbuns', false);
+        $response->assertSee('Eventos', false);
         $response->assertSee(route('chat', [], false), false);
         $response->assertSee(route('albums.hub', [], false), false);
+        $response->assertSee(route('events.hub', [], false), false);
     }
 }

@@ -12,6 +12,10 @@ Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *chan
 
 - **Álbuns de mídia — Fase F:** upload ZIP, tags, watermark on-the-fly, thumbnail/transcode de vídeo (FFmpeg), download ZIP do álbum. Ver [docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md) §F.
 
+### Added
+
+- **Eventos — fluxo completo de ingresso e portaria:** registro público cria convidado `pending_email` + token; `GuestInterestConfirmationMail` com link `GET /events/guest/confirm/{token}`; após confirmação, `GuestTicketMail` com **PDF** (DomPDF: `pdf/events/*`) e QR (**SVG** via `simple-qrcode`, sem Imagick). `GuestInviteMail` com mesmo PDF no convite do hub. Colunas `guests.email_confirmation_token`, `email_confirmed_at`, `checked_in_at`. Portaria: `GET /events-checkin` (Livewire `EventCheckInPage`, layout dedicado mobile-first, leitor **html5-qrcode**, manifest `public/manifest-events-checkin.json`). Pacotes: `barryvdh/laravel-dompdf`, `simplesoftwareio/simple-qrcode`; npm `html5-qrcode` (chunk via `resources/js/events-checkin.js`). Documentação: [docs/events/SPEC_events_v1.md](docs/events/SPEC_events_v1.md).
+
 ### Fixed
 
 - **Playwright Embasa:** modais `section.blk-modal` que interceptavam o clique na matrícula (`span.matricula`) — fechamento de overlays (`dismissEmbasaBlockingModals`) e seleção com escopo no modal + `force` quando necessário (`playwright/src/embasa-scraper.js`).
@@ -30,6 +34,7 @@ Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *chan
 
 ### Added
 
+- **Eventos (MVP v1 — baseline):** schema `events`, `referral_links`, `guests`; hub `GET /hub/events`, `GET /hub/events/{event}`; API `GET|POST /api/v1/events/{slug}/config|register`, CORS, rate limits, Turnstile (`EVENTS_*`). Evoluções posteriores (confirmação de e-mail, PDF, QR, `/events-checkin`) estão descritas em [docs/events/SPEC_events_v1.md](docs/events/SPEC_events_v1.md) e no item **[Unreleased]** acima.
 - **Docker (PHP-FPM):** `docker/php/zz-uploads.ini` copiado no `Dockerfile` — `max_file_uploads`, `upload_max_filesize`, `post_max_size`, `memory_limit`, tempos de execução alinhados a uploads em lote de álbuns. Requer **rebuild** da imagem `raphael-hub:latest` após alterar o arquivo.
 - **Docker (Nginx do Compose):** `client_max_body_size` elevado em `docker/nginx/default.conf` para acompanhar `post_max_size` do PHP.
 - **Docker (runtime fase F):** pacotes **`ffmpeg`** e **`zip`** (CLI) na imagem PHP; extensão PHP **`zip`** já existia — preparação para ZIP/FFmpeg em álbuns sem mudar o código da Fase F ainda.
