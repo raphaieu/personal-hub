@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'medium_path',
     'video_thumb_path',
     'filename_original',
+    'display_name',
     'mime_type',
     'size_bytes',
     'width',
