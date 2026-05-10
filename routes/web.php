@@ -59,7 +59,9 @@ Route::prefix('contribute')->middleware('throttle:120,1')->group(function (): vo
 });
 
 Route::get('/dashboard', function () {
-    return view('dashboard');
+    return view('dashboard', [
+        'hubCards' => config('hub_dashboard.cards', []),
+    ]);
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware(['auth', 'verified'])->group(function () {
