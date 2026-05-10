@@ -75,35 +75,34 @@ final class AlbumMediaUploadService
             ]);
         }
 
-        $fullPath = $disk->path($relativeLocalPath);
-        $size = (int) (@filesize($fullPath) ?: 0);
-
-        $maxBytes = (int) config('services.albums.max_upload_bytes');
-        if ($size > $maxBytes) {
-            $disk->delete($relativeLocalPath);
-            throw ValidationException::withMessages([
-                'uploadFiles' => 'Cada arquivo deve ter no máximo '.round($maxBytes / (1024 * 1024), 0).' MB.',
-            ]);
-        }
-
-        $ext = strtolower(pathinfo($originalFilename, PATHINFO_EXTENSION));
-        $mime = $this->detectMime($fullPath);
-        if (
-            ($mime === 'application/octet-stream'
-                || $mime === ''
-                || $mime === 'application/x-empty'
-                || $mime === 'inode/x-empty')
-            && isset(self::ALLOWED[$ext][0])
-        ) {
-            $mime = self::ALLOWED[$ext][0];
-        }
-
-        $this->assertAllowed($ext, $mime, 'uploadFiles');
-
-        $id = (string) Str::uuid();
-        $path = 'albums/'.$album->id.'/original/'.$id.'.'.$ext;
-
         try {
+            $fullPath = $disk->path($relativeLocalPath);
+            $size = (int) (@filesize($fullPath) ?: 0);
+
+            $maxBytes = (int) config('services.albums.max_upload_bytes');
+            if ($size > $maxBytes) {
+                throw ValidationException::withMessages([
+                    'uploadFiles' => 'Cada arquivo deve ter no máximo '.round($maxBytes / (1024 * 1024), 0).' MB.',
+                ]);
+            }
+
+            $ext = strtolower(pathinfo($originalFilename, PATHINFO_EXTENSION));
+            $mime = $this->detectMime($fullPath);
+            if (
+                ($mime === 'application/octet-stream'
+                    || $mime === ''
+                    || $mime === 'application/x-empty'
+                    || $mime === 'inode/x-empty')
+                && isset(self::ALLOWED[$ext][0])
+            ) {
+                $mime = self::ALLOWED[$ext][0];
+            }
+
+            $this->assertAllowed($ext, $mime, 'uploadFiles');
+
+            $id = (string) Str::uuid();
+            $path = 'albums/'.$album->id.'/original/'.$id.'.'.$ext;
+
             Storage::disk('s3')->put($path, (string) file_get_contents($fullPath));
 
             return $this->finalizeNewMedia(
@@ -117,7 +116,9 @@ final class AlbumMediaUploadService
                 $ext
             );
         } finally {
-            $disk->delete($relativeLocalPath);
+            if ($disk->exists($relativeLocalPath)) {
+                $disk->delete($relativeLocalPath);
+            }
         }
     }
 
