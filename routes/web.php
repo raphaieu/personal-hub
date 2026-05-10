@@ -5,6 +5,7 @@ use App\Http\Controllers\Albums\AlbumContributionController;
 use App\Http\Controllers\Albums\AlbumHubMediaController;
 use App\Http\Controllers\Albums\AlbumMediaController;
 use App\Http\Controllers\Albums\AlbumViewerController;
+use App\Http\Controllers\Events\GuestEmailConfirmationController;
 use App\Http\Controllers\IaraController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ThreadsCommentVoteController;
@@ -14,6 +15,9 @@ use App\Http\Controllers\Webhook\WhatsAppWebhookController;
 use App\Livewire\Albums\AlbumDetailPage;
 use App\Livewire\Albums\HubPage as AlbumsHubPage;
 use App\Livewire\AnalysisProfiles\HubPage as AnalysisProfilesHubPage;
+use App\Livewire\Events\EventCheckInPage;
+use App\Livewire\Events\EventDetailPage;
+use App\Livewire\Events\HubPage as EventsHubPage;
 use App\Livewire\MonitoredSources\HubPage as MonitoredSourcesHubPage;
 use App\Livewire\Threads\HubPage as ThreadsHubPage;
 use App\Livewire\Utilities\HubPage as UtilitiesHubPage;
@@ -32,6 +36,10 @@ Route::get('/', function () {
 });
 
 Route::get('/oportunidades', ThreadsOpportunitiesController::class)->name('threads.opportunities');
+
+Route::get('/events/guest/confirm/{token}', GuestEmailConfirmationController::class)
+    ->middleware('throttle:60,1')
+    ->name('events.guest.confirm');
 
 Route::post('/oportunidades/votos/{comment}', [ThreadsCommentVoteController::class, 'store'])
     ->middleware('throttle:120,1')
@@ -70,6 +78,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/hub/analysis-profiles', AnalysisProfilesHubPage::class)->name('analysis-profiles.hub');
     Route::get('/hub/monitored-sources', MonitoredSourcesHubPage::class)->name('monitored-sources.hub');
     Route::get('/hub/utilities', UtilitiesHubPage::class)->name('utilities.hub');
+    Route::get('/hub/events', EventsHubPage::class)->name('events.hub');
+    Route::get('/hub/events/{event}', EventDetailPage::class)->name('events.hub.show');
+    Route::get('/events-checkin', EventCheckInPage::class)
+        ->name('events.checkin.show');
     Route::get('/hub/albums', AlbumsHubPage::class)->name('albums.hub');
     Route::get('/hub/albums/{album}', AlbumDetailPage::class)->name('albums.hub.show');
     Route::get('/hub/albums/{album}/media/{media}/preview', [AlbumHubMediaController::class, 'preview'])

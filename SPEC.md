@@ -173,6 +173,14 @@ Resumo de tabelas principais:
 - **`contributors`** — convites por álbum: e-mail, verificação (`verify_token`, `verify_expires_at`), upload (`upload_token`, `upload_expires_at`); único `(album_id, email)`.
 - **`access_attempts`** / **`album_lockouts`** — proteção contra força bruta no acesso por senha ao viewer (ver `AlbumAccessService`).
 
+#### Eventos privados (`events`, `guests`, `referral_links`)
+
+MVP em `/hub/events`, API `/api/v1/events/{slug}/config` e `POST .../register`, rotas web `GET /events/guest/confirm/{token}` (confirmação pública) e `GET /events-checkin` (portaria autenticada). Documentação: **[docs/events/SPEC_events_v1.md](docs/events/SPEC_events_v1.md)**.
+
+- **`events`** — `owner_id` → `users`, `slug` único, `status` (`draft|published|ended|archived`), `starts_at` / `ends_at`, `timezone`, `capacity` (nullable), `requires_ref`, `requires_turnstile`, `registration_open`, `guest_form_schema_json`, `invite_template_key`, `closed_message`, `terms_url`, `privacy_url`, FK opcional `album_id` → `albums`.
+- **`referral_links`** — links nomeados para lista controlada (`token` único, `expires_at`, `revoked_at`, `used_count`).
+- **`guests`** — único `(event_id, email)`; `referral_link_id` opcional; `status` (`pending_email|confirmed|cancelled|blocked`); `consent_terms_at`, `invite_sent_at`; `email_confirmation_token` (nullable, único), `email_confirmed_at`, `checked_in_at`; `photo_path` em disco `local` sob `events/guests/…`.
+
 #### `message_attachments`
 
 Mídia/arquivos ligados a `message_logs`; objeto no MinIO usando `media_storage_prefix` da fonte quando aplicável.

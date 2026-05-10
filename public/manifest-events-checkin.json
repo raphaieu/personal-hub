@@ -1,0 +1,11 @@
+{
+    "name": "Portaria — Check-in",
+    "short_name": "Check-in",
+    "description": "Leitor de QR para check-in em eventos",
+    "start_url": "/events-checkin",
+    "scope": "/",
+    "display": "standalone",
+    "background_color": "#0a0a0a",
+    "theme_color": "#0a0a0a",
+    "orientation": "portrait-primary"
+}

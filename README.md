@@ -267,6 +267,10 @@ Feature dedicada ao armazenamento e exibição de fotos e vídeos em álbuns hie
 
 Histórico de entregas relacionado: [CHANGELOG.md](CHANGELOG.md).
 
+### Eventos privados (landing em `events.*` + API)
+
+Hub `/hub/events`, API `/api/v1/events/{slug}/config|register`, confirmação por e-mail (`/events/guest/confirm/…`), ingresso em PDF com QR, portaria `/events-checkin` (layout dedicado + leitor de QR na câmera). Fonte da verdade: **[docs/events/SPEC_events_v1.md](docs/events/SPEC_events_v1.md)**. Briefing e contrato HTTP: [docs/events/BRIEFING.md](docs/events/BRIEFING.md), [docs/events/API_Contract.md](docs/events/API_Contract.md).
+
 ### Curto Prazo
 
 * webhook estável
