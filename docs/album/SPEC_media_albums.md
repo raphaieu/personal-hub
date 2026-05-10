@@ -46,6 +46,22 @@ Ordem efetiva de entrega:
 
 As subseções abaixo mantêm a numeração histórica A–F para compatibilidade com PRs e commits anteriores.
 
+### 3.1 Pós-MVP (hub, viewer, upload, contribuição) — 2026-05
+
+Entregas que refinam A–E sem alterar a “fase F” de recursos avançados:
+
+| Tema | Comportamento |
+|------|----------------|
+| **Listagem completa** | Viewer (`AlbumViewerController`) e hub carregam **todas** as mídias do álbum com `orderBy('sort_position')->orderBy('created_at')`. Não há `limit` de negócio no código. |
+| **Livewire e muitas linhas** | O componente `AlbumDetailPage` serializa uma linha por mídia. O guard `payload.max_components` do Livewire (padrão antigo: 20) podia truncar a árvore; o projeto usa `max_components => null` por padrão, com `LIVEWIRE_PAYLOAD_MAX_COMPONENTS` no `.env` se quiser reativar um teto. |
+| **Upload admin** | `uploadMedia` valida tamanho por arquivo e **quantidade** com `App\Support\AlbumUploadLimits::maxFilesPerHttpRequest()` (= mínimo entre `ALBUMS_MAX_FILES_PER_BATCH` e o PHP `max_file_uploads`). Arquivos são gravados no disco `local` e o job `IngestAlbumUploadBatchJob` processa após a resposta. O teto do PHP (muitas vezes 20 no padrão) explica avisos do tipo *Maximum number of allowable file uploads has been exceeded* — ajuste `max_file_uploads` no php.ini ou envie em vários lotes. |
+| **Reordenação** | No hub, tabela com handle de arraste (SortableJS, CDN) chama `reorderMedia([ids...])`. Campo numérico “Nº” chama `setMediaPosition`. Persistência sequencial em `sort_position` (1…n) dentro de transação. |
+| **Exclusão** | Por linha (`deleteMedia`), em lote (`deleteSelectedMedia` + checkboxes), ou álbum inteiro (`deleteAlbum`: remove objetos S3 via `AlbumMediaService::delete`, depois `album->delete()` soft delete; **bloqueado** se `children()->exists()`). |
+| **Legenda no viewer** | Coluna `display_name` em `album_media` (quando preenchida no hub) substitui o nome de arquivo na legenda pública. |
+| **Revogar contribuição** | `AlbumContributionService::revokeAllUploadTokens` zera tokens de upload dos contribuidores **e** define `albums.contribution_invite_token = null`, para o link de convite público deixar de funcionar. |
+| **UI hub** | Destaque para URL da **galeria pública**; grid em duas colunas (envio admin × contribuição externa) em viewports grandes. |
+| **Staging local** | Ver §5.4 — limpeza de `album-ingest` / `livewire-tmp`, comando `albums:prune-local-staging`. |
+
 ---
 
 ## Fase A — Fundação de domínio (schema + models)
@@ -78,6 +94,7 @@ As subseções abaixo mantêm a numeração histórica A–F para compatibilidad
 - `medium_path` (nullable)
 - `video_thumb_path` (nullable)
 - `filename_original`
+- `display_name` (nullable) — legenda opcional no viewer; editável no hub
 - `mime_type`
 - `size_bytes`
 - `width` (nullable)
@@ -115,9 +132,10 @@ As subseções abaixo mantêm a numeração histórica A–F para compatibilidad
 ### B.2 Funcionalidades
 
 - CRUD de álbuns (incluindo sub-álbum);
-- upload múltiplo de foto/vídeo por admin;
-- persistência imediata do original no S3;
-- enfileiramento de processamento para gerar thumbs/medium.
+- upload múltiplo de foto/vídeo por admin (validação de quantidade via `AlbumUploadLimits`; ingestão assíncrona `IngestAlbumUploadBatchJob`);
+- persistência do original no S3 após o job de ingestão;
+- enfileiramento de processamento para gerar thumbs/medium (`ProcessAlbumPhotoJob`);
+- gestão no detalhe do álbum: ordem por drag-and-drop ou número; nome de exibição por mídia; exclusão unitária, em lote ou apagar o álbum (com restrições).
 
 ### B.3 Jobs
 
@@ -224,7 +242,7 @@ Regras:
 3. recebe e-mail com link `GET /contribute/confirm/{verify_token}` (validade configurável, default 24 h);
 4. após confirmar, recebe `upload_token` com `upload_expires_at` (default global 72 h ou por álbum);
 5. `GET/POST /contribute/{upload_token}/upload` envia mídias; `AlbumMediaUploadService::store(..., Contributor)` grava S3, define `uploaded_by=contributor`, dispara `ProcessAlbumPhotoJob` nas fotos (fila `media`).
-6. admin pode **revogar** todos os `upload_token` dos contribuidores do álbum ou **gerar novo token de convite** (invalida URLs antigas do passo 1).
+6. admin pode **revogar** todos os `upload_token` dos contribuidores do álbum **e** limpar `contribution_invite_token` (invalida o link de convite público), ou **gerar novo token de convite** (invalida URLs antigas do passo 1).
 
 ### E.3 Notificação
 
@@ -243,7 +261,7 @@ Cobertos: token de convite inválido; verificação expirada; link de confirmaç
 
 ### E.5 Configuração (`.env`)
 
-Ver `.env.example`: `ALBUMS_CONTRIBUTION_*` e opcional `ALBUMS_CONTRIBUTIONS_WHATSAPP_JID`.
+Ver `.env.example`: `ALBUMS_CONTRIBUTION_*`, `ALBUMS_MAX_FILES_PER_BATCH` (respeitado até o teto do PHP `max_file_uploads`), opcional `ALBUMS_CONTRIBUTIONS_WHATSAPP_JID`, e opcional `LIVEWIRE_PAYLOAD_MAX_COMPONENTS` para limitar componentes Livewire por request.
 
 ---
 

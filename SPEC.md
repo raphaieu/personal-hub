@@ -168,7 +168,7 @@ Domínio incremental para galerias públicas/privadas com armazenamento no disco
 Resumo de tabelas principais:
 
 - **`albums`** — `slug` único, hierarquia opcional (`parent_id`, máximo 2 níveis), `access_type` (`public|password|token|one_time`), `token` / `token_expires_at` / `one_time_used_at`, `cover_media_id`, metadados de thumb, `download_enabled`, `is_locked`, campos de **contribuição externa** (`contribution_invite_token`, `contribution_upload_ttl_hours`).
-- **`album_media`** — `type` (`photo|video`), paths S3 (`original_path`, `thumb_path`, `medium_path`, …), `processing_status`, `uploaded_by` (`admin|contributor`), `contributor_id` (FK nullable para `contributors`), `metadata` (JSON).
+- **`album_media`** — `type` (`photo|video`), paths S3 (`original_path`, `thumb_path`, `medium_path`, …), `display_name` (nullable, legenda no viewer), `processing_status`, `sort_position`, `uploaded_by` (`admin|contributor`), `contributor_id` (FK nullable para `contributors`), `metadata` (JSON).
 - **`contributors`** — convites por álbum: e-mail, verificação (`verify_token`, `verify_expires_at`), upload (`upload_token`, `upload_expires_at`); único `(album_id, email)`.
 - **`access_attempts`** / **`album_lockouts`** — proteção contra força bruta no acesso por senha ao viewer (ver `AlbumAccessService`).
 
@@ -318,7 +318,7 @@ Incluem `AlbumService`, `AlbumMediaUploadService`, `AlbumMediaService`, `AlbumAc
 
 ### Configuração
 
-Variáveis `ALBUMS_*` e bloco `services.albums` em `config/services.php`. Upload temporário do Livewire permanece em disco `local` quando o app usa S3 (ver `config/livewire.php`). **FFmpeg** ainda não é requisito de imagem Docker — apenas na Fase F para vídeo.
+Variáveis `ALBUMS_*` e bloco `services.albums` em `config/services.php`; teto real de arquivos por POST também depende do PHP `max_file_uploads` (ver `App\Support\AlbumUploadLimits`). Upload temporário do Livewire permanece em disco `local` quando o app usa S3 (ver `config/livewire.php`); opcional `LIVEWIRE_PAYLOAD_MAX_COMPONENTS` para limitar componentes por batch. Limpeza periódica de `album-ingest` / `livewire-tmp` em `storage/app/private`: comando `php artisan albums:prune-local-staging` (SPEC dos álbuns §5.4). **FFmpeg** ainda não é requisito de imagem Docker — apenas na Fase F para vídeo.
 
 ### Testes
 
