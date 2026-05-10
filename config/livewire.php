@@ -131,7 +131,7 @@ return [
     'temporary_file_upload' => [
         /** Sempre local para permitir `multiple` no input; o destino final continua em `Storage::disk('s3')`. */
         'disk' => env('LIVEWIRE_TEMPORARY_FILE_UPLOAD_DISK', 'local'),
-        'rules' => null,                                      // Example: ['file', 'mimes:png,jpg'] | Default: ['required', 'file', 'max:12288'] (12MB)
+        'rules' => ['file', 'max:12288'],                                      // Example: ['file', 'mimes:png,jpg'] | Default: ['required', 'file', 'max:12288'] (12MB)
         'directory' => null,                                  // Example: 'tmp'                     | Default: 'livewire-tmp'
         'middleware' => null,                                 // Example: 'throttle:5,1'            | Default: 'throttle:60,1'
         'preview_mimes' => [                                  // Supported file types for temporary pre-signed file URLs...
@@ -139,7 +139,7 @@ return [
             'mov', 'avi', 'wmv', 'mp3', 'm4a',
             'jpg', 'jpeg', 'mpga', 'webp', 'wma',
         ],
-        'max_upload_time' => 5, // Max duration (in minutes) before an upload is invalidated...
+        'max_upload_time' => 30, // Max duration (in minutes) before an upload is invalidated...
         'cleanup' => true, // Should cleanup temporary uploads older than 24 hrs...
     ],
 
@@ -278,6 +278,9 @@ return [
         'max_size' => 1024 * 1024,   // 1MB - maximum request payload size in bytes
         'max_nesting_depth' => 10,   // Maximum depth of dot-notation property paths
         'max_calls' => 50,           // Maximum method calls per request
-        'max_components' => 20,      // Maximum components per batch request
+        /** null = sem limite (álbuns com muitas mídias no mesmo componente). Sobrescreva com LIVEWIRE_PAYLOAD_MAX_COMPONENTS. */
+        'max_components' => is_numeric(env('LIVEWIRE_PAYLOAD_MAX_COMPONENTS'))
+            ? (int) env('LIVEWIRE_PAYLOAD_MAX_COMPONENTS')
+            : null,
     ],
 ];
