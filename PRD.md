@@ -112,6 +112,7 @@ Produto **incremental** para organizar e compartilhar fotos/vídeos em álbuns (
 ## Requisitos Não Funcionais
 
 - Stack principal em Docker na VPS (isolada em rede própria), incluindo **MinIO** e **Evolution** dedicados ao Hub
+- Limites de **upload HTTP** (álbuns, multipart): PHP (`docker/php/zz-uploads.ini` na imagem) e **Nginx** (container + proxy aaPanel) dimensionados para lotes — ver [SPEC.md](SPEC.md) e [CHANGELOG.md](CHANGELOG.md) **2026-05-10**
 - Deploy automatizado (GitHub Actions) com script na VPS (`deploy.sh`) que só rebuilda/reinstala/migra o necessário
 - Credenciais das concessionárias apenas no `.env`, nunca no banco
 - PDFs e mídia no MinIO (bucket configurável, típico `pessoal`), referência de path no banco

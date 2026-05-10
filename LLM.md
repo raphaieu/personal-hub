@@ -172,6 +172,8 @@ Ordem fixa na cadeia: **Ollama (condicional) → Groq → Anthropic → OpenAI**
 - Playwright roda em container separado `raphael-playwright` na porta interna `3001`
 - O Laravel chama o Playwright via `http://raphael-playwright:3001` (nome do container na rede Docker)
 - PostgreSQL é containerizado — não usar o MySQL nativo do aaPanel
+- **Uploads (álbuns / multipart):** a imagem PHP carrega `docker/php/zz-uploads.ini`; o Nginx do Compose usa `docker/nginx/default.conf` (`client_max_body_size` alinhado ao `post_max_size`). O **Nginx do host** (aaPanel) precisa do mesmo limite de body na API. Alterou `.ini` ou `default.conf` → rebuild da imagem app + `up -d` do `nginx`.
+- **Imagem PHP:** inclui `ffmpeg` e `zip`/`unzip` no SO para a fase F de álbuns (código da Fase F ainda pode não usar).
 
 ---
 

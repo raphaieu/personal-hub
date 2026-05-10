@@ -41,6 +41,7 @@
 - Network: `raphael-bridge` (isolada dos demais projetos); gateway típico na VPS para acesso host↔containers: `**172.23.0.1`** (usado pelo app para Ollama no host)
 - Containers principais: `raphael-app`, `raphael-nginx`, `raphael-postgres`, `raphael-redis`, `raphael-horizon`, `raphael-queue`, `raphael-scheduler`, `raphael-playwright` (opcional), `raphael-minio`, `raphael-evolution`, `raphael-evolution-postgres`, `raphael-evolution-redis`
 - `PUID=1003` / `PGID=1003` em todos os containers Laravel
+- **Imagem PHP (`Dockerfile`):** inclui `docker/php/zz-uploads.ini` (limites de upload multipart), extensões já descritas em [docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md) §6.1, e pacotes **`ffmpeg`** + **`zip`**/`unzip` no SO para a fase F de álbuns. O **Nginx** do Compose (`docker/nginx/default.conf`) define `client_max_body_size` compatível com `post_max_size` do PHP; o **proxy do host** (aaPanel) deve permitir o mesmo tamanho de body para a API.
 
 ### Serviços dedicados (stack do Raphael Hub)
 
@@ -318,7 +319,7 @@ Incluem `AlbumService`, `AlbumMediaUploadService`, `AlbumMediaService`, `AlbumAc
 
 ### Configuração
 
-Variáveis `ALBUMS_*` e bloco `services.albums` em `config/services.php`; teto real de arquivos por POST também depende do PHP `max_file_uploads` (ver `App\Support\AlbumUploadLimits`). Upload temporário do Livewire permanece em disco `local` quando o app usa S3 (ver `config/livewire.php`); opcional `LIVEWIRE_PAYLOAD_MAX_COMPONENTS` para limitar componentes por batch. Limpeza periódica de `album-ingest` / `livewire-tmp` em `storage/app/private`: comando `php artisan albums:prune-local-staging` (SPEC dos álbuns §5.4). **FFmpeg** ainda não é requisito de imagem Docker — apenas na Fase F para vídeo.
+Variáveis `ALBUMS_*` e bloco `services.albums` em `config/services.php`; teto real de arquivos por POST também depende do PHP `max_file_uploads` (ver `App\Support\AlbumUploadLimits`). Upload temporário do Livewire permanece em disco `local` quando o app usa S3 (ver `config/livewire.php`); opcional `LIVEWIRE_PAYLOAD_MAX_COMPONENTS` para limitar componentes por batch. Limpeza periódica de `album-ingest` / `livewire-tmp` em `storage/app/private`: comando `php artisan albums:prune-local-staging` (SPEC dos álbuns §5.4). A imagem Docker **já inclui** `ffmpeg` e suporte **`zip`** (extensão PHP + CLI) para a fase F; o código de vídeo/transcode ainda não usa o binário.
 
 ### Testes
 

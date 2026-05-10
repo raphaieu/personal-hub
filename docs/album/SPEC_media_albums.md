@@ -1,8 +1,8 @@
 # SPEC — Feature: Media Albums (V2 incremental)
 **Projeto:** raphael-hub  
 **Stack base:** Laravel 13 + PHP 8.4 · Livewire 4 · PostgreSQL 17 · Redis 7 · Horizon · MinIO S3 (bucket padrão do Hub: `pessoal`)  
-**Data da última revisão:** 2026-05-09  
-**Status:** fases A–E implementadas; melhorias de hub/viewer/ limites de upload / revogação de convite documentadas abaixo (§3.1); Fase F em backlog
+**Data da última revisão:** 2026-05-10  
+**Status:** fases A–E implementadas; melhorias de hub/viewer/ limites de upload / revogação de convite documentadas abaixo (§3.1); Fase F em backlog; Docker produção (PHP/Nginx uploads, `ffmpeg`/ZIP na imagem) alinhado ao [CHANGELOG](../../CHANGELOG.md) **2026-05-10**
 
 **Índice na documentação do projeto:** esta SPEC é a fonte de verdade **da feature** álbuns. Visão geral do produto e stack: [README.md](../../README.md), [PRD.md](../../PRD.md), [SPEC.md](../../SPEC.md) (secção *Media Albums*), [LLM.md](../../LLM.md). Alterações relevantes: [CHANGELOG.md](../../CHANGELOG.md).
 
@@ -338,6 +338,7 @@ Estrutura recomendada de chave:
 - Credenciais e endpoint vêm de **`config/filesystems.php`** (`disks.s3`) + variáveis **`AWS_*`** no `.env` — sem valores fixos no código.
 - **MinIO** (e endpoints compatíveis S3 self-hosted) costumam exigir **`AWS_USE_PATH_STYLE_ENDPOINT=true`**.
 - O disco **padrão da aplicação** pode ser `s3` em produção; o **upload temporário do Livewire** deve usar disco **`local`** (ver `config/livewire.php` → `temporary_file_upload.disk`), senão o componente não aceita `multiple` no `<input type="file">` quando o driver temporário é S3.
+- **Produção Docker:** limites reais de corpo da requisição vêm do PHP (`docker/php/zz-uploads.ini` na imagem) e do Nginx do Compose (`docker/nginx/default.conf` → `client_max_body_size`). O proxy do host (ex.: aaPanel) deve espelhar esse limite. Variáveis `ALBUMS_*` no `.env` e comentários em `.env.example`; changelog **2026-05-10**.
 
 ### 5.3 Dev local apontando para MinIO de produção (cuidado operacional)
 
@@ -372,7 +373,8 @@ O disco **`local`** aponta para `storage/app/private` (ver `config/filesystems.p
 ### 6.1 Dependências de runtime (containers)
 
 - **PHP GD** com suporte a **JPEG/PNG/WebP/Freetype** — necessário para `ProcessAlbumPhotoJob` (`imagecreatefromstring`, `imagewebp`, `imagescale`). No `Dockerfile` está com `libpng-dev libjpeg62-turbo-dev libwebp-dev libfreetype6-dev` + `docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp` + `docker-php-ext-install gd`.
-- **FFmpeg**: ainda **não é necessário no MVP**. Vídeos vão ao S3 sem transcode (`processing_status=done`). Adicionar `ffmpeg` ao Dockerfile quando entrarmos na fase F (thumbnail e/ou transcode de vídeo).
+- **PHP `zip`** (`libzip-dev` + `docker-php-ext-install zip`) — `ZipArchive` para a fase F (ingestão ZIP, download ZIP). Pacotes **`zip`/`unzip`** no SO cobrem CLI quando um job preferir subprocesso.
+- **FFmpeg**: a imagem Docker **já instala** `ffmpeg` para a fase F (thumbnail/transcode). O código atual **ainda não** invoca o binário — vídeos seguem como original no S3 com `processing_status=done` até existir job dedicado (ex. `ProcessAlbumVideoJob`).
 - Para Horizon enxergar jobs em dev, **`QUEUE_CONNECTION=redis`** (com `sync`, jobs executam inline no request e não aparecem na UI).
 
 ---
@@ -390,8 +392,8 @@ Uma fase só é considerada concluída quando houver:
 
 ## 8. Próximo passo recomendado
 
-1. Operar contribuição externa em staging (e-mail real, Evolution, `CACHE_STORE=redis` se múltiplos workers). Confirmar `max_file_uploads` no PHP em produção se uploads grandes forem comuns.
-2. **Fase F** quando fizer sentido: ZIP, watermark, thumb de vídeo (FFmpeg), tags, download ZIP do álbum.
+1. Operar contribuição externa em staging (e-mail real, Evolution, `CACHE_STORE=redis` se múltiplos workers). Em produção com Docker, `max_file_uploads` e demais limites de upload estão em `docker/php/zz-uploads.ini` (rebuild da imagem após ajuste).
+2. **Fase F** quando fizer sentido: ZIP, watermark, thumb de vídeo (FFmpeg), tags, download ZIP do álbum — a imagem PHP do projeto **já inclui** `ffmpeg` e CLI `zip`/`unzip`; falta implementação de jobs/UI.
 
 ---
 
