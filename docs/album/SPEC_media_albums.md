@@ -330,6 +330,17 @@ Possível para validar integração real, **somente** com consciência de risco:
 - Evitar testes destrutivos em bucket compartilhado; preferir prefixo ou bucket dedicado a dev.
 - Nunca commitar segredos; espelhar apenas nomes de variáveis no `.env.example`.
 
+### 5.4 Disco local (`storage/app/private`) — `album-ingest` e `livewire-tmp`
+
+O disco **`local`** aponta para `storage/app/private` (ver `config/filesystems.php`). Dois prefixos crescem durante o uso:
+
+| Prefixo | Origem | Limpeza esperada |
+|---------|--------|------------------|
+| **`livewire-tmp/`** | Upload temporário do Livewire antes do `storeAs` para `album-ingest`. Com o mesmo disco `local`, o Livewire **move** o arquivo (não copia), então o tmp some após cada arquivo bem enviado ao hub. O trait `WithFileUploads` também remove uploads **mais velhos que 24 h** dentro do tmp quando `_finishUpload` roda (`temporary_file_upload.cleanup` em `config/livewire.php`). Uploads abandonados (usuário não submeteu o formulário) podem ficar até expirarem por idade ou até o comando abaixo. |
+| **`album-ingest/`** | Cópias intermediárias antes do job enviar ao S3 (`IngestAlbumUploadBatchJob`). Após ingestão bem-sucedida, `AlbumMediaUploadService::ingestFromStoredLocalPath` **apaga o arquivo** no `finally` (incluindo quando o tipo MIME/extensão é rejeitado — corrigido para não deixar lixo). Ao terminar o batch, o job **remove o diretório do lote** (`album-ingest/{album_id}/{batch_uuid}/`). |
+
+**Manutenção:** comando Artisan `php artisan albums:prune-local-staging {--hours=48} {--dry-run}` remove arquivos **mais antigos que N horas** em `album-ingest` e `livewire-tmp`. Agendamento semanal em `bootstrap/app.php` (segunda-feira 03:30). Em servidores sem `schedule:run`, executar manualmente ou via cron.
+
 ---
 
 ## 6. Filas e operação
