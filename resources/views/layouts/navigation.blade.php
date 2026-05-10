@@ -31,7 +31,7 @@
                         {{ __('Utilidades') }}
                     </x-nav-link>
                     <x-nav-link :href="route('albums.hub')" :active="request()->routeIs('albums.hub')">
-                        {{ __('Albums') }}
+                        {{ __('Álbuns') }}
                     </x-nav-link>
                 </div>
             </div>
@@ -104,7 +104,7 @@
                 {{ __('Utilidades') }}
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('albums.hub')" :active="request()->routeIs('albums.hub')">
-                {{ __('Albums') }}
+                {{ __('Álbuns') }}
             </x-responsive-nav-link>
         </div>
 
