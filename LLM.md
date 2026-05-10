@@ -17,6 +17,7 @@ captura de lembretes pessoais, e base para futuros projetos pessoais integrados.
 - `SPEC.md` — especificação técnica completa (leia antes de implementar qualquer coisa)
 - `docs/v2.md` — backlog e decisões da evolução V2 (grupos, permissões, pipelines AI); não duplicar no SPEC além do schema acordado
 - `docs/album/SPEC_media_albums.md` — **álbuns de mídia** (hub, viewer, contribuição externa, filas `media`/`notifications`); fonte da verdade para novas alterações nessa feature
+- `docs/events/SPEC_events_v1.md` — **eventos privados**: hub `/hub/events`, API `/api/v1/events/{slug}/config|register`, dupla confirmação por e-mail (`pending_email` → link → `GuestTicketMail` com PDF + QR SVG), convites `GuestInviteMail` + PDF, portaria `GET /events-checkin` (layout dedicado, `html5-qrcode`, manifest PWA), DomPDF em `resources/views/pdf/events/`; fonte da verdade para esta feature
 
 ---
 
