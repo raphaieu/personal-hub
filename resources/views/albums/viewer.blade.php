@@ -54,11 +54,11 @@
                             data-album-open
                             @if ($photoIndex !== false) data-album-index="{{ $photoIndex }}" @endif
                             class="group relative block w-full overflow-hidden rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                            aria-label="Ampliar {{ $item['filename_original'] }}"
+                            aria-label="Ampliar {{ $item['caption'] }}"
                         >
                             <img
                                 src="{{ $item['thumb_url'] }}"
-                                alt="{{ $item['filename_original'] }}"
+                                alt="{{ $item['caption'] }}"
                                 loading="lazy"
                                 class="h-32 w-full rounded object-cover transition group-hover:scale-[1.02]"
                                 @if (! $album->download_enabled)
@@ -75,7 +75,7 @@
                     @endif
 
                     <div class="mt-2 flex items-center justify-between gap-2">
-                        <p class="truncate text-xs text-gray-600">{{ $item['filename_original'] }}</p>
+                        <p class="truncate text-xs text-gray-600" title="{{ $item['filename_original'] }}">{{ $item['caption'] }}</p>
                         @if ($album->download_enabled)
                             <a href="{{ $item['download_url'] }}" class="text-xs font-medium text-indigo-600 hover:text-indigo-800">
                                 Baixar
@@ -169,8 +169,8 @@
                     current = (index + items.length) % items.length;
                     const item = items[current];
                     img.src = item.medium_url;
-                    img.alt = item.filename_original || '';
-                    caption.textContent = item.filename_original || '';
+                    img.alt = item.caption || '';
+                    caption.textContent = item.caption || '';
                     counter.textContent = (current + 1) + ' / ' + items.length;
                     if (downloadLink) downloadLink.href = item.download_url;
                 }

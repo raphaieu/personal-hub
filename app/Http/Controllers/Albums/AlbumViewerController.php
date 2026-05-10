@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Albums;
 
 use App\Models\Album;
+use App\Models\AlbumMedia;
 use App\Services\Albums\AlbumAccessService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -14,12 +15,15 @@ final class AlbumViewerController
     public function show(Request $request, string $slug, AlbumAccessService $accessService): View
     {
         $album = Album::query()
-            ->with([
-                'parent',
-                'media' => fn ($query) => $query->orderBy('sort_position')->orderBy('created_at'),
-            ])
+            ->with(['parent'])
             ->where('slug', $slug)
             ->firstOrFail();
+
+        $mediaModels = AlbumMedia::query()
+            ->where('album_id', $album->id)
+            ->orderBy('sort_position')
+            ->orderBy('created_at')
+            ->get();
 
         if ($album->is_locked) {
             abort(404);
@@ -51,17 +55,22 @@ final class AlbumViewerController
         $thumbUrlFor = $signedView('thumb');
         $mediumUrlFor = $signedView('medium');
 
-        $mediaItems = $album->media->map(function ($media) use ($album, $thumbUrlFor, $mediumUrlFor): array {
+        $mediaItems = $mediaModels->map(function ($media) use ($album, $thumbUrlFor, $mediumUrlFor): array {
             $downloadUrl = URL::temporarySignedRoute(
                 'albums.media.download',
                 now()->addMinutes(60),
                 ['slug' => $album->slug, 'media' => $media->id]
             );
 
+            $caption = ($media->display_name !== null && trim($media->display_name) !== '')
+                ? trim((string) $media->display_name)
+                : (string) $media->filename_original;
+
             return [
                 'id' => $media->id,
                 'type' => $media->type,
                 'filename_original' => $media->filename_original,
+                'caption' => $caption,
                 'processing_status' => $media->processing_status,
                 'thumb_url' => $thumbUrlFor($media),
                 'medium_url' => $mediumUrlFor($media),
