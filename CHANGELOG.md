@@ -12,6 +12,37 @@ Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *chan
 
 - **Álbuns de mídia — Fase F:** upload ZIP, tags, watermark on-the-fly, thumbnail/transcode de vídeo (FFmpeg), download ZIP do álbum. Ver [docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md) §F.
 
+### Added
+
+- **Dashboard hub:** página `GET /dashboard` redesenhada com **cards** (ícone SVG, título, descrição, link) para Dashboard, Chat IA, Threads Hub, Profiles IA, Fontes monitoradas, Utilidades e Álbuns. Dados em **`config/hub_dashboard.php`**; ícones em **`resources/views/components/hub/dashboard-icon.blade.php`**. Menu superior mantido; documentado em [LLM.md](LLM.md), [SPEC.md](SPEC.md) (*Dashboard principal*), [PRD.md](PRD.md) (F7), [README.md](README.md). Teste: `tests/Feature/DashboardHubCardsTest.php`.
+
+### Changed
+
+- Navegação: rótulo **Albums** → **Álbuns** no menu (desktop e responsivo).
+
+---
+
+## 2026-05-10
+
+### Added
+
+- **Docker (PHP-FPM):** `docker/php/zz-uploads.ini` copiado no `Dockerfile` — `max_file_uploads`, `upload_max_filesize`, `post_max_size`, `memory_limit`, tempos de execução alinhados a uploads em lote de álbuns. Requer **rebuild** da imagem `raphael-hub:latest` após alterar o arquivo.
+- **Docker (Nginx do Compose):** `client_max_body_size` elevado em `docker/nginx/default.conf` para acompanhar `post_max_size` do PHP.
+- **Docker (runtime fase F):** pacotes **`ffmpeg`** e **`zip`** (CLI) na imagem PHP; extensão PHP **`zip`** já existia — preparação para ZIP/FFmpeg em álbuns sem mudar o código da Fase F ainda.
+
+### Changed
+
+- **`.env.example`:** comentário no bloco `ALBUMS_*` apontando `docker/php/zz-uploads.ini`, `docker/nginx/default.conf`, rebuild da imagem e necessidade de alinhar **`client_max_body_size`** no Nginx do **host** (aaPanel), se aplicável.
+
+### Fixed
+
+- **Playwright Embasa (`playwright/src/embasa-scraper.js`):** quando a 2ª via exibe *“A Matrícula informada não possui débitos”* (sem contas em aberto), o scraper deixa de falhar e passa a extrair faturas do carrossel **MINHAS CONTAS** na **`/home`** (referência a partir do título mês/ano, vencimento, consumo, valor total, status). **`pdf_path`** permanece ausente se não houver fatura pendente para baixar — o Laravel continua atualizando `invoices` sem PDF.
+
+### Operação
+
+- **Produção:** após `git pull`, se mudou `Dockerfile`, `docker/php/*.ini` ou `docker/nginx/default.conf`: `docker compose build` dos serviços que usam a imagem app + **`docker compose up -d`** (inclui `nginx`). Conferir no vhost do aaPanel o mesmo limite de corpo da requisição que no container Nginx.
+- **Embasa:** atualizar container **`raphael-playwright`** quando mudar `playwright/src/embasa-scraper.js` (rebuild `Dockerfile.playwright` / imagem do serviço `playwright`).
+
 ---
 
 ## 2026-05-09

@@ -406,5 +406,5 @@ Uma fase só é considerada concluída quando houver:
 | Contribuição | `App\Services\Albums\AlbumContributionService`, `App\Http\Controllers\Albums\AlbumContributionController` |
 | Viewer | `App\Http\Controllers\Albums\AlbumViewerController`, `resources/views/albums/viewer.blade.php` |
 | Payload Livewire | `config/livewire.php` → `payload.max_components` |
-| Histórico de produto | [CHANGELOG.md](../../CHANGELOG.md) (entradas datadas, ex.: 2026-05-09) |
+| Histórico de produto | [CHANGELOG.md](../../CHANGELOG.md) (ex.: 2026-05-09, 2026-05-10) |
 | Limpeza disco local | `php artisan albums:prune-local-staging` (§5.4) |

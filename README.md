@@ -158,6 +158,17 @@ Se não pagar, o sistema insiste.
 * VPS Linux
 * Cloudflare Tunnel (ambiente dev / webhooks externos)
 
+### Produção — uploads (álbuns) e proxy
+
+* Limites de multipart no PHP: `docker/php/zz-uploads.ini` (incluído no `Dockerfile`). Tamanho máximo do body no Nginx **do Compose**: `docker/nginx/default.conf` (`client_max_body_size` alinhado ao `post_max_size`).
+* O proxy **aaPanel** na frente de `api.raphael-martins.com` deve permitir o **mesmo** `client_max_body_size` (ou equivalente) que o container `raphael-nginx`; caso contrário uploads grandes falham no host mesmo com PHP ajustado.
+* Mudanças em `Dockerfile`, `docker/php/*.ini` ou `docker/nginx/default.conf` exigem **rebuild** da imagem `raphael-hub:latest` e `docker compose up -d` (serviços `app`, `horizon`, `queue`, `scheduler`, `nginx`).
+* Detalhes e histórico: [SPEC.md](SPEC.md) (Infra → Docker), [docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md), [CHANGELOG.md](CHANGELOG.md) (**2026-05-10**).
+
+### Produção — scraper Embasa (Playwright)
+
+* Código em `playwright/src/embasa-scraper.js`. Sem débitos na 2ª via, os dados vêm do carrossel **MINHAS CONTAS** na home; `pdf_path` pode ser nulo. Atualizar imagem/serviço **`raphael-playwright`** após mudanças nesse arquivo. Ver [SPEC.md](SPEC.md) (*Fluxo Embasa*) e [CHANGELOG.md](CHANGELOG.md) (**2026-05-10**).
+
 ---
 
 ## Camada de IA (Orquestrada)
