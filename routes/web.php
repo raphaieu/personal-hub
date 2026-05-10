@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AiChatController;
 use App\Http\Controllers\Albums\AlbumContributionController;
+use App\Http\Controllers\Albums\AlbumHubMediaController;
 use App\Http\Controllers\Albums\AlbumMediaController;
 use App\Http\Controllers\Albums\AlbumViewerController;
 use App\Http\Controllers\IaraController;
@@ -69,6 +70,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/hub/utilities', UtilitiesHubPage::class)->name('utilities.hub');
     Route::get('/hub/albums', AlbumsHubPage::class)->name('albums.hub');
     Route::get('/hub/albums/{album}', AlbumDetailPage::class)->name('albums.hub.show');
+    Route::get('/hub/albums/{album}/media/{media}/preview', [AlbumHubMediaController::class, 'preview'])
+        ->name('albums.hub.media.preview');
     Route::get('/hub/utilities/invoices/{invoice}/pdf', [UtilityInvoicePdfController::class, 'show'])
         ->name('utilities.invoice.pdf');
 
