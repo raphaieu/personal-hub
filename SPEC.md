@@ -41,6 +41,7 @@
 - Network: `raphael-bridge` (isolada dos demais projetos); gateway típico na VPS para acesso host↔containers: `**172.23.0.1`** (usado pelo app para Ollama no host)
 - Containers principais: `raphael-app`, `raphael-nginx`, `raphael-postgres`, `raphael-redis`, `raphael-horizon`, `raphael-queue`, `raphael-scheduler`, `raphael-playwright` (opcional), `raphael-minio`, `raphael-evolution`, `raphael-evolution-postgres`, `raphael-evolution-redis`
 - `PUID=1003` / `PGID=1003` em todos os containers Laravel
+- **Imagem PHP (`Dockerfile`):** inclui `docker/php/zz-uploads.ini` (limites de upload multipart), extensões já descritas em [docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md) §6.1, e pacotes **`ffmpeg`** + **`zip`**/`unzip` no SO para a fase F de álbuns. O **Nginx** do Compose (`docker/nginx/default.conf`) define `client_max_body_size` compatível com `post_max_size` do PHP; o **proxy do host** (aaPanel) deve permitir o mesmo tamanho de body para a API.
 
 ### Serviços dedicados (stack do Raphael Hub)
 
@@ -160,6 +161,17 @@ timestamps
 ```
 
 Índices: `(monitored_source_id, created_at)`, `(chat_jid, created_at)`, `sender_jid`.
+
+#### Álbuns de mídia (`albums`, `album_media`, `contributors`, …)
+
+Domínio incremental para galerias públicas/privadas com armazenamento no disco `s3` (MinIO). Detalhes completos, endpoints e fases A–F em **[docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md)**.
+
+Resumo de tabelas principais:
+
+- **`albums`** — `slug` único, hierarquia opcional (`parent_id`, máximo 2 níveis), `access_type` (`public|password|token|one_time`), `token` / `token_expires_at` / `one_time_used_at`, `cover_media_id`, metadados de thumb, `download_enabled`, `is_locked`, campos de **contribuição externa** (`contribution_invite_token`, `contribution_upload_ttl_hours`).
+- **`album_media`** — `type` (`photo|video`), paths S3 (`original_path`, `thumb_path`, `medium_path`, …), `display_name` (nullable, legenda no viewer), `processing_status`, `sort_position`, `uploaded_by` (`admin|contributor`), `contributor_id` (FK nullable para `contributors`), `metadata` (JSON).
+- **`contributors`** — convites por álbum: e-mail, verificação (`verify_token`, `verify_expires_at`), upload (`upload_token`, `upload_expires_at`); único `(album_id, email)`.
+- **`access_attempts`** / **`album_lockouts`** — proteção contra força bruta no acesso por senha ao viewer (ver `AlbumAccessService`).
 
 #### `message_attachments`
 
@@ -283,7 +295,35 @@ Métodos:
 | `EnriquecerUrlLembrete`          | `default`       | Após salvar lembrete de URL |
 | `NotificarVencimento`            | `notifications` | Schedule diário             |
 | `RecalculateCommentScoreJob`     | `default`       | Após voto em `/oportunidades` |
+| `ProcessAlbumPhotoJob`           | `media`         | Após upload de foto no hub ou por contribuidor — gera WebP thumb/medium (GD) |
+| `SendAlbumContributionDigestJob` | `notifications` | Debounce após upload por contribuidor — e-mail admin + WhatsApp (Evolution) |
 
+
+---
+
+## Media Albums (feature — 2026)
+
+Implementação faseada documentada em [docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md). **Fases A–E** concluídas no código; refinamentos de hub/viewer/limites de upload/revogação de convite em §3.1 da SPEC e no [CHANGELOG](CHANGELOG.md) (**2026-05-09**). **Fase F** (ZIP, watermark, FFmpeg, tags, download ZIP) é backlog.
+
+### Rotas principais
+
+| Contexto | Exemplos |
+| -------- | -------- |
+| Hub (auth) | `GET /hub/albums`, `GET /hub/albums/{album}` — Livewire `HubPage` / `AlbumDetailPage` |
+| Viewer público | `GET /albums/{slug}`, `POST /albums/{slug}/auth`, `GET /albums/{slug}/media/{media}/view|download` (URLs assinadas) |
+| Contribuição | `GET /contribute/{album_uuid}/{token}`, `POST /contribute/verify`, `GET /contribute/confirm/{verify_token}`, `GET|POST /contribute/{upload_token}/upload` |
+
+### Serviços (pasta `App\Services\Albums`)
+
+Incluem `AlbumService`, `AlbumMediaUploadService`, `AlbumMediaService`, `AlbumAccessService`, `AlbumContributionService`, `AlbumContributionDigestService`, e integração com `EvolutionService` para resumos de contribuição.
+
+### Configuração
+
+Variáveis `ALBUMS_*` e bloco `services.albums` em `config/services.php`; teto real de arquivos por POST também depende do PHP `max_file_uploads` (ver `App\Support\AlbumUploadLimits`). Upload temporário do Livewire permanece em disco `local` quando o app usa S3 (ver `config/livewire.php`); opcional `LIVEWIRE_PAYLOAD_MAX_COMPONENTS` para limitar componentes por batch. Limpeza periódica de `album-ingest` / `livewire-tmp` em `storage/app/private`: comando `php artisan albums:prune-local-staging` (SPEC dos álbuns §5.4). A imagem Docker **já inclui** `ffmpeg` e suporte **`zip`** (extensão PHP + CLI) para a fase F; o código de vídeo/transcode ainda não usa o binário.
+
+### Testes
+
+`tests/Feature/Albums/` — inclui serviço, hub, viewer, upload, job de foto, contribuições.
 
 ---
 
@@ -332,7 +372,7 @@ Construtor: `kind` (`embasa`|`coelba`), opcional `ignoreScrapeWindow` (default `
 
 ## Container Playwright
 
-Servidor HTTP Node.js rodando na porta `3001` (interno à rede Docker).
+Servidor HTTP Node.js rodando na porta `3001` (interno à rede Docker). Scrapers de concessionárias em `playwright/src/` (ex.: **`embasa-scraper.js`**, **`coelba-scraper-v2.js`**) — roteamento em `playwright/server.js`.
 
 ### Rotas
 
@@ -591,6 +631,8 @@ Status:      "Aguardando pagamento" → pendente
 PDF:         botão "BAIXAR 2ª VIA" em cada fatura
 ```
 
+**Implementação Playwright (`playwright/src/embasa-scraper.js`):** quando não há débitos em aberto, a 2ª via pode exibir *“A Matrícula informada não possui débitos”* em vez da tabela. Nesse caso o scraper navega para **`/home`**, reutiliza a seleção de matrícula e extrai o histórico do carrossel **MINHAS CONTAS** (`.card-minhas-contas .inner-card`: mês/ano → `referencia` `mm/aaaa`, vencimento, consumo, valor total, texto do botão de status). Não há PDF nesse cenário se não existir fatura **pendente** para download na 2ª via — o payload segue `success: true` com `faturas` preenchidas e `pdf_path` nulo quando aplicável. Se a tabela da 2ª via existir mas o parse falhar, há fallback para o mesmo carrossel na home.
+
 ---
 
 ## Fluxo Coelba (mapeado)
@@ -744,6 +786,14 @@ app/
     Utilities/
       HubPage.php
 
+config/
+  hub_dashboard.php
+
+resources/
+  views/
+    dashboard.blade.php
+    components/hub/dashboard-icon.blade.php
+
 database/
   migrations/
     ..._create_monitored_sources_table.php
@@ -761,13 +811,17 @@ database/
 playwright/
   server.js
   package.json
-  scrapers/
-    embasa.js
-    coelba.js
+  src/
+    embasa-scraper.js
+    coelba-scraper-v2.js
+    utility-auth.js
+    ...
 
 docker/
   nginx/
     default.conf
+  php/
+    zz-uploads.ini
 
 .github/
   workflows/
@@ -775,6 +829,12 @@ docker/
 ```
 
 ---
+
+## Dashboard principal (hub)
+
+- Rota autenticada `GET /dashboard` (`dashboard`): view Blade `resources/views/dashboard.blade.php` — grade responsiva de **cards** (link, ícone, título, descrição) para cada módulo do hub.
+- Conteúdo dos cards: **`config/hub_dashboard.php`** (chave `cards`: `route`, `title`, `description`, `icon`). Ícones: componente **`resources/views/components/hub/dashboard-icon.blade.php`**.
+- A navegação global **`resources/views/layouts/navigation.blade.php`** deve permanecer alinhada às mesmas rotas; novas features com UI no hub entram nos dois lugares até eventual simplificação (só menu ou só cards).
 
 ## Livewire (Fase 4.1)
 

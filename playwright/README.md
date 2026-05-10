@@ -1,6 +1,6 @@
-# Playwright Threads Service
+# Playwright Service (Threads + utilitários)
 
-Servidor HTTP Node.js para autenticar no Threads e executar scraping por URL ou keyword.
+Servidor HTTP Node.js em `server.js`: **Threads** (auth, scrape URL/keyword) e **concessionárias** Embasa/Coelba (`POST /embasa/scrape`, `POST /coelba/scrape`). Implementação Embasa: `src/embasa-scraper.js` — quando a 2ª via não tem débitos em aberto, extrai o carrossel **MINHAS CONTAS** na `/home` (ver [SPEC.md](../SPEC.md) *Fluxo Embasa* e [CHANGELOG.md](../CHANGELOG.md) **2026-05-10**).
 
 ## Executar local (host-first)
 
@@ -25,7 +25,14 @@ Padrao de porta: `3001` (`PORT`).
 - `THREADS_MAX_SCROLL_ROUNDS` (default: `12`)
 - `THREADS_DEBUG_DIR` (default: `/app/downloads/threads-debug`)
 
-## Endpoints
+## Endpoints — utilitários (Embasa / Coelba)
+
+- `POST /embasa/scrape` — corpo vazio; credenciais `EMBASA_*` no ambiente do container (ver `.env.example` na raiz do repo).
+- `POST /coelba/scrape` — idem `COELBA_*` + CapSolver quando aplicável.
+
+Sessão persistida por provider (`utility-auth.js`, paths em `EMBASA_SESSION_PATH` / `COELBA_SESSION_PATH`).
+
+## Endpoints — Threads
 
 ### `GET /health`
 

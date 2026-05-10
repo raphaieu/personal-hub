@@ -1,12 +1,18 @@
 <?php
 
 use App\Http\Controllers\AiChatController;
+use App\Http\Controllers\Albums\AlbumContributionController;
+use App\Http\Controllers\Albums\AlbumHubMediaController;
+use App\Http\Controllers\Albums\AlbumMediaController;
+use App\Http\Controllers\Albums\AlbumViewerController;
 use App\Http\Controllers\IaraController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ThreadsCommentVoteController;
 use App\Http\Controllers\ThreadsOpportunitiesController;
 use App\Http\Controllers\Utilities\UtilityInvoicePdfController;
 use App\Http\Controllers\Webhook\WhatsAppWebhookController;
+use App\Livewire\Albums\AlbumDetailPage;
+use App\Livewire\Albums\HubPage as AlbumsHubPage;
 use App\Livewire\AnalysisProfiles\HubPage as AnalysisProfilesHubPage;
 use App\Livewire\MonitoredSources\HubPage as MonitoredSourcesHubPage;
 use App\Livewire\Threads\HubPage as ThreadsHubPage;
@@ -31,8 +37,31 @@ Route::post('/oportunidades/votos/{comment}', [ThreadsCommentVoteController::cla
     ->middleware('throttle:120,1')
     ->name('threads.opportunities.vote');
 
+Route::get('/albums/{slug}', [AlbumViewerController::class, 'show'])->name('albums.viewer');
+Route::post('/albums/{slug}/auth', [AlbumViewerController::class, 'auth'])->name('albums.viewer.auth');
+Route::get('/albums/{slug}/media/{media}/view', [AlbumMediaController::class, 'view'])->name('albums.media.view');
+Route::get('/albums/{slug}/media/{media}/download', [AlbumMediaController::class, 'download'])->name('albums.media.download');
+
+Route::prefix('contribute')->middleware('throttle:120,1')->group(function (): void {
+    Route::get('/confirm/{verify_token}', [AlbumContributionController::class, 'confirm'])
+        ->name('albums.contribute.confirm');
+    Route::post('/verify', [AlbumContributionController::class, 'requestVerify'])
+        ->middleware('throttle:30,1')
+        ->name('albums.contribute.verify');
+    Route::get('/{album}/{token}', [AlbumContributionController::class, 'showInvite'])
+        ->whereUuid('album')
+        ->name('albums.contribute.invite');
+    Route::get('/{upload_token}/upload', [AlbumContributionController::class, 'showUpload'])
+        ->name('albums.contribute.upload.form');
+    Route::post('/{upload_token}/upload', [AlbumContributionController::class, 'upload'])
+        ->middleware('throttle:30,1')
+        ->name('albums.contribute.upload');
+});
+
 Route::get('/dashboard', function () {
-    return view('dashboard');
+    return view('dashboard', [
+        'hubCards' => config('hub_dashboard.cards', []),
+    ]);
 })->middleware(['auth', 'verified'])->name('dashboard');
 
 Route::middleware(['auth', 'verified'])->group(function () {
@@ -41,6 +70,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/hub/analysis-profiles', AnalysisProfilesHubPage::class)->name('analysis-profiles.hub');
     Route::get('/hub/monitored-sources', MonitoredSourcesHubPage::class)->name('monitored-sources.hub');
     Route::get('/hub/utilities', UtilitiesHubPage::class)->name('utilities.hub');
+    Route::get('/hub/albums', AlbumsHubPage::class)->name('albums.hub');
+    Route::get('/hub/albums/{album}', AlbumDetailPage::class)->name('albums.hub.show');
+    Route::get('/hub/albums/{album}/media/{media}/preview', [AlbumHubMediaController::class, 'preview'])
+        ->name('albums.hub.media.preview');
     Route::get('/hub/utilities/invoices/{invoice}/pdf', [UtilityInvoicePdfController::class, 'show'])
         ->name('utilities.invoice.pdf');
 

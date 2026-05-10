@@ -126,6 +126,7 @@ Se não pagar, o sistema insiste.
 
 * Blade
 * Livewire 4
+* Dashboard autenticado (`/dashboard`): grade de **cards** para módulos do hub (`config/hub_dashboard.php`), alinhada ao menu em `resources/views/layouts/navigation.blade.php`
 
 ### Banco
 
@@ -156,6 +157,17 @@ Se não pagar, o sistema insiste.
 * Deploy via GitHub Actions + script na VPS (`deploy.sh`: diff inteligente, rebuild condicional, migrations quando há mudança em `database/migrations`, cache Laravel, health checks)
 * VPS Linux
 * Cloudflare Tunnel (ambiente dev / webhooks externos)
+
+### Produção — uploads (álbuns) e proxy
+
+* Limites de multipart no PHP: `docker/php/zz-uploads.ini` (incluído no `Dockerfile`). Tamanho máximo do body no Nginx **do Compose**: `docker/nginx/default.conf` (`client_max_body_size` alinhado ao `post_max_size`).
+* O proxy **aaPanel** na frente de `api.raphael-martins.com` deve permitir o **mesmo** `client_max_body_size` (ou equivalente) que o container `raphael-nginx`; caso contrário uploads grandes falham no host mesmo com PHP ajustado.
+* Mudanças em `Dockerfile`, `docker/php/*.ini` ou `docker/nginx/default.conf` exigem **rebuild** da imagem `raphael-hub:latest` e `docker compose up -d` (serviços `app`, `horizon`, `queue`, `scheduler`, `nginx`).
+* Detalhes e histórico: [SPEC.md](SPEC.md) (Infra → Docker), [docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md), [CHANGELOG.md](CHANGELOG.md) (**2026-05-10**).
+
+### Produção — scraper Embasa (Playwright)
+
+* Código em `playwright/src/embasa-scraper.js`. Sem débitos na 2ª via, os dados vêm do carrossel **MINHAS CONTAS** na home; `pdf_path` pode ser nulo. Atualizar imagem/serviço **`raphael-playwright`** após mudanças nesse arquivo. Ver [SPEC.md](SPEC.md) (*Fluxo Embasa*) e [CHANGELOG.md](CHANGELOG.md) (**2026-05-10**).
 
 ---
 
@@ -246,6 +258,14 @@ Para webhooks e testes externos (mesmo stack em termos de comportamento; URL pú
 ---
 
 ## Roadmap
+
+### Álbuns de mídia (MinIO / viewer / contribuição)
+
+Feature dedicada ao armazenamento e exibição de fotos e vídeos em álbuns hierárquicos, com painel em `/hub/albums` e páginas públicas em `/albums/{slug}`. Documentação canônica da implementação: **[docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md)**.
+
+**Estado (2026-05):** fases **A–E concluídas** (domínio, hub, upload S3, processamento de fotos GD/WebP, viewer com lightbox, hardening de acesso, contribuição externa com notificações consolidadas). Restam os **recursos avançados da Fase F** (ZIP, watermark, FFmpeg para vídeo, tags, download ZIP do álbum), descritos na mesma SPEC.
+
+Histórico de entregas relacionado: [CHANGELOG.md](CHANGELOG.md).
 
 ### Curto Prazo
 

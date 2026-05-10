@@ -197,7 +197,7 @@ services:
         condition: service_healthy
       postgres:
         condition: service_healthy
-    command: php artisan queue:work redis --sleep=3 --tries=3 --timeout=120 --queue=default,notifications,scraping
+    command: php artisan queue:work redis --sleep=3 --tries=3 --timeout=300 --queue=default,notifications,scraping,media
     restart: unless-stopped
     networks:
       - raphael-bridge

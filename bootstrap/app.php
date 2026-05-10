@@ -35,6 +35,9 @@ return Application::configure(basePath: dirname(__DIR__))
         $schedule->job(new ScrapeConta('coelba'))->dailyAt('08:05');
         $schedule->job(new VerificarStatusFaturas)->dailyAt('09:00');
         $schedule->job(new NotificarVencimento)->dailyAt('09:30');
+
+        // Resíduos em storage/app/private (album-ingest, livewire-tmp) — ver SPEC álbuns §5.
+        $schedule->command('albums:prune-local-staging')->weeklyOn(1, '3:30');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

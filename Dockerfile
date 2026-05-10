@@ -2,10 +2,16 @@
 FROM php:8.4-fpm
 
 # SO + libs
+# libpng/libjpeg/libwebp/freetype — GD (ProcessAlbumPhotoJob).
+# libzip-dev + ext zip — ZipArchive (fase F: ingestão ZIP / download ZIP do álbum).
+# ffmpeg — fase F: thumbnail e transcode de vídeo (ProcessAlbumVideoJob ou shell).
+# zip/unzip — CLI opcional para pipelines que não usem só ZipArchive.
 RUN apt-get update && apt-get install -y \
-    git unzip tzdata curl \
+    git zip unzip tzdata curl ffmpeg \
     libzip-dev libpq-dev libicu-dev libonig-dev libxml2-dev \
- && docker-php-ext-install pdo pdo_pgsql pgsql intl zip bcmath pcntl \
+    libpng-dev libjpeg62-turbo-dev libwebp-dev libfreetype6-dev \
+ && docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
+ && docker-php-ext-install pdo pdo_pgsql pgsql intl zip bcmath pcntl gd \
  && pecl install redis \
  && docker-php-ext-enable redis \
  && rm -rf /var/lib/apt/lists/*
@@ -35,6 +41,8 @@ RUN mkdir -p storage/app/public \
              bootstrap/cache && \
     chown -R deploy:deploy storage bootstrap && \
     chmod -R 775 storage bootstrap
+
+COPY docker/php/zz-uploads.ini /usr/local/etc/php/conf.d/zz-uploads.ini
 
 USER deploy
 

@@ -52,11 +52,11 @@ Um hub pessoal que:
 - Confirma recebimento com emoji + categoria
 
 ### F3 — Scraping Embasa
-- Fluxo: login CPF/senha → modal matrícula → `/segunda-via?pay=true` → extrai faturas
+- Fluxo: login CPF/senha → modal matrícula → `/segunda-via?pay=true` → extrai faturas; **se não houver débitos em aberto** na 2ª via (mensagem tipo *não possui débitos*), o scraper usa o carrossel **MINHAS CONTAS** na `/home` para referência, vencimento, consumo, valor total e status — sem quebrar o job; PDF só quando há fatura pendente para baixar na 2ª via
 - Sem CAPTCHA — Playwright puro
-- Extrai: referência, vencimento, consumo m³, valor água, valor esgoto, valor serviço, valor total, status
+- Extrai: referência, vencimento, consumo m³, valor água, valor esgoto, valor serviço, valor total, status (na home, água/esgoto/serviço podem não vir no HTML — total e consumo sim)
 - Status mapeados: `Aguardando pagamento` → pendente | `Conta Paga ✓` → pago | `Pagamento em processamento bancário` → processando
-- Baixa PDF da fatura pendente mais recente
+- Baixa PDF da fatura pendente mais recente quando o fluxo da 2ª via expõe o botão de download
 
 ### F4 — Scraping Coelba (Neoenergia)
 - Fluxo: login → modal CPF/senha → reCAPTCHA v3 (CapSolver) → selecionar estado Bahia → selecionar unidade consumidora → `/home/servicos/consultar-debitos`
@@ -78,6 +78,7 @@ Um hub pessoal que:
 
 ### F7 — Dashboard Web (Blade + Livewire)
 - Autenticação padrão Laravel Breeze
+- **Dashboard inicial (`/dashboard`):** cards com ícone, título e descrição para cada módulo do hub (config `hub_dashboard.php`), além do menu superior — novas áreas devem entrar nos dois até eventual simplificação
 - Contas: status atual, próximo vencimento, valor, histórico
 - Gráfico de consumo histórico (Embasa: m³ | Coelba: kWh e R$)
 - Lista de lembretes pessoais com filtro por categoria
@@ -93,6 +94,12 @@ Roadmap detalhado de **monitoramento profundo de grupos**, **transcrição**, **
 
 **Nota (2026):** a pilha técnica de IA (NeuronAI, roteamento Ollama→nuvem, gateway `/iara`) já está implementada — ver [SPEC.md](SPEC.md) / [LLM.md](LLM.md). No PRD permanece como **gap de produto** ligar os jobs WhatsApp e persistir classificações até o comportamento MVP (F2/F6) ficar verdadeiro ponta a ponta.
 
+### Álbuns de mídia (hub + viewer + contribuição)
+
+Produto **incremental** para organizar e compartilhar fotos/vídeos em álbuns (incluindo sub-álbuns), com armazenamento em **MinIO/S3**, painel autenticado e páginas públicas protegíveis (senha, token, one-time, lockout).
+
+**Estado (2026-05):** entregue em grande parte — CRUD e upload no hub (`/hub/albums`), viewer público com miniaturas e lightbox, processamento assíncrono de fotos, tipos de acesso endurecidos, **contribuição externa** (convidados enviam mídia após verificação por e-mail, com resumo ao dono por e-mail/WhatsApp). Documentação e roadmap da feature: [docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md). **Pendente:** Fase F (ZIP em lote, watermark, thumbs/transcode de vídeo via FFmpeg, tags, download ZIP do álbum).
+
 - RAG sobre histórico de faturas e lembretes (pgvector)
 - OCR em imagens recebidas via WhatsApp
 - Código PIX copiável enviado junto com o lembrete de vencimento
@@ -105,6 +112,7 @@ Roadmap detalhado de **monitoramento profundo de grupos**, **transcrição**, **
 ## Requisitos Não Funcionais
 
 - Stack principal em Docker na VPS (isolada em rede própria), incluindo **MinIO** e **Evolution** dedicados ao Hub
+- Limites de **upload HTTP** (álbuns, multipart): PHP (`docker/php/zz-uploads.ini` na imagem) e **Nginx** (container + proxy aaPanel) dimensionados para lotes — ver [SPEC.md](SPEC.md) e [CHANGELOG.md](CHANGELOG.md) **2026-05-10**
 - Deploy automatizado (GitHub Actions) com script na VPS (`deploy.sh`) que só rebuilda/reinstala/migra o necessário
 - Credenciais das concessionárias apenas no `.env`, nunca no banco
 - PDFs e mídia no MinIO (bucket configurável, típico `pessoal`), referência de path no banco

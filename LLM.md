@@ -16,6 +16,7 @@ captura de lembretes pessoais, e base para futuros projetos pessoais integrados.
 - `PRD.md` — requisitos de produto
 - `SPEC.md` — especificação técnica completa (leia antes de implementar qualquer coisa)
 - `docs/v2.md` — backlog e decisões da evolução V2 (grupos, permissões, pipelines AI); não duplicar no SPEC além do schema acordado
+- `docs/album/SPEC_media_albums.md` — **álbuns de mídia** (hub, viewer, contribuição externa, filas `media`/`notifications`); fonte da verdade para novas alterações nessa feature
 
 ---
 
@@ -29,6 +30,15 @@ Versões abaixo refletem o **ambiente de desenvolvimento local** atual (Node 24,
 - **Node**: 24 — runtime do serviço Playwright (local e container dedicado)
 - **PostgreSQL**: 17 — banco deste app (**não** usar MySQL para o Raphael Hub)
 - **NeuronAI**: pacote `neuron-core/neuron-ai` — não usar OpenAI SDK diretamente
+
+---
+
+## Dashboard e navegação do hub
+
+- O **`GET /dashboard`** lista as áreas do produto em **cards** (ícone, título, descrição curta). Os itens vêm de **`config/hub_dashboard.php`** (`route`, `title`, `description`, `icon`).
+- Ícones SVG: **`resources/views/components/hub/dashboard-icon.blade.php`** — ao criar `icon` novo, adicionar um `@case` correspondente.
+- **Nova área autenticada no hub:** atualizar **`config/hub_dashboard.php`**, **`resources/views/layouts/navigation.blade.php`** (links desktop e menu responsivo) e o componente de ícone se precisar de símbolo novo.
+- O **menu superior** permanece para acesso rápido; cards e menu devem refletir o mesmo conjunto de rotas até decidir reduzir um dos dois quando o espaço apertar.
 
 ---
 
@@ -64,9 +74,11 @@ Versões abaixo refletem o **ambiente de desenvolvimento local** atual (Node 24,
 ### Filas e Jobs
 
 - Fila `scraping` para Jobs do Playwright (timeout longo: 120s)
-- Fila `notifications` para Jobs de WhatsApp
+- Fila `notifications` para Jobs de WhatsApp e resumos leves (ex.: `NotificarVencimento`, `SendAlbumContributionDigestJob` para contribuições em álbuns)
+- Fila `media` para processamento pesado de mídia de álbuns (`ProcessAlbumPhotoJob` — GD/WebP; timeout maior no Horizon)
+- Fila `ai` para classificação IA (Threads / WhatsApp)
 - Fila `default` para o resto
-- Produção/dev com Redis: rodar `**php artisan horizon**` (workers para `default`+`notifications` e supervisor dedicado para `scraping`). Scripts Composer: `composer dev:horizon` em um terminal separado do `composer dev`.
+- Produção/dev com Redis: rodar `**php artisan horizon**` (supervisores para `default`+`notifications`, `scraping`, `ai`, `media`, etc.). Scripts Composer: `composer dev:horizon` em um terminal separado do `composer dev`.
 - Scheduler: `**php artisan schedule:work**` em dev (`composer dev:schedule`), ou cron em produção com `schedule:run` a cada minuto. Tasks novas ficam em `bootstrap/app.php` (`withSchedule`).
 - Sempre implementar `failed()` nos Jobs para logar erros
 - `$tries = 3` como padrão
@@ -160,6 +172,8 @@ Ordem fixa na cadeia: **Ollama (condicional) → Groq → Anthropic → OpenAI**
 - Playwright roda em container separado `raphael-playwright` na porta interna `3001`
 - O Laravel chama o Playwright via `http://raphael-playwright:3001` (nome do container na rede Docker)
 - PostgreSQL é containerizado — não usar o MySQL nativo do aaPanel
+- **Uploads (álbuns / multipart):** a imagem PHP carrega `docker/php/zz-uploads.ini`; o Nginx do Compose usa `docker/nginx/default.conf` (`client_max_body_size` alinhado ao `post_max_size`). O **Nginx do host** (aaPanel) precisa do mesmo limite de body na API. Alterou `.ini` ou `default.conf` → rebuild da imagem app + `up -d` do `nginx`.
+- **Imagem PHP:** inclui `ffmpeg` e `zip`/`unzip` no SO para a fase F de álbuns (código da Fase F ainda pode não usar).
 
 ---
 
@@ -169,7 +183,7 @@ Ordem fixa na cadeia: **Ollama (condicional) → Groq → Anthropic → OpenAI**
 - Acesso: `https://api.raphael-martins.com/horizon`
 - Protegido por email no `.env` (`HORIZON_AUTH_EMAILS`)
 - Publicar assets: `php artisan horizon:publish`
-- Filas configuradas: `default`, `scraping`, `notifications`
+- Filas configuradas: `default`, `scraping`, `notifications`, `ai`, `media` (ver `config/horizon.php`; worker Docker também pode listar `media` em `queue:work`)
 
 ---
 
@@ -182,6 +196,7 @@ Ordem fixa na cadeia: **Ollama (condicional) → Groq → Anthropic → OpenAI**
 5. **MinIO path style**: Sem `AWS_USE_PATH_STYLE_ENDPOINT=true` as requests falham com 403. Sempre incluir.
 6. **Evolution webhook**: Payload em `data` com `key` + `message`; ignorar `status@broadcast` e itens sem `message`. Mídia “para si mesmo” no 1:1 pode não gerar evento — ver grupo notas solo acima.
 7. **Postgres no Docker**: `DB_HOST` deve ser `raphael-postgres` (nome do container), não `127.0.0.1`, dentro dos containers. Com infra externa no host, usar `127.0.0.1` + porta mapeada.
+8. **Embasa sem débitos na 2ª via**: o site pode mostrar *“não possui débitos”*; o scraper em `playwright/src/embasa-scraper.js` extrai então o carrossel **MINHAS CONTAS** na `/home`. Esperado: JSON de sucesso com `faturas` e sem `pdf_path` quando não há pendência para baixar — não tratar como falha de scrape.
 
 ---
 

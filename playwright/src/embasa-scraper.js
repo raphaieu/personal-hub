@@ -10,6 +10,7 @@ import {
 } from "./utility-auth.js";
 
 const EMBASA_LOGIN_URL = "https://atendimentovirtual.embasa.ba.gov.br/login";
+const EMBASA_HOME_URL = "https://atendimentovirtual.embasa.ba.gov.br/home";
 const EMBASA_SECOND_VIA_URL = "https://atendimentovirtual.embasa.ba.gov.br/segunda-via?pay=true";
 const DOWNLOADS_DIR = process.env.PLAYWRIGHT_DOWNLOADS_DIR || path.resolve(process.cwd(), "playwright/downloads");
 const DEBUG_DIR =
@@ -242,6 +243,96 @@ async function submitEmbasaDebtsSearch(page, matricula) {
   }
 }
 
+/**
+ * Quando a 2ª via responde "não possui débitos", o PDF não existe — mas a home expõe o carrossel MINHAS CONTAS.
+ */
+async function extractEmbasaInvoicesFromHome(page) {
+  await page.waitForSelector(".card-minhas-contas .inner-card", { timeout: 25000 });
+
+  const data = await page.evaluate(() => {
+    const PT = {
+      janeiro: "01",
+      fevereiro: "02",
+      março: "03",
+      marco: "03",
+      abril: "04",
+      maio: "05",
+      junho: "06",
+      julho: "07",
+      agosto: "08",
+      setembro: "09",
+      outubro: "10",
+      novembro: "11",
+      dezembro: "12",
+    };
+
+    const stripDiacritics = (s) => s.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+
+    const cards = Array.from(document.querySelectorAll(".card-minhas-contas .inner-card"));
+
+    return cards.map((card) => {
+      const title =
+        card.querySelector("h3.title-card-carousel, h3.h6.title-card-carousel, h3.h6")?.textContent?.trim() || "";
+
+      const sections = Array.from(card.querySelectorAll(".section-data"));
+      const pickValue = (labelNeedle) => {
+        for (const sec of sections) {
+          const lab = sec.querySelector(".data-label-card")?.textContent?.trim() || "";
+          if (lab.toLowerCase().includes(labelNeedle.toLowerCase())) {
+            return sec.querySelector(".data-value-card")?.textContent?.trim() || null;
+          }
+        }
+        return null;
+      };
+
+      const vencimento = pickValue("Vencimento");
+      const consumo = pickValue("Consumo");
+      const valor = pickValue("Valor");
+
+      const statusBtn = Array.from(card.querySelectorAll("a.btn.stratched-link")).find(
+        (a) => !a.classList.contains("btn-a-pagar"),
+      );
+      const statusText = (statusBtn?.textContent || "").replace(/\s+/g, " ").trim();
+
+      const parts = title.split(/\s+/).filter(Boolean);
+      let referencia = null;
+      if (parts.length >= 2) {
+        const monthToken = stripDiacritics(parts[0]).toLowerCase();
+        const yearToken = parts[parts.length - 1];
+        const mm = PT[monthToken];
+        if (mm && /^\d{4}$/.test(yearToken)) {
+          referencia = `${mm}/${yearToken}`;
+        }
+      }
+
+      return {
+        referencia,
+        vencimento,
+        consumo_m3: consumo,
+        valor_total: valor,
+        status_raw: statusText || null,
+      };
+    });
+  });
+
+  return data
+    .map((invoice) => ({
+      referencia: invoice.referencia,
+      vencimento: normalizeDate(invoice.vencimento),
+      consumo_m3:
+        invoice.consumo_m3 != null && String(invoice.consumo_m3).trim() !== ""
+          ? Number(String(invoice.consumo_m3).replace(/[^\d]/g, "")) || null
+          : null,
+      valor_agua: null,
+      valor_esgoto: null,
+      valor_servico: null,
+      valor_total: normalizeMoney(invoice.valor_total),
+      status: mapEmbasaStatus(invoice.status_raw || ""),
+      status_raw: invoice.status_raw,
+    }))
+    .filter((row) => row.referencia && row.vencimento);
+}
+
 async function extractEmbasaInvoices(page) {
   const data = await page.evaluate(() => {
     const normalize = (value) => (value || "").replace(/\s+/g, " ").trim();
@@ -298,6 +389,39 @@ async function extractEmbasaInvoices(page) {
   }));
 }
 
+/**
+ * Após "PRÓXIMO" na 2ª via: extrai da tabela de débitos ou, se não houver débitos em aberto, vai à home (MINHAS CONTAS).
+ */
+async function loadEmbasaFaturasAfterSecondViaSearch(page, matricula) {
+  await page.waitForTimeout(2000);
+
+  const bodyText = (await page.locator("body").innerText().catch(() => "")) || "";
+  const noOpenDebts = /não possui débitos/i.test(bodyText);
+
+  if (!noOpenDebts) {
+    await page.waitForTimeout(600);
+    const fromDebtsPage = await extractEmbasaInvoices(page);
+    if (fromDebtsPage.length > 0) {
+      return fromDebtsPage;
+    }
+  }
+
+  await page.goto(EMBASA_HOME_URL, { waitUntil: "domcontentloaded" });
+  await page.waitForTimeout(1200);
+  await selectEmbasaMatricula(page, matricula);
+  await page.waitForTimeout(800);
+
+  const fromHome = await extractEmbasaInvoicesFromHome(page);
+  if (fromHome.length === 0) {
+    const screenshotPath = await captureDebugScreenshot(page, "embasa-home-carousel-empty");
+    throw new Error(
+      `Embasa: sem faturas na 2ª via e carrossel MINHAS CONTAS vazio ou ilegível. Screenshot: ${screenshotPath}`,
+    );
+  }
+
+  return fromHome;
+}
+
 export async function scrapeEmbasa() {
   const matricula = process.env.EMBASA_MATRICULA;
   if (!matricula) {
@@ -320,14 +444,7 @@ export async function scrapeEmbasa() {
 
         await submitEmbasaDebtsSearch(page, matricula);
 
-        try {
-          await page.waitForSelector('h5:has-text("Débitos da Matrícula"), .content-header h5', { timeout: 35000 });
-          await page.waitForTimeout(1500);
-        } catch {
-          const screenshotPath = await captureDebugScreenshot(page, "embasa-invoices-not-found");
-          throw new Error(`Dados de débitos da Embasa não carregaram após PRÓXIMO. Screenshot: ${screenshotPath}`);
-        }
-        const invoices = await extractEmbasaInvoices(page);
+        const invoices = await loadEmbasaFaturasAfterSecondViaSearch(page, matricula);
 
         const latestPending = invoices.find((invoice) => invoice.status === "pendente");
         const pdfPath = latestPending ? await downloadEmbasaPdf(page, latestPending.referencia || "") : null;

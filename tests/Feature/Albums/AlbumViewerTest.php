@@ -1,0 +1,307 @@
+<?php
+
+namespace Tests\Feature\Albums;
+
+use App\Models\Album;
+use App\Models\AlbumLockout;
+use App\Models\AlbumMedia;
+use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\URL;
+use Tests\TestCase;
+
+final class AlbumViewerTest extends TestCase
+{
+    use RefreshDatabase;
+
+    public function test_public_album_viewer_is_accessible(): void
+    {
+        $album = Album::query()->create([
+            'slug' => 'album-publico',
+            'title' => 'Album Publico',
+            'access_type' => 'public',
+        ]);
+
+        $this->get(route('albums.viewer', ['slug' => $album->slug]))
+            ->assertOk()
+            ->assertSee('Album Publico');
+    }
+
+    public function test_password_album_requires_auth_screen(): void
+    {
+        $album = Album::query()->create([
+            'slug' => 'album-senha',
+            'title' => 'Album Senha',
+            'access_type' => 'password',
+            'password_hash' => bcrypt('1234'),
+        ]);
+
+        $this->get(route('albums.viewer', ['slug' => $album->slug]))
+            ->assertOk()
+            ->assertSee('protegido por senha');
+    }
+
+    public function test_password_album_authenticates_and_allows_viewer(): void
+    {
+        $album = Album::query()->create([
+            'slug' => 'album-auth',
+            'title' => 'Album Auth',
+            'access_type' => 'password',
+            'password_hash' => bcrypt('1234'),
+        ]);
+
+        $this->post(route('albums.viewer.auth', ['slug' => $album->slug]), [
+            'password' => '1234',
+        ])->assertRedirect(route('albums.viewer', ['slug' => $album->slug]));
+
+        $this->get(route('albums.viewer', ['slug' => $album->slug]))
+            ->assertOk()
+            ->assertSee('Album Auth');
+    }
+
+    public function test_locked_album_returns_404(): void
+    {
+        $album = Album::query()->create([
+            'slug' => 'album-lock',
+            'title' => 'Album Lock',
+            'access_type' => 'public',
+            'is_locked' => true,
+        ]);
+
+        $this->get(route('albums.viewer', ['slug' => $album->slug]))
+            ->assertNotFound();
+    }
+
+    public function test_token_album_requires_valid_token_query_param(): void
+    {
+        $album = Album::query()->create([
+            'slug' => 'album-token',
+            'title' => 'Album Token',
+            'access_type' => 'token',
+            'token' => 'abc123token',
+            'token_expires_at' => now()->addHour(),
+        ]);
+
+        $this->get(route('albums.viewer', ['slug' => $album->slug]))
+            ->assertNotFound();
+
+        $this->get(route('albums.viewer', ['slug' => $album->slug, 'token' => 'abc123token']))
+            ->assertOk()
+            ->assertSee('Album Token');
+    }
+
+    public function test_one_time_album_allows_first_access_and_blocks_second_session(): void
+    {
+        $album = Album::query()->create([
+            'slug' => 'album-one-time',
+            'title' => 'Album One Time',
+            'access_type' => 'one_time',
+            'token' => 'one-time-token',
+            'token_expires_at' => now()->addHour(),
+        ]);
+
+        $this->get(route('albums.viewer', ['slug' => $album->slug, 'token' => 'one-time-token']))
+            ->assertOk()
+            ->assertSee('Album One Time');
+
+        $this->flushSession();
+
+        $this->get(route('albums.viewer', ['slug' => $album->slug, 'token' => 'one-time-token']))
+            ->assertNotFound();
+    }
+
+    public function test_password_album_creates_lockout_after_consecutive_failures(): void
+    {
+        config(['services.albums.brute_force_max_attempts' => 2]);
+
+        $album = Album::query()->create([
+            'slug' => 'album-lockout',
+            'title' => 'Album Lockout',
+            'access_type' => 'password',
+            'password_hash' => bcrypt('1234'),
+        ]);
+
+        $this->post(route('albums.viewer.auth', ['slug' => $album->slug]), ['password' => 'wrong'])
+            ->assertSessionHasErrors('password');
+        $this->post(route('albums.viewer.auth', ['slug' => $album->slug]), ['password' => 'wrong'])
+            ->assertSessionHasErrors('password');
+
+        $this->assertDatabaseHas('album_lockouts', [
+            'album_id' => $album->id,
+            'unlocked_at' => null,
+        ]);
+
+        $lockout = AlbumLockout::query()->where('album_id', $album->id)->first();
+        $this->assertNotNull($lockout);
+    }
+
+    public function test_media_view_requires_signed_url_and_streams_file(): void
+    {
+        Storage::fake('s3');
+
+        $album = Album::query()->create([
+            'slug' => 'album-media',
+            'title' => 'Album Media',
+            'access_type' => 'public',
+        ]);
+
+        $media = AlbumMedia::query()->create([
+            'album_id' => $album->id,
+            'type' => 'photo',
+            'original_path' => 'albums/'.$album->id.'/original/media.jpg',
+            'filename_original' => 'media.jpg',
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 1234,
+            'processing_status' => 'done',
+        ]);
+
+        Storage::disk('s3')->put($media->original_path, 'fake-image-content');
+
+        $this->get(route('albums.media.view', ['slug' => $album->slug, 'media' => $media->id]))
+            ->assertForbidden();
+
+        $signed = URL::temporarySignedRoute(
+            'albums.media.view',
+            now()->addMinutes(15),
+            ['slug' => $album->slug, 'media' => $media->id]
+        );
+
+        $this->get($signed)
+            ->assertOk()
+            ->assertHeader('content-type', 'image/jpeg');
+    }
+
+    public function test_media_download_is_blocked_when_album_download_disabled(): void
+    {
+        Storage::fake('s3');
+
+        $album = Album::query()->create([
+            'slug' => 'album-no-download',
+            'title' => 'Album No Download',
+            'access_type' => 'public',
+            'download_enabled' => false,
+        ]);
+
+        $media = AlbumMedia::query()->create([
+            'album_id' => $album->id,
+            'type' => 'photo',
+            'original_path' => 'albums/'.$album->id.'/original/media.jpg',
+            'filename_original' => 'media.jpg',
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 1234,
+            'processing_status' => 'done',
+        ]);
+
+        Storage::disk('s3')->put($media->original_path, 'fake-image-content');
+
+        $signed = URL::temporarySignedRoute(
+            'albums.media.download',
+            now()->addMinutes(15),
+            ['slug' => $album->slug, 'media' => $media->id]
+        );
+
+        $this->get($signed)->assertForbidden();
+    }
+
+    public function test_viewer_renders_photo_while_processing_uses_original_stream(): void
+    {
+        Storage::fake('s3');
+
+        $album = Album::query()->create([
+            'slug' => 'viewer-pending',
+            'title' => 'Viewer Pending',
+            'access_type' => 'public',
+        ]);
+
+        $media = AlbumMedia::query()->create([
+            'album_id' => $album->id,
+            'type' => 'photo',
+            'original_path' => 'albums/'.$album->id.'/original/p.jpg',
+            'filename_original' => 'p.jpg',
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 100,
+            'processing_status' => 'pending',
+        ]);
+
+        Storage::disk('s3')->put($media->original_path, 'fake-bytes');
+
+        $this->get(route('albums.viewer', ['slug' => $album->slug]))
+            ->assertOk()
+            ->assertSee('Viewer Pending', false)
+            ->assertSee('<img', false)
+            ->assertSee('Gerando miniaturas', false);
+    }
+
+    public function test_viewer_grid_uses_thumb_url_and_lightbox_data_includes_medium(): void
+    {
+        Storage::fake('s3');
+
+        $album = Album::query()->create([
+            'slug' => 'lightbox',
+            'title' => 'Lightbox',
+            'access_type' => 'public',
+            'download_enabled' => true,
+        ]);
+
+        $media = AlbumMedia::query()->create([
+            'album_id' => $album->id,
+            'type' => 'photo',
+            'original_path' => 'albums/'.$album->id.'/original/o.jpg',
+            'thumb_path' => 'albums/'.$album->id.'/thumbs/t.webp',
+            'medium_path' => 'albums/'.$album->id.'/medium/m.webp',
+            'filename_original' => 'foto.jpg',
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 100,
+            'processing_status' => 'done',
+        ]);
+
+        Storage::disk('s3')->put($media->original_path, 'orig');
+        Storage::disk('s3')->put($media->thumb_path, 'thumb');
+        Storage::disk('s3')->put($media->medium_path, 'medium');
+
+        $response = $this->get(route('albums.viewer', ['slug' => $album->slug]));
+
+        $response->assertOk()
+            ->assertSee('data-album-open', false)
+            ->assertSee('album-lightbox', false)
+            ->assertSee('variant=thumb', false)
+            ->assertSee('variant=medium', false);
+    }
+
+    public function test_media_view_variant_thumb_streams_thumb_path_and_webp_mime(): void
+    {
+        Storage::fake('s3');
+
+        $album = Album::query()->create([
+            'slug' => 'variant-thumb',
+            'title' => 'Variant Thumb',
+            'access_type' => 'public',
+        ]);
+
+        $media = AlbumMedia::query()->create([
+            'album_id' => $album->id,
+            'type' => 'photo',
+            'original_path' => 'albums/'.$album->id.'/original/o.jpg',
+            'thumb_path' => 'albums/'.$album->id.'/thumbs/t.webp',
+            'medium_path' => 'albums/'.$album->id.'/medium/m.webp',
+            'filename_original' => 'foto.jpg',
+            'mime_type' => 'image/jpeg',
+            'size_bytes' => 100,
+            'processing_status' => 'done',
+        ]);
+
+        Storage::disk('s3')->put($media->original_path, 'orig');
+        Storage::disk('s3')->put($media->thumb_path, 'thumb-bytes');
+        Storage::disk('s3')->put($media->medium_path, 'medium-bytes');
+
+        $signed = URL::temporarySignedRoute(
+            'albums.media.view',
+            now()->addMinutes(15),
+            ['slug' => $album->slug, 'media' => $media->id, 'variant' => 'thumb']
+        );
+
+        $response = $this->get($signed);
+        $response->assertOk()->assertHeader('content-type', 'image/webp');
+        $this->assertSame('thumb-bytes', $response->streamedContent());
+    }
+}
