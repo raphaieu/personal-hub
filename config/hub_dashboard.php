@@ -52,5 +52,11 @@ return [
             'description' => 'Galerias, upload, contribuição externa e viewer público.',
             'icon' => 'albums',
         ],
+        [
+            'route' => 'events.hub',
+            'title' => 'Eventos',
+            'description' => 'Eventos privados, convidados, links de lista e API pública para o front.',
+            'icon' => 'events',
+        ],
     ],
 ];

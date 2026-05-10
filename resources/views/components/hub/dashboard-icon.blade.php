@@ -40,6 +40,11 @@
             <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3A1.5 1.5 0 001.5 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008H15V10.5z" />
         </svg>
         @break
+    @case('events')
+        <svg {{ $attributes->merge(['class' => $common]) }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 012.25-2.25h13.5A2.25 2.25 0 0121 7.5v11.25m-18 0A2.25 2.25 0 005.25 21h13.5a2.25 2.25 0 002.25-2.25m-18 0v-9.75m18 9.75v-9.75m-18 0h18M12 6.75h.008v.008H12V6.75z" />
+        </svg>
+        @break
     @default
         <svg {{ $attributes->merge(['class' => $common]) }} xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 16.875h3.375m0 0h3.375m-3.375 0V13.5m0 3.375v3.375M6 10.5h3.75m-3.75 0a3 3 0 11-6 0 3 3 0 016 0zm12 3.75h3.75m-3.75 0a3 3 0 11-6 0 3 3 0 016 0zm-12 3.75h3.75m-3.75 0a3 3 0 11-6 0 3 3 0 016 0z" />
