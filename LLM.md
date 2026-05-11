@@ -1,45 +1,48 @@
 # LLM.md — Raphael Hub
 
-Instruções para agentes de IA (Codex, Gemini, Claude Code, Cursor, etc.) ao trabalhar neste projeto.  
-Leia este arquivo inteiro antes de escrever qualquer código.
+Instruções para agentes de IA (Codex, Gemini, Claude Code, Cursor, etc.) ao trabalhar neste projeto.
+Ler este arquivo inteiro antes de escrever qualquer código.
 
 ---
 
 ## O que é este projeto
 
-Sistema pessoal de automação doméstica do Raphael via WhatsApp + dashboard web.
-Scraping de contas Embasa (água) e Coelba (luz), notificações para grupo familiar,
-captura de lembretes pessoais, e base para futuros projetos pessoais integrados.
+Plataforma pessoal de automação operada via WhatsApp + dashboard web. Módulos atuais: faturas Embasa/Coelba, inbox WhatsApp, Threads e Oportunidades, eventos privados, álbuns de mídia. Detalhes em [PRD.md](PRD.md).
 
 **Documentos de referência obrigatórios:**
 
-- `PRD.md` — requisitos de produto
-- `SPEC.md` — especificação técnica completa (leia antes de implementar qualquer coisa)
-- `docs/v2.md` — backlog e decisões da evolução V2 (grupos, permissões, pipelines AI); não duplicar no SPEC além do schema acordado
-- `docs/album/SPEC_media_albums.md` — **álbuns de mídia** (hub, viewer, contribuição externa, filas `media`/`notifications`); fonte da verdade para novas alterações nessa feature
-- `docs/events/SPEC_events_v1.md` — **eventos privados**: hub `/hub/events`, API `/api/v1/events/{slug}/config|register`, dupla confirmação por e-mail (`pending_email` → link → `GuestTicketMail` com PDF + QR SVG), convites `GuestInviteMail` + PDF, portaria `GET /events-checkin` (layout dedicado, `html5-qrcode`, manifest PWA), DomPDF em `resources/views/pdf/events/`; fonte da verdade para esta feature
+- [PRD.md](PRD.md) — visão de produto e descrição dos módulos atuais.
+- [SPEC.md](SPEC.md) — índice técnico (banco transversal, filas, schedule, autenticação).
+- [docs/core/SPEC.md](docs/core/SPEC.md) — IA (NeuronAI, AiRouter, Iara), `analysis_profiles`, `monitored_sources`, dashboard.
+- [docs/whatsapp/SPEC.md](docs/whatsapp/SPEC.md) — webhook Evolution, `WebhookRouterService`, `message_logs`, jobs de análise.
+- [docs/utilities/SPEC.md](docs/utilities/SPEC.md) — Embasa/Coelba, Playwright, `InvoiceService`, schedule.
+- [docs/threads/SPEC.md](docs/threads/SPEC.md) — scraping autenticado, classificação, hub, feed público.
+- [docs/events/SPEC.md](docs/events/SPEC.md) — eventos privados, registro, ingresso PDF/QR, portaria.
+- [docs/album/SPEC.md](docs/album/SPEC.md) — álbuns, viewer, contribuição externa.
+- [docs/operations/SPEC.md](docs/operations/SPEC.md) — Docker, deploy, Playwright, limites Nginx/PHP, dev local.
+- [docs/roadmap/BACKLOG.md](docs/roadmap/BACKLOG.md) — backlog de evolução; não duplicar nas SPECs.
 
 ---
 
 ## Stack e versões
 
-Versões abaixo refletem o **ambiente de desenvolvimento local** atual (Node 24, PHP 8.4, Postgres 17). Produção pode fixar minors no Dockerfile/CI — manter compatível com Laravel 12 e drivers oficiais.
+Versões abaixo refletem o **ambiente de desenvolvimento local** atual. Produção pode fixar minors no Dockerfile/CI.
 
-- **PHP**: 8.4 — usar features modernas (readonly, enums, fibers, match, named args)
-- **Laravel**: 13 — sem versões anteriores de sintaxe
-- **Livewire**: 4 — sem Livewire 3
-- **Node**: 24 — runtime do serviço Playwright (local e container dedicado)
-- **PostgreSQL**: 17 — banco deste app (**não** usar MySQL para o Raphael Hub)
-- **NeuronAI**: pacote `neuron-core/neuron-ai` — não usar OpenAI SDK diretamente
+- **PHP**: 8.4 — features modernas (readonly, enums, fibers, match, named args).
+- **Laravel**: 13 — sem sintaxe de versões anteriores.
+- **Livewire**: 4 — sem Livewire 3.
+- **Node**: 24 — runtime do serviço Playwright.
+- **PostgreSQL**: 17 com `pgvector` instalado — **não** usar MySQL para o Raphael Hub.
+- **NeuronAI**: pacote `neuron-core/neuron-ai` — não usar SDK de provider direto.
 
 ---
 
 ## Dashboard e navegação do hub
 
-- O **`GET /dashboard`** lista as áreas do produto em **cards** (ícone, título, descrição curta). Os itens vêm de **`config/hub_dashboard.php`** (`route`, `title`, `description`, `icon`).
-- Ícones SVG: **`resources/views/components/hub/dashboard-icon.blade.php`** — ao criar `icon` novo, adicionar um `@case` correspondente.
-- **Nova área autenticada no hub:** atualizar **`config/hub_dashboard.php`**, **`resources/views/layouts/navigation.blade.php`** (links desktop e menu responsivo) e o componente de ícone se precisar de símbolo novo.
-- O **menu superior** permanece para acesso rápido; cards e menu devem refletir o mesmo conjunto de rotas até decidir reduzir um dos dois quando o espaço apertar.
+- **`GET /dashboard`** lista módulos em cards (ícone, título, descrição). Itens vêm de `config/hub_dashboard.php` (`route`, `title`, `description`, `icon`).
+- Ícones em `resources/views/components/hub/dashboard-icon.blade.php` — adicionar `@case` ao criar `icon` novo.
+- **Nova área autenticada no hub**: atualizar `config/hub_dashboard.php`, `resources/views/layouts/navigation.blade.php` (links desktop + responsivo) e o componente de ícone se for símbolo novo.
+- Cards e menu refletem o mesmo conjunto de rotas até decidir reduzir um dos dois.
 
 ---
 
@@ -47,93 +50,78 @@ Versões abaixo refletem o **ambiente de desenvolvimento local** atual (Node 24,
 
 ### Geral
 
-- Todo código em **inglês** (variáveis, métodos, classes, apenas os comentários inline em pt-br)
-- Strings de usuário e mensagens WhatsApp em **português brasileiro**
-- Tipagem estrita em todo o PHP — sempre declarar tipos de retorno e parâmetros
-- Usar `readonly` em DTOs e Value Objects quando aplicável
-- Preferir `match` a `switch`
-- Nunca usar `array` sem tipagem quando um DTO resolve melhor
+- Código em **inglês** (variáveis, métodos, classes). Comentários inline em pt-BR.
+- Strings de usuário e mensagens WhatsApp em **português brasileiro**.
+- Tipagem estrita em todo PHP — sempre declarar tipos de retorno e parâmetros.
+- `readonly` em DTOs e Value Objects.
+- Preferir `match` a `switch`.
+- Nunca usar `array` sem tipagem quando um DTO resolve melhor.
 
 ### Laravel
 
-- Services para lógica de negócio — Controllers só orquestram
-- Jobs para tudo que pode ser assíncrono — nunca processar na requisição HTTP
-- Usar `firstOrCreate` / `updateOrCreate` para evitar duplicatas
-- Migrations sempre com `down()` implementado
-- Seeders apenas para dados iniciais fixos (contas Embasa/Coelba, source 'self')
-- Factories para testes — não para produção
-- Validação nos Form Requests, nunca inline no Controller
-- Cache de configuração, rotas e views sempre em produção
+- Services para lógica de negócio — Controllers só orquestram.
+- Jobs para tudo assíncrono — nunca processar na requisição HTTP.
+- `firstOrCreate` / `updateOrCreate` para evitar duplicatas.
+- Migrations sempre com `down()` implementado.
+- Seeders apenas para dados iniciais fixos.
+- Factories para testes — não para produção.
+- Validação em Form Requests, nunca inline no Controller.
+- Cache de configuração, rotas e views sempre em produção.
 
 ### Credenciais e segurança
 
-- **Nunca** salvar CPF, senha ou API keys no banco de dados
-- Credenciais das concessionárias vêm **exclusivamente do `.env`**
-- O campo de credenciais na tabela `utility_accounts` (quando existir) é apenas referência (ex.: qual ENV var usar)
-- WHATSAPP_GRUPO_CASA_JID deve estar no `.env`, nunca hardcoded
+- **Nunca** salvar CPF, senha ou API key no banco.
+- Credenciais das concessionárias vêm exclusivamente do `.env`.
+- Campo de credenciais em `utility_accounts` (se existir) é apenas referência (qual ENV var usar).
+- JIDs de grupo (`WHATSAPP_GRUPO_CASA_JID`, `WHATSAPP_NOTAS_GRUPO_JID`) no `.env`, nunca hardcoded.
 
 ### Filas e Jobs
 
-- Fila `scraping` para Jobs do Playwright (timeout longo: 120s)
-- Fila `notifications` para Jobs de WhatsApp e resumos leves (ex.: `NotificarVencimento`, `SendAlbumContributionDigestJob` para contribuições em álbuns)
-- Fila `media` para processamento pesado de mídia de álbuns (`ProcessAlbumPhotoJob` — GD/WebP; timeout maior no Horizon)
-- Fila `ai` para classificação IA (Threads / WhatsApp)
-- Fila `default` para o resto
-- Produção/dev com Redis: rodar `**php artisan horizon**` (supervisores para `default`+`notifications`, `scraping`, `ai`, `media`, etc.). Scripts Composer: `composer dev:horizon` em um terminal separado do `composer dev`.
-- Scheduler: `**php artisan schedule:work**` em dev (`composer dev:schedule`), ou cron em produção com `schedule:run` a cada minuto. Tasks novas ficam em `bootstrap/app.php` (`withSchedule`).
-- Sempre implementar `failed()` nos Jobs para logar erros
-- `$tries = 3` como padrão
+- `scraping`: Playwright (timeout longo, 120s).
+- `notifications`: WhatsApp e digests leves (`NotificarVencimento`, `SendAlbumContributionDigestJob`).
+- `media`: processamento pesado de álbuns (`ProcessAlbumPhotoJob`).
+- `ai`: classificação IA (Threads + WhatsApp).
+- `default`: o resto.
+- Em dev/prod com Redis: rodar `php artisan horizon`. Scripts Composer: `composer dev:horizon` em terminal separado de `composer dev`.
+- Scheduler: `php artisan schedule:work` em dev, cron com `schedule:run` em produção. Tasks novas em `bootstrap/app.php` (`withSchedule`).
+- Sempre implementar `failed()` nos Jobs para logar erros.
+- `$tries = 3` como padrão.
 
 ### Playwright (Node)
 
-- Sempre `headless: true` com `--no-sandbox` nos args
-- Sempre fechar o browser no `finally` — nunca deixar vazar
-- Seletores na ordem de preferência: texto visível > placeholder > name > class
-- Logar cada step com timestamp para facilitar debug de seletores quebrados
-- Downloads salvos em `/app/downloads/` com timestamp no nome
+- Sempre `headless: true` com `--no-sandbox` nos args.
+- Sempre fechar o browser no `finally` — nunca deixar vazar.
+- Seletores em ordem de preferência: texto visível > placeholder > name > class.
+- Logar cada step com timestamp para debug de seletores quebrados.
+- Downloads em `/app/downloads/` com timestamp no nome.
 
 ---
 
-## Integração Evolution API
+## Integrações principais — resumo
 
-A Evolution API roda na **stack Docker do Raphael Hub** (serviço dedicado — ver `docker-compose.yml`). A URL base da API vem de `**EVOLUTION_URL`** no `.env` (baseline em `.env.example`: `https://evo.raphael-martins.com`).
-A instância para este projeto chama-se `raphael` (número pessoal do Raphael).
-**Não** assumir URLs ou instâncias de outros projetos — sempre conferir o `.env` ativo.
+Para detalhes, ler a SPEC do módulo. Aqui ficam só os ganchos críticos.
 
-**Webhook Laravel:** `POST /webhook/whatsapp` → produção `https://api.raphael-martins.com/webhook/whatsapp`.
+### Evolution API
 
-**Eventos:** habilitar pelo menos `MESSAGES_UPSERT` e, se quiser redundância com envios, `SEND_MESSAGE`. O código normaliza nomes (`MESSAGES_UPSERT` → `messages.upsert`, `SEND_MESSAGE` → `send.message`) em `EvolutionWebhookPayloadNormalizer`.
+A Evolution roda na stack Docker do hub (serviço dedicado). URL base em `EVOLUTION_URL`, instância `raphael`, key `EVOLUTION_API_KEY`. Webhook do Laravel: `POST /webhook/whatsapp`. Detalhes (eventos habilitados, formato do body, grupo notas solo, auth do webhook) em [docs/whatsapp/SPEC.md](docs/whatsapp/SPEC.md).
 
-**Formato do body:** muitas vezes `data` é um **objeto único** com `key` + `message` + `messageType` (sem array `messages[]`). O extrator suporta os dois formatos. Mensagens com wrappers Baileys (`ephemeralMessage`, etc.) são desembrulhadas no `EvolutionMessagesUpsertExtractor`.
-
-**Auth:** `EVOLUTION_WEBHOOK_SECRET` deve coincidir com o `**apikey` no JSON** do body e/ou headers `apikey`, `Authorization: Bearer`, `x-api-key`.
-
-**Grupo “notas solo” (workaround):** mídia no chat 1:1 consigo mesmo costuma **não** disparar webhook na Evolution; uso de um **grupo só com você** faz a mídia chegar. No banco a fonte é `monitored_sources.kind = group`; o `**WHATSAPP_NOTAS_GRUPO_JID`** (`.env`) faz o `WebhookRouterService` despachar `**ProcessPersonalWhatsAppMessage**` em vez de `ProcessGroupWhatsAppMessage` para esse JID. O grupo familiar de faturas continua em `WHATSAPP_GRUPO_CASA_JID` (outro JID).
-
-**Logs:** em produção o webhook não loga payload completo. Com `APP_DEBUG=true`, um `Log::debug` resume `correlation_id` e `routing`. Falhas de credencial geram `Log::warning`.
-
-### JIDs Evolution
-
+**JIDs:**
 - Número individual: `5511948863848@s.whatsapp.net`
 - Grupo: `120363XXXXXXXX@g.us`
-- `fromMe = true` significa que a mensagem foi enviada pelo próprio número cadastrado
+- `fromMe = true` significa mensagem enviada pelo próprio número da instância.
 
----
+### MinIO
 
-## Integração MinIO
+- Endpoint público: `https://files.raphael-martins.com`.
+- Dentro do Compose o Laravel usa hostname do serviço (`AWS_ENDPOINT=http://minio:9000`).
+- Bucket: `pessoal` (criar se não existir).
+- `AWS_USE_PATH_STYLE_ENDPOINT=true` é **obrigatório**.
+- Path padrão dos PDFs: `faturas/{embasa|coelba}/{referencia_sanitizada}_{timestamp}.pdf`.
+- Laravel usa `Storage::disk('s3')`.
 
-- Endpoint público (browser / links): `https://files.raphael-martins.com`
-- Dentro do Compose o Laravel usa o hostname do serviço (ex.: `AWS_ENDPOINT=http://minio:9000` — ver `.env.example`)
-- Bucket: `pessoal` (criar se não existir)
-- `AWS_USE_PATH_STYLE_ENDPOINT=true` — obrigatório para MinIO
-- Path dos PDFs: `faturas/{embasa|coelba}/{referencia_sanitizada}_{timestamp}.pdf`
-- O Laravel usa `Storage::disk('s3')` — configurado via variáveis AWS_* no `.env`
+### NeuronAI
 
----
-
-## Integração NeuronAI
-
-Pacote: **`neuron-core/neuron-ai`**. Groq usa API compatível OpenAI — classe **`NeuronAI\Providers\OpenAILike`** (namespace correto; não existe subpasta `OpenAILike\OpenAILike`):
+Pacote `neuron-core/neuron-ai`. Groq via `NeuronAI\Providers\OpenAILike`:
 
 ```php
 use NeuronAI\Providers\OpenAILike;
@@ -145,142 +133,71 @@ new OpenAILike(
 );
 ```
 
-### Roteamento implementado (`AiRouterService`)
+**Roteamento (`AiRouterService`):** Ollama (se habilitado e prompt curto) → Groq → Anthropic → OpenAI. Falha (HTTP, timeout, resposta vazia, JSON inválido com `expect_json=true`) tenta o próximo. Logs `ai.completion` / `ai.completion_failure`. Façade `NeuronAIService::complete(...)` — não duplicar SDKs fora dessa camada.
 
-| Etapa | Comportamento |
-|-------|----------------|
-| Ollama | Primeiro quando `OLLAMA_ENABLED=true`, tarefa não é “só nuvem”, prompt ≤ `AI_PROMPT_LONG_THRESHOLD`. Timeout HTTP do chat: `AI_OLLAMA_TIMEOUT_SIMPLE` (segundos; default **45** — `/api/tags` não reflete latência do `/api/chat`). Parâmetro `think` vem de `OLLAMA_THINK`. |
-| Groq | `OpenAILike` + `GROQ_*`; timeout `AI_GROQ_TIMEOUT`. |
-| Anthropic / OpenAI | Fallback se chaves existirem; timeouts em `config/ai.php`. |
+**Gateway `POST /iara`:** chamar a API de produção sem Ollama local. Header `X-Internal-Key` (mesmo valor que `IARA_INTERNAL_KEY` no servidor) obrigatório fora de `local`/`testing`. Detalhes em [docs/core/SPEC.md](docs/core/SPEC.md).
 
-Ordem fixa na cadeia: **Ollama (condicional) → Groq → Anthropic → OpenAI**. Falha (HTTP, timeout, resposta vazia, ou JSON inválido quando `expect_json=true`) tenta o próximo. Logs estruturados: `ai.completion`, `ai.completion_failure`.
+Variáveis como `AI_PRIMARY_PROVIDER` **não** são lidas pelo código — o roteamento é o `AiRouterService`.
 
-**Façade:** `NeuronAIService::complete(...)`. Providers HTTP não devem ser duplicados com SDK cru fora dessa camada.
+### Docker
 
-### Gateway `POST /iara`
+- `PUID=1003` / `PGID=1003` — usuário `deploy` na VPS.
+- Todos os containers Laravel usam a imagem `raphael-hub:latest`.
+- Network: `raphael-bridge` (isolada).
+- Playwright em container separado `raphael-playwright` na porta interna `3001`. Laravel chama via `http://raphael-playwright:3001`.
+- PostgreSQL containerizado — não usar o MySQL nativo do aaPanel.
+- **Uploads (álbuns/multipart)**: imagem PHP carrega `docker/php/zz-uploads.ini`; Nginx do Compose usa `docker/nginx/default.conf` (`client_max_body_size` alinhado a `post_max_size`). Nginx do **host (aaPanel)** precisa do mesmo limite. Mudou `.ini` ou `default.conf` → rebuild da imagem app + `up -d` do `nginx`.
+- Imagem PHP inclui `ffmpeg` e `zip`/`unzip` no SO (preparação para fase F de álbuns).
 
-Útil para **testar da máquina local contra a VPS** sem Ollama no notebook: chamar `https://api.raphael-martins.com/iara` com `X-Internal-Key` (mesmo valor que `IARA_INTERNAL_KEY` no servidor). Em `local`/`testing` a chave não é obrigatória. Detalhes no [SPEC.md](SPEC.md) e comentários por perfil no `.env.example`.
+Detalhes operacionais completos em [docs/operations/SPEC.md](docs/operations/SPEC.md).
 
-**Nota:** variáveis como `AI_PRIMARY_PROVIDER` **não** são lidas pelo código — o roteamento é só o `AiRouterService`.
+### Horizon
 
----
-
-## Docker
-
-- `PUID=1003` / `PGID=1003` — usuário `deploy` na VPS
-- Todos os containers Laravel usam a mesma imagem `raphael-hub:latest`
-- Network: `raphael-bridge` — isolada dos demais projetos na VPS
-- Playwright roda em container separado `raphael-playwright` na porta interna `3001`
-- O Laravel chama o Playwright via `http://raphael-playwright:3001` (nome do container na rede Docker)
-- PostgreSQL é containerizado — não usar o MySQL nativo do aaPanel
-- **Uploads (álbuns / multipart):** a imagem PHP carrega `docker/php/zz-uploads.ini`; o Nginx do Compose usa `docker/nginx/default.conf` (`client_max_body_size` alinhado ao `post_max_size`). O **Nginx do host** (aaPanel) precisa do mesmo limite de body na API. Alterou `.ini` ou `default.conf` → rebuild da imagem app + `up -d` do `nginx`.
-- **Imagem PHP:** inclui `ffmpeg` e `zip`/`unzip` no SO para a fase F de álbuns (código da Fase F ainda pode não usar).
-
----
-
-## Horizon
-
-- Prefix Redis: `raphael_horizon:`
-- Acesso: `https://api.raphael-martins.com/horizon`
-- Protegido por email no `.env` (`HORIZON_AUTH_EMAILS`)
-- Publicar assets: `php artisan horizon:publish`
-- Filas configuradas: `default`, `scraping`, `notifications`, `ai`, `media` (ver `config/horizon.php`; worker Docker também pode listar `media` em `queue:work`)
+- Prefix Redis: `raphael_horizon:`.
+- Acesso: `https://api.raphael-martins.com/horizon` (mesmo middleware do hub).
+- Protegido por e-mail em `HORIZON_AUTH_EMAILS`.
+- Publicar assets: `php artisan horizon:publish`.
+- Filas em `config/horizon.php`.
 
 ---
 
 ## Pontos de atenção — bugs conhecidos a evitar
 
-1. **Playwright no Coelba**: É Angular SPA com hash routing (`#/`). Usar `waitForURL` com o hash completo. `waitUntil: 'networkidle'` pode não funcionar bem em SPAs — preferir `waitForSelector` de elemento específico.
-2. **reCAPTCHA Coelba**: O site diz "protegido por reCAPTCHA" mas o usuário real não vê desafio visual. É v3 invisível com score. CapSolver resolve via `ReCaptchaV3TaskProxyLess`. Se falhar, tentar submeter sem token antes de lançar erro.
-3. **Download de PDF no Playwright**: Sempre usar `Promise.all([page.waitForEvent('download'), btn.click()])` — nunca clicar e aguardar separadamente.
-4. **Permissões de storage**: O volume `.:/var/www/html` monta com o usuário do host. Rodar `chown -R deploy:deploy storage bootstrap/cache` no deploy antes do `docker compose up`.
-5. **MinIO path style**: Sem `AWS_USE_PATH_STYLE_ENDPOINT=true` as requests falham com 403. Sempre incluir.
-6. **Evolution webhook**: Payload em `data` com `key` + `message`; ignorar `status@broadcast` e itens sem `message`. Mídia “para si mesmo” no 1:1 pode não gerar evento — ver grupo notas solo acima.
-7. **Postgres no Docker**: `DB_HOST` deve ser `raphael-postgres` (nome do container), não `127.0.0.1`, dentro dos containers. Com infra externa no host, usar `127.0.0.1` + porta mapeada.
-8. **Embasa sem débitos na 2ª via**: o site pode mostrar *“não possui débitos”*; o scraper em `playwright/src/embasa-scraper.js` extrai então o carrossel **MINHAS CONTAS** na `/home`. Esperado: JSON de sucesso com `faturas` e sem `pdf_path` quando não há pendência para baixar — não tratar como falha de scrape.
+1. **Coelba é Angular SPA com hash routing (`#/`)**. Usar `waitForURL` com hash completo. `waitUntil: 'networkidle'` pode falhar em SPAs — preferir `waitForSelector` de elemento específico.
+2. **reCAPTCHA Coelba**: site diz "protegido por reCAPTCHA" mas não há desafio visual. É v3 invisível com score. CapSolver resolve via `ReCaptchaV3TaskProxyLess`. Se falhar, tentar submeter sem token antes de lançar erro.
+3. **Download de PDF no Playwright**: sempre `Promise.all([page.waitForEvent('download'), btn.click()])` — nunca clicar e aguardar separadamente.
+4. **Permissões de storage**: volume `.:/var/www/html` monta com usuário do host. Rodar `chown -R deploy:deploy storage bootstrap/cache` no deploy antes do `docker compose up`.
+5. **MinIO path style**: sem `AWS_USE_PATH_STYLE_ENDPOINT=true` as requests falham com 403.
+6. **Evolution webhook**: payload em `data` com `key` + `message`; ignorar `status@broadcast` e itens sem `message`. Mídia "para si mesmo" no 1:1 pode não gerar evento — usar grupo notas solo (ver [docs/whatsapp/SPEC.md](docs/whatsapp/SPEC.md)).
+7. **Postgres no Docker**: `DB_HOST` deve ser `raphael-postgres` dentro dos containers; com infra externa no host, usar `127.0.0.1` + porta mapeada.
+8. **Embasa sem débitos na 2ª via**: pode mostrar *"não possui débitos"*; o scraper em `playwright/src/embasa-scraper.js` extrai então o carrossel **MINHAS CONTAS** na `/home`. Esperado: JSON de sucesso com `faturas` e sem `pdf_path` — **não** tratar como falha.
+9. **Modais Embasa**: `section.blk-modal` pode interceptar clique na matrícula. Chamar `dismissEmbasaBlockingModals` antes e usar `force` no clique quando necessário.
 
 ---
 
 ## `.env.example` — fonte da verdade por ambiente
 
-O arquivo `[.env.example](.env.example)` está **calibrado para produção** (Docker na VPS: `APP_URL=https://api.raphael-martins.com`, `DB_HOST=raphael-postgres`, `REDIS_HOST=raphael-redis`, `QUEUE_CONNECTION=redis`, `APP_DEBUG=false`, etc.).  
-Cada bloco inclui **comentários** com os sobrescritos para desenvolvimento local (**hub.test**, Postgres/Redis/Mailpit em infra separada, ou `localhost:8082` com compose deste repo).
-
----
-
-## Desenvolvimento local com infra externa (hub.test)
-
-Postgres **17**, nginx, Redis **7**, Mailpit e opcionalmente MySQL **8.4** costumam rodar num **Compose de infra**. O Raphael Hub usa **somente PostgreSQL** — MySQL na mesma stack é para **outros** projetos (`DB_CONNECTION` continua `pgsql`).
-
-Checklist típico de sobrescrita em relação ao `.env.example` de produção:
-
-
-| Variável                  | Produção                          | Local (hub.test / serviços no host ou rede compartilhada)                |
-| ------------------------- | --------------------------------- | ------------------------------------------------------------------------ |
-| `APP_ENV`                 | `production`                      | `local`                                                                  |
-| `APP_DEBUG`               | `false`                           | `true`                                                                   |
-| `APP_URL`                 | `https://api.raphael-martins.com` | `http://hub.test` ou `https://hub.test` (igual ao browser / vhost nginx) |
-| `LOG_LEVEL`               | `error` ou `warning`              | `debug`                                                                  |
-| `SESSION_ENCRYPT`         | `true`                            | `false` em HTTP puro sem HTTPS local                                     |
-| `DB_HOST`                 | `raphael-postgres`                | `127.0.0.1` se a porta Postgres estiver publicada no host                |
-| `DB_PORT`                 | `5432`                            | porta mapeada pelo compose de infra (se diferente de 5432)               |
-| `REDIS_HOST`              | `raphael-redis`                   | `127.0.0.1` ou nome do serviço Redis na rede Docker que o PHP enxerga    |
-| `QUEUE_CONNECTION`        | `redis`                           | `redis` (com Horizon/worker) ou `sync` só para depuração rápida          |
-| `MAIL_MAILER`             | `log` ou SMTP real                | `smtp` para Mailpit                                                      |
-| `MAIL_HOST` / `MAIL_PORT` | conforme provedor                 | `127.0.0.1` + `1025` (SMTP Mailpit), `MAIL_ENCRYPTION=null`              |
-
-
-Mailpit: UI de inspeção em geral na porta exposta pelo compose (ex.: **8025**). Se o PHP não alcança `127.0.0.1` do host (processo dentro de container), usar o **hostname do serviço Mailpit** na rede Docker.
+O `.env.example` está **calibrado para produção** (Docker VPS: `APP_URL=https://api.raphael-martins.com`, `DB_HOST=raphael-postgres`, `REDIS_HOST=raphael-redis`, `QUEUE_CONNECTION=redis`, `APP_DEBUG=false`). Cada bloco tem comentários com sobrescritos para dev local. Tabela completa de overrides em [docs/operations/SPEC.md](docs/operations/SPEC.md).
 
 ---
 
 ## Como rodar localmente
 
+Resumo. Comandos completos no [README](README.md).
+
 ### Opção A — `docker compose` deste repositório
 
-Copie `.env.example` → `.env` e ajuste para **desenvolvimento** neste compose: `APP_ENV=local`, `APP_DEBUG=true`, `APP_URL=http://localhost:8082`, `LOG_LEVEL=debug`, `QUEUE_CONNECTION=sync` ou `redis` + workers, `SESSION_ENCRYPT=false` se não usar HTTPS. Os hosts `DB_HOST=raphael-postgres` e `REDIS_HOST=raphael-redis` já batem com o `.env.example` de produção.
-
 ```bash
-# 1. Clonar e configurar
 cp .env.example .env
-# Preencher secrets e ajustar flags de dev locais (ver tabela acima)
-
-# 2. Subir infra
+# Ajustar APP_ENV=local, APP_DEBUG=true, APP_URL=http://localhost:8082,
+# LOG_LEVEL=debug. Hosts DB_HOST=raphael-postgres / REDIS_HOST=raphael-redis
+# já batem com o compose.
 docker compose up -d
-
-# 3. Instalar dependências
 docker compose exec app composer install
 docker compose exec app php artisan key:generate
 docker compose exec app php artisan migrate --seed
-
-# 4. Acessar
-# App: http://localhost:8082
-# Horizon: http://localhost:8082/horizon
-
-# 5. Para testar scraping localmente
-curl -X POST http://localhost:3001/scrape/embasa
 ```
 
-### Opção B — infra separada + vhost hub.test
+### Opção B — infra externa + vhost `hub.test`
 
-Use a **tabela** da seção **Desenvolvimento local com infra externa** para alinhar `APP_URL`, `DB_*`, `REDIS_*`, Mailpit e modo de fila. Rode `composer install`, `php artisan key:generate`, `php artisan migrate` no host ou no container PHP que enxerga Postgres/Redis. App: `**http://hub.test`** — Horizon: `**http://hub.test/horizon**` (ou HTTPS se o nginx local terminar SSL).
-
----
-
-## Ordem de implementação recomendada
-
-1. Dockerfile + docker-compose.yml + nginx config
-2. Migrations + Models + Seeders
-3. `EvolutionService` — envio de mensagens
-4. `WebhookController` + `WebhookRouterService` — roteamento
-5. `ProcessPersonalWhatsAppMessage` Job — isFromMe
-6. `NeuronAIService` + `AiRouterService` — inferência e gateway `/iara` (**base pronta**); métodos de domínio `classificarIntencao*` ainda a implementar por cima de `complete`
-7. Playwright server.js + scraper Embasa
-8. Playwright scraper Coelba + CapSolver
-9. `PlaywrightService` + `FaturaService` — Laravel
-10. `ScrapeConta` Job + Schedule
-11. `NotificarVencimento` Job
-12. `ProcessContactWhatsAppMessage` Job — resposta para o pai
-13. Dashboard Blade + Livewire
-14. CI/CD GitHub Actions
-
+Usar a tabela de sobrescritas em [docs/operations/SPEC.md](docs/operations/SPEC.md) para alinhar `APP_URL`, `DB_*`, `REDIS_*`, Mailpit e modo de fila. Rodar `composer install`, `php artisan key:generate`, `php artisan migrate` no host ou no container PHP que enxerga Postgres/Redis.

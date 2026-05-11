@@ -1,131 +1,111 @@
 # PRD — Raphael Hub
 
-## Visão Geral
+## Visão
 
-Sistema pessoal de automação doméstica e produtividade via WhatsApp, com dashboard web. O projeto centraliza monitoramento de contas de água e luz, lembretes pessoais, notificações para o grupo familiar, e serve como base evolutiva para outros projetos pessoais integrados ao número WhatsApp do Raphael.
+Plataforma pessoal de automação para o número WhatsApp do Raphael, com dashboard web próprio. O hub centraliza tarefas reais do dia a dia (faturas, lembretes, inbox pessoal) e cresce em módulos discretos conforme novas necessidades aparecem — eventos privados, álbuns de mídia, curadoria de oportunidades. WhatsApp é a interface natural; o dashboard é onde se opera e audita.
 
-Além do escopo “faturas + lembretes”, o produto caminha para uma **plataforma operacional pessoal**: **IA híbrida** (Ollama na VPS para tarefas baratas e frequentes; nuvem quando precisar de mais capacidade) e **stack dedicada** na VPS (MinIO, Evolution e demais serviços do Hub), reduzindo dependência de infraestrutura compartilhada com outros projetos.
+Princípios:
 
----
-
-## Problema
-
-- O pai (Ildacir) precisa consultar valores de Embasa e Coelba periodicamente e não tem acesso fácil
-- As contas vencem em datas fixas mas frequentemente são esquecidas
-- Não existe um ponto central de notificação e histórico para a família
-- Mensagens enviadas para si mesmo no WhatsApp (lembretes, URLs, imagens) se perdem sem categorização
+- **WhatsApp como entrada padrão.** Nada de “mais um app para abrir”.
+- **IA híbrida.** Ollama no host para tarefas leves e frequentes; nuvem (Groq → Anthropic → OpenAI) quando precisa de capacidade.
+- **Infra própria.** MinIO, Evolution e Postgres em containers dedicados ao hub. Sem depender de stack compartilhada com outros projetos.
+- **Operação observável.** Horizon, schedule explícito, jobs idempotentes.
 
 ---
 
-## Solução
+## Personas
 
-Um hub pessoal que:
-1. Faz scraping automatizado das contas (Embasa e Coelba) via schedule
-2. Notifica o grupo familiar antes do vencimento e cobra enquanto não pagar
-3. Responde via WhatsApp quando alguém da família perguntar sobre as contas
-4. Captura e categoriza tudo que Raphael manda para si mesmo no WhatsApp
-5. Exibe histórico, métricas de consumo e status no dashboard web
-
----
-
-## Usuários
-
-| Usuário | Como interage |
-|---|---|
-| Raphael | Dashboard web + mensagens para si mesmo no WhatsApp |
-| Ildacir (pai) | WhatsApp — pergunta valores, recebe lembretes |
-| Grupo da Casa | Recebe notificações automáticas de vencimento |
+| Quem | Como interage |
+|------|---------------|
+| Raphael | Dashboard web + mensagens para si mesmo no WhatsApp (notas, links, lembretes). |
+| Ildacir (pai) | WhatsApp — pergunta valores de fatura, recebe lembretes. |
+| Grupo da Casa | Recebe notificações automáticas de vencimento. |
+| Convidados de eventos | Página pública de inscrição + e-mail de confirmação + ingresso PDF. |
+| Contribuidores de álbum | Convite por link, verificação por e-mail, upload com TTL. |
+| Público de Oportunidades | Feed em `/oportunidades`, voto anônimo. |
 
 ---
 
-## Funcionalidades — MVP
+## Módulos atuais
 
-### F1 — Webhook WhatsApp (Evolution API)
-- Endpoint `POST /webhook/whatsapp`; na instância Evolution habilitar pelo menos `MESSAGES_UPSERT` (e opcionalmente `SEND_MESSAGE`); o backend normaliza nomes de evento.
-- Filtra por origem: DM consigo (`fromMe` + `@s.whatsapp.net`), grupo “notas solo” configurado (`WHATSAPP_NOTAS_GRUPO_JID` → mesmo fluxo que mensagem pessoal), contato/grupo monitorados em `monitored_sources`, ignora o restante.
-- Persiste em `message_logs` e despacha jobs (`ProcessPersonalWhatsAppMessage`, etc.). Detalhes em `SPEC.md` → `WebhookRouterService`.
+Cada módulo tem SPEC dedicada com schema, contratos, endpoints e fluxos. Esta seção descreve o **propósito de produto** de cada um. Para implementação, seguir os links.
 
-### F2 — Mensagens pessoais (isFromMe)
-- Texto simples → salva como lembrete, categoriza com AI (preferência por **Ollama** para tarefas leves; nuvem como fallback)
-- URL → salva como lembrete, enriquece com Open Graph
-- Imagem → salva no MinIO, categoriza com AI
-- Confirma recebimento com emoji + categoria
+### Faturas Embasa / Coelba
 
-### F3 — Scraping Embasa
-- Fluxo: login CPF/senha → modal matrícula → `/segunda-via?pay=true` → extrai faturas; **se não houver débitos em aberto** na 2ª via (mensagem tipo *não possui débitos*), o scraper usa o carrossel **MINHAS CONTAS** na `/home` para referência, vencimento, consumo, valor total e status — sem quebrar o job; PDF só quando há fatura pendente para baixar na 2ª via
-- Sem CAPTCHA — Playwright puro
-- Extrai: referência, vencimento, consumo m³, valor água, valor esgoto, valor serviço, valor total, status (na home, água/esgoto/serviço podem não vir no HTML — total e consumo sim)
-- Status mapeados: `Aguardando pagamento` → pendente | `Conta Paga ✓` → pago | `Pagamento em processamento bancário` → processando
-- Baixa PDF da fatura pendente mais recente quando o fluxo da 2ª via expõe o botão de download
+Scraping agendado (Playwright), persistência idempotente, PDF no MinIO, lembrete WhatsApp para o grupo da casa antes do vencimento e diário enquanto não pago. Resposta direta a perguntas do pai via WhatsApp (sem scrape em tempo real — lê do banco).
 
-### F4 — Scraping Coelba (Neoenergia)
-- Fluxo: login → modal CPF/senha → reCAPTCHA v3 (CapSolver) → selecionar estado Bahia → selecionar unidade consumidora → `/home/servicos/consultar-debitos`
-- Angular SPA com hash routing (`#/`)
-- Extrai: referência, vencimento, valor fatura, situação, data pagamento
-- Status mapeados: `A Vencer` → a_vencer | `Vencida` → vencida | `Pago` → pago
-- Baixa PDF da fatura pendente mais recente
+→ [docs/utilities/SPEC.md](docs/utilities/SPEC.md)
 
-### F5 — Schedule de scraping
-- Scrape completo: X dias antes do vencimento configurado por conta (padrão: 5 dias)
-- Scrape leve de verificação: diário enquanto status != pago
-- Ao detectar nova fatura: persiste no banco + faz upload do PDF no MinIO + notifica grupo da casa
-- Ao detectar pagamento: atualiza status + para lembretes
-- Lembrete recorrente: diário até pagamento, enviado para grupo da casa
+### Inbox pessoal WhatsApp
 
-### F6 — Respostas via WhatsApp
-- Pai pergunta sobre conta → AI classifica intenção → busca no banco (sem scraping em tempo real) → responde com valor, vencimento e PDF
-- Resposta formatada: valor em negrito, vencimento, status, link ou arquivo PDF
+Webhook Evolution com roteamento por origem: DM consigo (`fromMe`), grupo “notas solo” (workaround para mídia 1:1), contato monitorado, grupo monitorado. Persiste em `message_logs` e despacha jobs. Análise é **text-first** com profile-driven (`analysis_profiles`); mídia fica em estado pendente para extração futura.
 
-### F7 — Dashboard Web (Blade + Livewire)
-- Autenticação padrão Laravel Breeze
-- **Dashboard inicial (`/dashboard`):** cards com ícone, título e descrição para cada módulo do hub (config `hub_dashboard.php`), além do menu superior — novas áreas devem entrar nos dois até eventual simplificação
-- Contas: status atual, próximo vencimento, valor, histórico
-- Gráfico de consumo histórico (Embasa: m³ | Coelba: kWh e R$)
-- Lista de lembretes pessoais com filtro por categoria
-- Log de mensagens recebidas/enviadas
-- Fontes monitoradas: gerenciar números/grupos, permissões
-- Horizon: acessível via `/horizon` com proteção por email/IP
+→ [docs/whatsapp/SPEC.md](docs/whatsapp/SPEC.md)
+
+### Threads e Oportunidades
+
+Scraping autenticado do Threads (sessão persistida no Playwright), ingestão idempotente, classificação IA por comentário com threshold de relevância, curadoria no hub (`/hub/threads` — abas Sources/Review/Published), feed público `/oportunidades` com busca, filtros e votação anônima dedupada por fingerprint.
+
+→ [docs/threads/SPEC.md](docs/threads/SPEC.md)
+
+### Eventos privados
+
+Hub `/hub/events` para criar evento (slug, capacidade, schema de formulário do convidado, link de referência). API pública para landing externa (`api/v1/events/{slug}/config|register`) com Turnstile e rate limit. Fluxo de dupla confirmação por e-mail: registro cria convidado `pending_email` → link de confirmação → ingresso PDF com QR (SVG) entregue por e-mail. Portaria mobile-first em `/events-checkin` com leitor de QR pela câmera.
+
+→ [docs/events/SPEC.md](docs/events/SPEC.md)
+
+### Álbuns de mídia
+
+Hub `/hub/albums` (Livewire) para CRUD de álbuns hierárquicos (até 2 níveis), upload com processamento assíncrono (GD/WebP), tipos de acesso público/senha/token/one-time com lockout. Viewer público `/albums/{slug}` com lightbox. **Contribuição externa**: convite por link, verificação por e-mail, upload com TTL, digest consolidado ao dono (e-mail + WhatsApp).
+
+→ [docs/album/SPEC.md](docs/album/SPEC.md)
+
+### Dashboard do hub
+
+Rota `/dashboard` com grade de cards (config em `hub_dashboard.php`) para cada módulo. Menu superior espelha os mesmos atalhos. Autenticação Breeze, sem registro público — login restrito por e-mail no `.env`. Horizon protegido pelo mesmo middleware.
+
+→ [docs/core/SPEC.md](docs/core/SPEC.md) (seção *Dashboard*)
+
+### Camada de IA
+
+NeuronAI como abstração, `AiRouterService` decidindo provedor por tarefa (Ollama → Groq → Anthropic → OpenAI), gateway `POST /iara` para chamar a API de produção sem Ollama local, análise profile-driven (`analysis_profiles`) reutilizada por Threads e WhatsApp.
+
+→ [docs/core/SPEC.md](docs/core/SPEC.md) (seção *IA*)
 
 ---
 
-## Funcionalidades — Pós-MVP
+## Princípios não-funcionais
 
-Roadmap detalhado de **monitoramento profundo de grupos**, **transcrição**, **armazenamento por fonte no MinIO** e **dashboard com permissões por grupo** está em [docs/v2.md](docs/v2.md). Atualize esse arquivo quando novas ideias surgirem no desenvolvimento da base.
-
-**Nota (2026):** a pilha técnica de IA (NeuronAI, roteamento Ollama→nuvem, gateway `/iara`) já está implementada — ver [SPEC.md](SPEC.md) / [LLM.md](LLM.md). No PRD permanece como **gap de produto** ligar os jobs WhatsApp e persistir classificações até o comportamento MVP (F2/F6) ficar verdadeiro ponta a ponta.
-
-### Álbuns de mídia (hub + viewer + contribuição)
-
-Produto **incremental** para organizar e compartilhar fotos/vídeos em álbuns (incluindo sub-álbuns), com armazenamento em **MinIO/S3**, painel autenticado e páginas públicas protegíveis (senha, token, one-time, lockout).
-
-**Estado (2026-05):** entregue em grande parte — CRUD e upload no hub (`/hub/albums`), viewer público com miniaturas e lightbox, processamento assíncrono de fotos, tipos de acesso endurecidos, **contribuição externa** (convidados enviam mídia após verificação por e-mail, com resumo ao dono por e-mail/WhatsApp). Documentação e roadmap da feature: [docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md). **Pendente:** Fase F (ZIP em lote, watermark, thumbs/transcode de vídeo via FFmpeg, tags, download ZIP do álbum).
-
-- RAG sobre histórico de faturas e lembretes (pgvector)
-- OCR em imagens recebidas via WhatsApp
-- Código PIX copiável enviado junto com o lembrete de vencimento
-- Ampliar uso de **Ollama** (mais tipos de tarefa, políticas de custo/privacidade, memória de contexto)
-- Novos grupos/números monitorados com suas próprias regras
-- Integração com outros projetos pessoais no mesmo número
+- **Stack em Docker** na VPS, rede `raphael-bridge` isolada. PostgreSQL, Redis, MinIO, Evolution dedicados ao hub. Detalhes em [docs/operations/SPEC.md](docs/operations/SPEC.md).
+- **Credenciais sensíveis** (concessionárias, API keys) somente no `.env` — nunca no banco.
+- **Filas Redis com Horizon**: `default`, `scraping`, `notifications`, `ai`, `media`.
+- **Schedule Laravel** em worker dedicado em produção.
+- **Timezone**: `America/Sao_Paulo` em todos os containers.
+- **Deploy** automatizado via GitHub Actions; `deploy.sh` na VPS faz diff e rebuild seletivo.
+- **Logs estruturados** para scraping (debug de seletores), IA (`ai.completion` / `ai.completion_failure`) e webhook (correlation_id em debug).
 
 ---
 
-## Requisitos Não Funcionais
+## Métricas de sucesso
 
-- Stack principal em Docker na VPS (isolada em rede própria), incluindo **MinIO** e **Evolution** dedicados ao Hub
-- Limites de **upload HTTP** (álbuns, multipart): PHP (`docker/php/zz-uploads.ini` na imagem) e **Nginx** (container + proxy aaPanel) dimensionados para lotes — ver [SPEC.md](SPEC.md) e [CHANGELOG.md](CHANGELOG.md) **2026-05-10**
-- Deploy automatizado (GitHub Actions) com script na VPS (`deploy.sh`) que só rebuilda/reinstala/migra o necessário
-- Credenciais das concessionárias apenas no `.env`, nunca no banco
-- PDFs e mídia no MinIO (bucket configurável, típico `pessoal`), referência de path no banco
-- **Ollama** roda no host (fora do Compose): endpoint acessível aos containers via gateway da bridge Docker; **não** expor a porta do Ollama publicamente — firewall restrito à rede Docker
-- Logs de scraping detalhados para debug de seletores
-- Horizon para monitoramento de filas
-- Timezone: `America/Sao_Paulo` em todos os containers
+- Pai pergunta valor de fatura no WhatsApp e recebe resposta correta com PDF.
+- Grupo da casa recebe lembrete automático antes do vencimento sem intervenção manual.
+- Dashboard exibe histórico de consumo dos últimos 12 meses por concessionária.
+- Mensagens enviadas para si mesmo no WhatsApp aparecem categorizadas no hub.
+- Eventos: convidados confirmam por e-mail e fazem check-in com QR na portaria sem fricção.
+- Álbuns: contribuidor externo recebe convite, verifica e-mail, faz upload, dono recebe digest.
+- `/oportunidades`: feed responsivo, votação anônima funcionando com dedupe diário.
 
 ---
 
-## Métricas de Sucesso MVP
+## O que está por vir
 
-- Pai consegue perguntar "quanto ficou a conta de água?" e receber resposta correta
-- Grupo da casa recebe lembrete automático antes do vencimento sem intervenção manual
-- Dashboard exibe histórico de consumo dos últimos 12 meses
-- Raphael consegue mandar URL/texto para si mesmo e encontrar categorizado no dashboard
+Backlog consolidado em [docs/roadmap/BACKLOG.md](docs/roadmap/BACKLOG.md). Itens vivos hoje:
+
+- Monitoramento profundo de grupos WhatsApp (transcrição, OCR, multimodal).
+- Permissões por grupo (`monitored_source_user`).
+- RAG sobre histórico (pgvector já ativo no banco; pipeline a definir).
+- Álbuns Fase F (ZIP, watermark, FFmpeg para vídeo, tags).
+- Resposta IA por WhatsApp para o pai (`buildInvoiceReply`, `classificarIntencaoContato`).
+
+Histórico de entregas em [CHANGELOG.md](CHANGELOG.md).

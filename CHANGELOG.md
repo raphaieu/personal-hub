@@ -2,7 +2,7 @@
 
 Todas as mudanças relevantes do **Raphael Personal Hub** são registradas aqui. Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.0.0/).
 
-Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *changelog do documento* em [`docs/v2.md`](docs/v2.md) (removido de lá para manter `v2` só como roadmap e decisões de produto).
+Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *changelog do documento* em `docs/v2.md` (substituído por [`docs/roadmap/BACKLOG.md`](docs/roadmap/BACKLOG.md) na refatoração de **2026-05-11**, que mantém apenas backlog).
 
 ---
 
@@ -10,11 +10,15 @@ Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *chan
 
 ### Pendente
 
-- **Álbuns de mídia — Fase F:** upload ZIP, tags, watermark on-the-fly, thumbnail/transcode de vídeo (FFmpeg), download ZIP do álbum. Ver [docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md) §F.
+- **Álbuns de mídia — Fase F:** upload ZIP, tags, watermark on-the-fly, thumbnail/transcode de vídeo (FFmpeg), download ZIP do álbum. Ver [docs/album/SPEC.md](docs/album/SPEC.md) (seção *Fase F — backlog*) e [docs/roadmap/BACKLOG.md](docs/roadmap/BACKLOG.md).
+
+### Changed
+
+- **Documentação reorganizada (2026-05-11):** raiz enxuta (`README.md`, `PRD.md`, `SPEC.md`, `LLM.md`) e SPECs por módulo em `docs/<modulo>/SPEC.md` (`core`, `whatsapp`, `utilities`, `threads`, `events`, `album`, `operations`). Backlog único em `docs/roadmap/BACKLOG.md` (renomeado de `docs/v2.md`). Mapa em `docs/README.md`. SPEC dos álbuns dividida em entrada canônica (`docs/album/SPEC.md`) + detalhamento histórico (`docs/album/IMPLEMENTATION.md`, antigo `SPEC_media_albums.md`). SPEC de eventos consolidada em `docs/events/SPEC.md` (antigo `SPEC_events_v1.md` removido; `BRIEFING.md` e `API_Contract.md` mantidos como referência estendida).
 
 ### Added
 
-- **Eventos — fluxo completo de ingresso e portaria:** registro público cria convidado `pending_email` + token; `GuestInterestConfirmationMail` com link `GET /events/guest/confirm/{token}`; após confirmação, `GuestTicketMail` com **PDF** (DomPDF: `pdf/events/*`) e QR (**SVG** via `simple-qrcode`, sem Imagick). `GuestInviteMail` com mesmo PDF no convite do hub. Colunas `guests.email_confirmation_token`, `email_confirmed_at`, `checked_in_at`. Portaria: `GET /events-checkin` (Livewire `EventCheckInPage`, layout dedicado mobile-first, leitor **html5-qrcode**, manifest `public/manifest-events-checkin.json`). Pacotes: `barryvdh/laravel-dompdf`, `simplesoftwareio/simple-qrcode`; npm `html5-qrcode` (chunk via `resources/js/events-checkin.js`). Documentação: [docs/events/SPEC_events_v1.md](docs/events/SPEC_events_v1.md).
+- **Eventos — fluxo completo de ingresso e portaria:** registro público cria convidado `pending_email` + token; `GuestInterestConfirmationMail` com link `GET /events/guest/confirm/{token}`; após confirmação, `GuestTicketMail` com **PDF** (DomPDF: `pdf/events/*`) e QR (**SVG** via `simple-qrcode`, sem Imagick). `GuestInviteMail` com mesmo PDF no convite do hub. Colunas `guests.email_confirmation_token`, `email_confirmed_at`, `checked_in_at`. Portaria: `GET /events-checkin` (Livewire `EventCheckInPage`, layout dedicado mobile-first, leitor **html5-qrcode**, manifest `public/manifest-events-checkin.json`). Pacotes: `barryvdh/laravel-dompdf`, `simplesoftwareio/simple-qrcode`; npm `html5-qrcode` (chunk via `resources/js/events-checkin.js`). Documentação: [docs/events/SPEC.md](docs/events/SPEC.md).
 
 ### Fixed
 
@@ -34,7 +38,7 @@ Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *chan
 
 ### Added
 
-- **Eventos (MVP v1 — baseline):** schema `events`, `referral_links`, `guests`; hub `GET /hub/events`, `GET /hub/events/{event}`; API `GET|POST /api/v1/events/{slug}/config|register`, CORS, rate limits, Turnstile (`EVENTS_*`). Evoluções posteriores (confirmação de e-mail, PDF, QR, `/events-checkin`) estão descritas em [docs/events/SPEC_events_v1.md](docs/events/SPEC_events_v1.md) e no item **[Unreleased]** acima.
+- **Eventos (MVP v1 — baseline):** schema `events`, `referral_links`, `guests`; hub `GET /hub/events`, `GET /hub/events/{event}`; API `GET|POST /api/v1/events/{slug}/config|register`, CORS, rate limits, Turnstile (`EVENTS_*`). Evoluções posteriores (confirmação de e-mail, PDF, QR, `/events-checkin`) estão descritas em [docs/events/SPEC.md](docs/events/SPEC.md) e no item **[Unreleased]** acima.
 - **Docker (PHP-FPM):** `docker/php/zz-uploads.ini` copiado no `Dockerfile` — `max_file_uploads`, `upload_max_filesize`, `post_max_size`, `memory_limit`, tempos de execução alinhados a uploads em lote de álbuns. Requer **rebuild** da imagem `raphael-hub:latest` após alterar o arquivo.
 - **Docker (Nginx do Compose):** `client_max_body_size` elevado em `docker/nginx/default.conf` para acompanhar `post_max_size` do PHP.
 - **Docker (runtime fase F):** pacotes **`ffmpeg`** e **`zip`** (CLI) na imagem PHP; extensão PHP **`zip`** já existia — preparação para ZIP/FFmpeg em álbuns sem mudar o código da Fase F ainda.
@@ -88,7 +92,7 @@ Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *chan
 ### Added
 
 - **Media Albums (fases A–E):** hub `/hub/albums`, viewer `/albums/{slug}`, persistência em MinIO/S3, `ProcessAlbumPhotoJob` (fila `media`, GD/WebP), tipos de acesso com lockout, contribuição externa com verificação por e-mail e digest ao administrador (e-mail + Evolution). Domínio: `albums`, `album_media`, `access_attempts`, `album_lockouts`, `contributors`. Testes em `tests/Feature/Albums/`.
-- Documentação raiz alinhada: `README.md`, `PRD.md`, `SPEC.md`, `LLM.md`; SPEC canônica da feature: [`docs/album/SPEC_media_albums.md`](docs/album/SPEC_media_albums.md).
+- Documentação raiz alinhada: `README.md`, `PRD.md`, `SPEC.md`, `LLM.md`; SPEC canônica da feature: [`docs/album/SPEC.md`](docs/album/SPEC.md) (detalhamento histórico das fases A–E em [`docs/album/IMPLEMENTATION.md`](docs/album/IMPLEMENTATION.md)).
 
 ---
 

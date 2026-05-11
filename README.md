@@ -1,365 +1,101 @@
-# Raphael HUB
+# Raphael Hub
 
-> Seu número de WhatsApp como painel de controle da vida real.
+> Plataforma pessoal de automação operada via WhatsApp + dashboard web, com IA híbrida (Ollama local + nuvem) e infraestrutura própria.
 
-## Visão Geral
+O hub centraliza tarefas reais do dia a dia: monitoramento de contas (Embasa/Coelba), inbox pessoal de WhatsApp, eventos privados com ingresso/portaria, álbuns de mídia com viewer público, e curadoria de oportunidades a partir do Threads. Usa o WhatsApp como interface natural e o sistema como cérebro operacional.
 
-**Raphael HUB** é uma plataforma pessoal de automação doméstica, produtividade e organização digital baseada em **WhatsApp + Dashboard Web**, com **IA híbrida** (processamento local na VPS quando faz sentido + provedores em nuvem como fallback) e **infraestrutura própria** (VPS + Docker).
-
-O projeto centraliza tarefas reais do dia a dia:
-
-* Monitoramento automático de contas (água / luz)
-* Lembretes pessoais inteligentes
-* Histórico de links, imagens e notas
-* Alertas para família e grupos
-* Dashboard web com métricas e controle
-* Base para futuras automações pessoais com IA
-
-A proposta é simples: usar o **WhatsApp como interface natural** e o sistema como cérebro operacional.
+Para entender o produto, ler [PRD.md](PRD.md). Para detalhes técnicos, [SPEC.md](SPEC.md) (índice) e SPECs por módulo em [docs/](docs/). Para o que ainda vem, [docs/roadmap/BACKLOG.md](docs/roadmap/BACKLOG.md).
 
 ---
 
-## Problemas que Resolve
+## Stack
 
-### Casa / Família
-
-* Contas vencem e ninguém lembra
-* Familiares precisam perguntar valores
-* Segunda via é burocrática
-* Falta histórico centralizado
-
-### Produtividade Pessoal
-
-* Mensagens enviadas para si mesmo se perdem
-* Links importantes somem
-* Imagens úteis ficam esquecidas
-* Ideias rápidas desaparecem
-
-### Organização Digital
-
-* Informação espalhada
-* Zero automação
-* Dependência de memória humana
+| Camada | Tecnologia |
+|--------|------------|
+| Backend | Laravel 13 + PHP 8.4 |
+| Frontend | Blade + Livewire 4 + Sanctum |
+| Banco | PostgreSQL 17 (com `pgvector`) |
+| Cache / Filas / Sessão | Redis 7 + Laravel Horizon |
+| Storage | MinIO S3 próprio (`raphael-minio`, bucket `pessoal`) |
+| Scraping | Node 24 + Playwright (container dedicado) |
+| WhatsApp | Evolution API em stack Docker própria |
+| IA | NeuronAI: Ollama (host) → Groq → Anthropic → OpenAI |
+| Infra | Docker Compose + aaPanel Nginx proxy + GitHub Actions |
 
 ---
 
-## Solução
-
-### WhatsApp como Interface
-
-Você pode:
-
-* mandar texto para si mesmo
-* enviar links
-* mandar imagens
-* perguntar contas
-* receber alertas
-* interagir sem abrir outro app
-
-### Dashboard Web
-
-Painel com:
-
-* contas atuais
-* históricos
-* consumo mensal
-* lembretes
-* logs
-* métricas
-* fontes monitoradas
-
-### IA Aplicada
-
-Classificação automática de mensagens, intenção e contexto — com preferência por **Ollama no host** para tarefas rápidas e frequentes; nuvem quando precisar de mais capacidade (ver secção **Camada de IA** abaixo).
-
----
-
-## Casos de Uso
-
-### Contas Domésticas
-
-Pergunta no WhatsApp:
-
-> Quanto ficou a conta de água?
-
-Resposta automática com:
-
-* valor
-* vencimento
-* status
-* PDF da fatura
-
-### Lembretes Pessoais
-
-Mensagem:
-
-> Comprar cabo HDMI amanhã
-
-Sistema salva e categoriza.
-
-### Links Importantes
-
-Mensagem:
-
-> [https://site.com/artigo](https://site.com/artigo)
-
-Sistema salva com preview e busca futura.
-
-### Alertas Familiares
-
-Grupo recebe:
-
-> Conta de luz vence em 3 dias.
-
-Se não pagar, o sistema insiste.
-
----
-
-## Arquitetura Técnica
-
-### Backend
-
-* PHP 8.4
-* Laravel 13
-
-### Frontend
-
-* Blade
-* Livewire 4
-* Dashboard autenticado (`/dashboard`): grade de **cards** para módulos do hub (`config/hub_dashboard.php`), alinhada ao menu em `resources/views/layouts/navigation.blade.php`
-
-### Banco
-
-* PostgreSQL 17
-
-### Filas / Cache
-
-* Redis 7
-* Laravel Horizon
-* Laravel Scheduler (worker dedicado em produção)
-
-### Storage
-
-* MinIO próprio (S3 compatível), atrás de proxy para o público
-
-### Scraping
-
-* Node.js 24
-* Playwright
-
-### WhatsApp
-
-* Evolution API em stack Docker dedicada ao Hub (instância isolada)
-
-### Infra
-
-* Docker Compose na VPS
-* Deploy via GitHub Actions + script na VPS (`deploy.sh`: diff inteligente, rebuild condicional, migrations quando há mudança em `database/migrations`, cache Laravel, health checks)
-* VPS Linux
-* Cloudflare Tunnel (ambiente dev / webhooks externos)
-
-### Produção — uploads (álbuns) e proxy
-
-* Limites de multipart no PHP: `docker/php/zz-uploads.ini` (incluído no `Dockerfile`). Tamanho máximo do body no Nginx **do Compose**: `docker/nginx/default.conf` (`client_max_body_size` alinhado ao `post_max_size`).
-* O proxy **aaPanel** na frente de `api.raphael-martins.com` deve permitir o **mesmo** `client_max_body_size` (ou equivalente) que o container `raphael-nginx`; caso contrário uploads grandes falham no host mesmo com PHP ajustado.
-* Mudanças em `Dockerfile`, `docker/php/*.ini` ou `docker/nginx/default.conf` exigem **rebuild** da imagem `raphael-hub:latest` e `docker compose up -d` (serviços `app`, `horizon`, `queue`, `scheduler`, `nginx`).
-* Detalhes e histórico: [SPEC.md](SPEC.md) (Infra → Docker), [docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md), [CHANGELOG.md](CHANGELOG.md) (**2026-05-10**).
-
-### Produção — scraper Embasa (Playwright)
-
-* Código em `playwright/src/embasa-scraper.js`. Sem débitos na 2ª via, os dados vêm do carrossel **MINHAS CONTAS** na home; `pdf_path` pode ser nulo. Atualizar imagem/serviço **`raphael-playwright`** após mudanças nesse arquivo. Ver [SPEC.md](SPEC.md) (*Fluxo Embasa*) e [CHANGELOG.md](CHANGELOG.md) (**2026-05-10**).
-
----
-
-## Camada de IA (Orquestrada)
-
-O projeto utiliza **NeuronAI** (PHP) como camada de abstração entre modelos.
-
-Isso permite trocar provedores sem reescrever prompts, tools ou fluxos.
-
-### Estratégia atual
-
-1. **Ollama no host da VPS** (acesso dos containers via gateway da bridge Docker, ex.: `172.23.0.1:11434`)
-
-   * análises rápidas
-   * sentimento
-   * tarefas simples
-   * custo zero por uso
-
-2. **Groq**
-
-   * alta velocidade
-   * tarefas intermediárias na nuvem
-
-3. **Execução paralela / redundância opcional**
-
-   * combinar Ollama + nuvem quando fizer sentido
-
-4. **Fallback na nuvem**
-
-   * OpenAI
-   * Anthropic Claude
-
-Objetivo: custo baixo, velocidade alta e qualidade quando necessário.
-
-### Implementação no código
-
-- **`AiRouterService`** — política de qual provider tentar primeiro e fallback (ver [SPEC.md](SPEC.md)).
-- **`OllamaService`** — provider NeuronAI para o daemon no host (`OLLAMA_BASE_URL` com `/api`).
-- **`NeuronAIService`** — ponto de entrada único (`complete` + `AiCompletionResult`).
-- **`POST /iara`** — gateway JSON para debug e para **chamar a API de produção sem Ollama local** (header `X-Internal-Key` em produção). Config: `IARA_*` no `.env.example`.
-
-### Camada genérica de análise (profile-driven)
-
-- A classificação de IA agora é guiada por **profiles em banco** (`analysis_profiles`) e não apenas por hardcode de feature.
-- O profile padrão `threads-opportunities` mantém o comportamento atual de Threads oportunidades (prompt, schema, categorias e threshold).
-- `threads_sources`, `monitored_sources` e `threads_categories` podem apontar para `analysis_profile_id`.
-- Hardening de deploy: migration de repair + comando `php artisan analysis:repair-profile-linkage` garantem profile padrão e backfill idempotente em `threads_sources`/`threads_categories`.
-- A execução reutilizável está centralizada em `AnalysisExecutionService` + `AnalysisProfileResolver`, recebendo item normalizado por canal.
-- Threads usa a camada nova via `ThreadsClassificationService`; jobs WhatsApp (`ProcessPersonal/Contact/GroupWhatsAppMessage`) também já passam pelo pipeline genérico na fila `ai`.
-- Semântica operacional do WhatsApp text-first: `classified` (processado), `pending_media_processing`/`pending_text_extraction` (não processado) e `skipped_no_profile` (processado e aguardando ajuste de profile na source).
-- Operação admin mínima já disponível por painel autenticado:
-  - `GET /hub/analysis-profiles`: CRUD mínimo de profiles (listagem/criação/edição/ativação), validação JSON para `output_schema`/`allowed_categories`/`settings` e proteção parcial do profile padrão.
-  - `GET /hub/monitored-sources`: CRUD mínimo de fontes monitoradas (`kind`, `identifier`, `label`, `notes`, `is_active`, `analysis_profile_id`), visão de pipeline e reprocessamento manual assistido.
-
-### Comunicação Docker ↔ Ollama
-
-Os containers do Laravel não rodam no host network: o endpoint típico de Ollama para o app é **`http://172.23.0.1:11434`** (gateway da rede Docker na VPS). No host, o serviço Ollama escuta na porta **11434**; o firewall deve restringir esse porto à rede Docker, não à internet aberta.
+## Módulos
+
+Cada módulo tem SPEC dedicada com schema, contratos, endpoints e fluxos.
+
+- **Faturas (Embasa/Coelba)** — scraping agendado, PDF no MinIO, lembrete WhatsApp no grupo da casa. Ver [docs/utilities/SPEC.md](docs/utilities/SPEC.md).
+- **Inbox pessoal WhatsApp** — webhook Evolution, roteamento por origem (self/contact/group), persistência em `message_logs`, análise text-first profile-driven. Ver [docs/whatsapp/SPEC.md](docs/whatsapp/SPEC.md).
+- **Threads e Oportunidades** — scraping autenticado, classificação IA por profile, curadoria no hub, feed público em `/oportunidades` com votação anônima. Ver [docs/threads/SPEC.md](docs/threads/SPEC.md).
+- **Eventos privados** — hub `/hub/events`, registro público com confirmação por e-mail, ingresso PDF com QR, portaria `/events-checkin`. Ver [docs/events/SPEC.md](docs/events/SPEC.md).
+- **Álbuns de mídia** — hub `/hub/albums`, viewer público com lockout, contribuição externa por convite. Ver [docs/album/SPEC.md](docs/album/SPEC.md).
+- **Camada de IA** — `NeuronAIService` + `AiRouterService` (Ollama → Groq → Anthropic → OpenAI), gateway `POST /iara`, análise profile-driven (`analysis_profiles`). Ver [docs/core/SPEC.md](docs/core/SPEC.md) (seção *IA*).
 
 ---
 
 ## Ambientes
 
-### Produção
+- **Produção:** `https://api.raphael-martins.com` — deploy automatizado via GitHub Actions, `deploy.sh` na VPS com rebuild seletivo.
+- **MinIO público:** `https://files.raphael-martins.com` (proxy para o `raphael-minio`).
+- **Dev local:** `http://hub.test` (vhost com infra externa) ou `http://localhost:8082` (compose do repo).
+- **Tunnel dev:** `https://dev.raphael-martins.com` para webhooks e testes externos.
 
-`https://api.raphael-martins.com`
-
-Deploy automatizado via GitHub Actions; na VPS o `deploy.sh` aplica **pull**, detecta o que mudou e só **rebuilda/reinstala** o necessário (imagem do app, assets, Playwright opcional, migrations condicionais).
-
-### Armazenamento público (MinIO)
-
-`https://files.raphael-martins.com` — console/API MinIO atrás de proxy (portas mapeadas no host para operação local: API **19000**, console **19001**, conforme `docker-compose.yml`).
-
-### Desenvolvimento Local
-
-`http://hub.test`
-
-Infra híbrida:
-
-* app no host
-* postgres / redis / nginx via docker
-
-### Tunnel Dev
-
-`https://dev.raphael-martins.com`
-
-Para webhooks e testes externos (mesmo stack em termos de comportamento; URL pública via tunnel).
+Detalhes operacionais (proxy aaPanel, Cloudflare Tunnel, deploy, limites Nginx/PHP para upload) em [docs/operations/SPEC.md](docs/operations/SPEC.md).
 
 ---
 
-## Roadmap
+## Como rodar localmente
 
-### Álbuns de mídia (MinIO / viewer / contribuição)
+Pré-requisitos: Docker, Docker Compose, Node 24, PHP 8.4 (apenas se for rodar Composer fora do container).
 
-Feature dedicada ao armazenamento e exibição de fotos e vídeos em álbuns hierárquicos, com painel em `/hub/albums` e páginas públicas em `/albums/{slug}`. Documentação canônica da implementação: **[docs/album/SPEC_media_albums.md](docs/album/SPEC_media_albums.md)**.
+### Opção A — `docker compose` deste repositório
 
-**Estado (2026-05):** fases **A–E concluídas** (domínio, hub, upload S3, processamento de fotos GD/WebP, viewer com lightbox, hardening de acesso, contribuição externa com notificações consolidadas). Restam os **recursos avançados da Fase F** (ZIP, watermark, FFmpeg para vídeo, tags, download ZIP do álbum), descritos na mesma SPEC.
+```bash
+cp .env.example .env
+# Ajustar para dev local: APP_ENV=local, APP_DEBUG=true,
+# APP_URL=http://localhost:8082, LOG_LEVEL=debug.
+# Os hosts DB_HOST=raphael-postgres e REDIS_HOST=raphael-redis
+# já batem com o compose.
 
-Histórico de entregas relacionado: [CHANGELOG.md](CHANGELOG.md).
+docker compose up -d
+docker compose exec app composer install
+docker compose exec app php artisan key:generate
+docker compose exec app php artisan migrate --seed
 
-### Eventos privados (landing em `events.*` + API)
+# App:     http://localhost:8082
+# Horizon: http://localhost:8082/horizon
+```
 
-Hub `/hub/events`, API `/api/v1/events/{slug}/config|register`, confirmação por e-mail (`/events/guest/confirm/…`), ingresso em PDF com QR, portaria `/events-checkin` (layout dedicado + leitor de QR na câmera). Fonte da verdade: **[docs/events/SPEC_events_v1.md](docs/events/SPEC_events_v1.md)**. Briefing e contrato HTTP: [docs/events/BRIEFING.md](docs/events/BRIEFING.md), [docs/events/API_Contract.md](docs/events/API_Contract.md).
+Testar o scraper Playwright direto:
 
-### Curto Prazo
+```bash
+curl -X POST http://localhost:3001/embasa/scrape
+```
 
-* webhook estável
-* scraping confiável
-* lembretes automáticos
-* painel útil no dia a dia
-* threads-classificados: Playwright autenticado + contrato HTTP (`/threads/auth/login`, `/threads/scrape-url`, `/threads/scrape-keyword`)
+### Opção B — infra externa + vhost `hub.test`
 
-### Threads Classificados (status atual)
-
-- Fase 0 concluída no serviço `playwright/`: login com sessão persistida (`storageState`), scrape por URL e por keyword.
-- Modo keyword otimizado para descoberta de posts (`include_comments=false` por padrão), com dedupe opcional no scraper (`known_post_ids`, `only_new`, `known_streak_stop`).
-- Fase 1 concluída no Laravel: schema `threads_*` (`threads_sources`, `threads_posts`, `threads_comments`, `threads_comment_votes`, `threads_categories`), models e seed inicial de categorias.
-- Fase 2 concluída no Laravel: contrato mockavel `ThreadsScraperClientInterface` com implementação HTTP (`ThreadsPlaywrightService`) e fake (`FakeThreadsScraperClient`) para testes sem acoplamento ao container Node.
-- Cobertura de regressao da integracao em `tests/Feature/Threads/ThreadsScraperClientTest.php`.
-- Fase 3.1 concluida no Laravel: jobs base `ScrapeThreadsUrlJob` e `ScrapeThreadsKeywordJob` (fila `scraping`) com ingestao idempotente para `threads_posts`/`threads_comments` via dedupe por `external_id`.
-- Fase 3.2 concluida no Laravel: classificacao IA com `ThreadsClassificationService`, job `ClassifyCommentsJob` na fila `ai`, regra de corte `THREADS_RELEVANCE_THRESHOLD` (`ignored` abaixo / `pending_review` acima) e disparo automatico de classificacao apos ingestao de comentarios.
-- Proximo passo: Fase 4 (orquestracao por scheduler/gatilhos de sources).
-
-### Scraping de utilidades (status atual)
-
-- Serviço Playwright agora expõe endpoints dedicados:
-  - `POST /embasa/scrape`
-  - `POST /coelba/scrape`
-- `GET /health` inclui readiness de sessão por concessionária (`embasa_session_ready`, `coelba_session_ready`).
-- Sessão persistente por provider com `storageState` dedicado:
-  - `EMBASA_SESSION_PATH` (default `/app/storage/embasa-session.json`)
-  - `COELBA_SESSION_PATH` (default `/app/storage/coelba-session.json`)
-- Coelba usa CapSolver (`ReCaptchaV3TaskProxyLess`) com fallback para submissão sem token quando não houver solução.
-- Coelba possui fluxo step-by-step sem sessão reaproveitada, centralizado na home para estabilidade: login completo por execução, seleção de estado/unidade, leitura de `Última Fatura`, captura opcional de código PIX e download da 2ª via via modal.
-- Bloco 2 no Laravel: contrato mockável `UtilityScraperClientInterface` com implementação HTTP (`UtilityPlaywrightService`) e fake (`FakeUtilityScraperClient`); bind no `AppServiceProvider`; regressão em `tests/Feature/Utilities/UtilityScraperClientTest.php`.
-- Bloco 3 no Laravel: `InvoiceService` (upsert em `invoices`, PDF no disco `local` quando arquivo legível pelo PHP), job `ScrapeConta` na fila `scraping` com janela `UtilityScrapeWindow`, agendamento em `bootstrap/app.php` (Embasa 08:00, Coelba 08:05); testes em `tests/Feature/Utilities/InvoiceServiceTest.php`, `ScrapeContaJobTest.php` e `tests/Unit/UtilityScrapeWindowTest.php`.
-- Bloco 4 no Laravel: `EvolutionService` (`sendText` v2), lembretes `NotificarVencimento` (fila `notifications`), `VerificarStatusFaturas` reenfileirando `ScrapeConta` com `ignoreScrapeWindow`, variáveis `EVOLUTION_API_KEY` / `EVOLUTION_INSTANCE`, JID do grupo via `WHATSAPP_UTILITIES_HOME_GROUP_JID` ou fallback `WHATSAPP_GRUPO_CASA_JID`, `UTILITIES_NOTIFY_DAYS_AHEAD`, PDFs em `storage/app/private` por padrão ou `UTILITIES_INVOICE_PDF_DISK=s3` para MinIO/AWS (após upload em S3, opcionalmente apaga o arquivo fonte com `UTILITIES_DELETE_SOURCE_PDF_AFTER_UPLOAD` / default automático); schedule 09:00 / 09:30; testes em `tests/Unit/EvolutionServiceTest.php`, `NotificarVencimentoJobTest.php`, `VerificarStatusFaturasJobTest.php`.
-- Scrape idempotente: `UtilityAccountScrapeGate` evita Playwright quando `pago` ou (`a_vencer`/`pendente` com vencimento ainda futuro); `ScrapeConta` aceita `force` (agendado `false`). Manual: `php artisan utilities:scrape embasa --force` ou `ScrapeConta::dispatch('embasa', false, true)`; testes em `tests/Unit/UtilityAccountScrapeGateTest.php` e cenários extras em `ScrapeContaJobTest`.
-- Bloco 5 (Hub UI): rota autenticada `GET /hub/utilities` (`utilities.hub`) com Livewire `App\Livewire\Utilities\HubPage` — CRUD de contas, lista de faturas por conta (`?conta=`), download de PDF quando o arquivo existe no disco configurado (`GET /hub/utilities/invoices/{invoice}/pdf`), ação **Scrape agora** disparando `ScrapeConta::dispatch($kind, true, true)`; testes em `tests/Feature/Utilities/UtilitiesHubPageTest.php`.
-
-### Dashboard Threads (fase frontend)
-
-- Fase 4.1 concluida: `livewire/livewire` (v4) instalado via Composer, layouts base (`app` e `guest`) preparados com `@livewireStyles`/`@livewireScripts` e smoke test de disponibilidade do pacote no container adicionado.
-- Fase 4.2 concluida: estrutura inicial do dashboard em `/hub/threads` via componente Livewire (`App\Livewire\Threads\HubPage`) com abas `Sources/Review/Published`, tabela inicial de fontes e testes de acesso/render.
-- Fase 5.1 concluida: gerenciamento inicial de sources no dashboard (`/hub/threads`) com criacao (keyword/url), toggle ativo/inativo e acao "scrape agora" enfileirando jobs adequados.
-- Ajuste de robustez no pipeline IA: classificacao agora roda 1 comentario por job (`ClassifyCommentsJob` com `commentId`), com espaco configuravel entre dispatches (`THREADS_AI_DISPATCH_SPACING_SECONDS`) e job auxiliar `DispatchPendingThreadsClassificationJob` para varrer pendentes.
-- Fase 5.2 consolidada (curadoria de Review): selecao multipla com acoes em lote (mover para review, ignorar, publicar, despublicar, reclassificar), filtros por status/categoria/source/sem resumo IA e ordenacao configuravel (relevancia, mais novo, score).
-- Fase 5.3 concluida: aba `Published` no dashboard lista apenas `threads_comments.is_public=true`, com filtros por categoria/source, ordenacao (score, atualizado, relevancia IA), edicao rapida de `ai_summary`/categoria/`is_featured`, exibicao de `upvotes`/`downvotes`/`score_total` e acao de despublicar.
-- Polimento UX no Hub (IA + Review): contagem global de comentarios sem resumo IA (`ai_summary` nulo), estimativa do proximo disparo vs batch configurado, cadencia `THREADS_AI_DISPATCH_SPACING_SECONDS` via `config/services.php`, mensagem de flash ao enfileirar `DispatchPendingThreadsClassificationJob`; na aba Review, checkbox no cabecalho para selecionar/desmarcar todos os itens visiveis no filtro atual.
-- Consolidação profile-driven no Hub Threads: tabela de sources agora exibe profile associado, permite trocar `analysis_profile_id` sem sair da tela e mostra quando a source depende de fallback do profile padrão.
-- Hub Threads com manutenção simplificada: blade fragmentada em partials por aba (`Sources`, `Review`, `Published`) sem mudança funcional do fluxo.
-- Novo hub operacional de monitoramento: `GET /hub/monitored-sources` com CRUD mínimo de fontes, status ativo/inativo, vínculo de profile, estados de análise/reprocessamento manual dos `message_logs` e badges operacionais.
-- Novo hub de administração de profiles: `GET /hub/analysis-profiles` com gestão mínima de `analysis_profiles` totalmente banco-driven (sem `.env` para configuração de profiles).
-- Pagina publica inicial: `GET /oportunidades` (`threads.opportunities`) SSR com listagem paginada somente de comentarios publicos, filtros busca/categoria/source e ordenacao (relevancia IA, votos, recente); layout dedicado `layouts.public`; cobertura em `tests/Feature/Threads/ThreadsOpportunitiesPageTest.php`.
-- Votacao anonima no feed: `POST /oportunidades/votos/{comment}` (`threads.opportunities.vote`) com `direction=up|down`, fingerprint diario (`IP + User-Agent + data + THREADS_VOTE_FINGERPRINT_SALT`), dedupe `(threads_comment_id, session_fingerprint)` em `threads_comment_votes`, `RecalculateCommentScoreJob` na fila `default` atualizando `upvotes`/`downvotes`/`score_total`; testes em `ThreadsCommentVoteTest`.
-- Proximo passo: observabilidade / hardening do MVP (rate limit fino, anti-abuso, metricas Horizon) e evolucao do feed publico conforme PRD.
-
-### Médio Prazo
-
-* inbox pessoal inteligente
-* OCR
-* transcrição de áudio
-* busca semântica
-* RAG pessoal
-
-### Longo Prazo
-
-* ERP da vida pessoal
-* despesas
-* tarefas familiares
-* documentos
-* agenda doméstica
-* automações amplas
+Quando Postgres 17, Redis 7 e Mailpit rodam num compose de infra separado e o Laravel está no host (ou em outro container) com vhost `hub.test`, sobrescreva `APP_URL`, `DB_HOST`, `REDIS_HOST` e `MAIL_*` no `.env` conforme a tabela em [docs/operations/SPEC.md](docs/operations/SPEC.md). O Raphael Hub usa **apenas PostgreSQL** (`DB_CONNECTION=pgsql`); MySQL na mesma stack é para outros projetos.
 
 ---
 
-## Filosofia
+## Documentação
 
-Este projeto resolve problemas reais enquanto serve como laboratório prático para:
+- [PRD.md](PRD.md) — visão de produto e módulos atuais.
+- [SPEC.md](SPEC.md) — índice técnico (banco, IA, integrações transversais).
+- [LLM.md](LLM.md) — convenções e regras de código para agentes (Codex, Cursor, Claude Code).
+- [CHANGELOG.md](CHANGELOG.md) — histórico de mudanças.
+- [docs/roadmap/BACKLOG.md](docs/roadmap/BACKLOG.md) — backlog de evolução.
+- [docs/operations/SPEC.md](docs/operations/SPEC.md) — infra, deploy, limites Docker/Nginx/PHP, sessão Playwright.
 
-* scraping real
-* PostgreSQL avançado
-* IA aplicada
-* arquitetura moderna
-* operação em produção
+SPECs por módulo:
 
-Hoje é um hub pessoal.
-
-Amanhã pode ser um sistema operacional da vida real.
-
----
-
-## Autor
-
-Raphael Martins
-Software Engineer / Builder / Automation First
+- [docs/core/SPEC.md](docs/core/SPEC.md) — banco, IA, `analysis_profiles`, `monitored_sources`.
+- [docs/whatsapp/SPEC.md](docs/whatsapp/SPEC.md) — webhook, jobs, `message_logs`.
+- [docs/utilities/SPEC.md](docs/utilities/SPEC.md) — Embasa/Coelba, `InvoiceService`, schedule.
+- [docs/threads/SPEC.md](docs/threads/SPEC.md) — scraping, classificação, hub, feed público.
+- [docs/events/SPEC.md](docs/events/SPEC.md) — registro, confirmação, ingresso, portaria.
+- [docs/album/SPEC.md](docs/album/SPEC.md) — hub, viewer, contribuição externa.

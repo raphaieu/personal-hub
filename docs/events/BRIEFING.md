@@ -1,6 +1,6 @@
 # Events — Briefing Técnico
 
-> **Referência MVP (v1) no monólito Raphael Hub:** use **[SPEC_events_v1.md](SPEC_events_v1.md)** como fonte única para escopo implementável, contrato HTTP consolidado, fluxo de confirmação de e-mail, PDF/QR, rotas web de portaria e divisão v1/v2. Este briefing permanece como visão ampla, ADRs e material histórico.
+> **Referência MVP (v1) no monólito Raphael Hub:** use **[SPEC.md](SPEC.md)** como fonte única para escopo implementável, contrato HTTP consolidado, fluxo de confirmação de e-mail, PDF/QR, rotas web de portaria e divisão v1/v2. Este briefing permanece como visão ampla, ADRs e material histórico.
 
 ---
 

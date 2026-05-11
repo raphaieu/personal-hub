@@ -1,10 +1,13 @@
-# SPEC — Feature: Media Albums (V2 incremental)
+# Media Albums — Implementação histórica (fases A–F)
+
 **Projeto:** raphael-hub  
 **Stack base:** Laravel 13 + PHP 8.4 · Livewire 4 · PostgreSQL 17 · Redis 7 · Horizon · MinIO S3 (bucket padrão do Hub: `pessoal`)  
 **Data da última revisão:** 2026-05-10  
-**Status:** fases A–E implementadas; melhorias de hub/viewer/ limites de upload / revogação de convite documentadas abaixo (§3.1); Fase F em backlog; Docker produção (PHP/Nginx uploads, `ffmpeg`/ZIP na imagem) alinhado ao [CHANGELOG](../../CHANGELOG.md) **2026-05-10**
+**Status:** fases A–E implementadas; melhorias de hub/viewer/limites de upload/revogação de convite documentadas abaixo (§3.1); Fase F em backlog; Docker produção (PHP/Nginx uploads, `ffmpeg`/ZIP na imagem) alinhado ao [CHANGELOG](../../CHANGELOG.md) **2026-05-10**.
 
-**Índice na documentação do projeto:** esta SPEC é a fonte de verdade **da feature** álbuns. Visão geral do produto e stack: [README.md](../../README.md), [PRD.md](../../PRD.md), [SPEC.md](../../SPEC.md) (secção *Media Albums*), [LLM.md](../../LLM.md). Alterações relevantes: [CHANGELOG.md](../../CHANGELOG.md).
+> **Entrada canônica:** [SPEC.md](SPEC.md) (mesma pasta) é o contrato compacto atual da feature. Este documento mantém o **detalhamento histórico das fases A–E** (campos completos por fase, decisões, refinamentos pós-MVP §3.1 e §5.4) como referência viva de implementação.
+
+**Índice na documentação do projeto:** visão geral do produto e stack em [README.md](../../README.md), [PRD.md](../../PRD.md), [SPEC.md](../../SPEC.md) e [LLM.md](../../LLM.md). Alterações relevantes em [CHANGELOG.md](../../CHANGELOG.md).
 
 ---
 
@@ -386,7 +389,7 @@ Uma fase só é considerada concluída quando houver:
 1. schema/migrations finalizados para o escopo da fase;
 2. fluxo principal funcional ponta a ponta;
 3. testes automatizados mínimos cobrindo casos de sucesso e falha;
-4. documentação atualizada (`README`/`SPEC`/`docs/v2` quando aplicável).
+4. documentação atualizada (`README`/`SPEC`/`docs/roadmap/BACKLOG.md` quando aplicável).
 
 ---
 

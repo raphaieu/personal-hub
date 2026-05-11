@@ -1,6 +1,6 @@
 # API Contract — Events Frontend ↔ RaphaelPersonalHUB
 
-> **Consolidado no MVP:** escopo v1, stack alinhada ao Hub e notas de evolução estão em **[SPEC_events_v1.md](SPEC_events_v1.md)**. Este arquivo mantém o detalhe linha-a-linha do contrato HTTP e o diagrama de sequência.
+> **Consolidado no MVP:** escopo v1, stack alinhada ao Hub e notas de evolução estão em **[SPEC.md](SPEC.md)**. Este arquivo mantém o detalhe linha-a-linha do contrato HTTP e o diagrama de sequência.
 
 ---
 
