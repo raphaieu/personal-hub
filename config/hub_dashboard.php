@@ -1,6 +1,5 @@
 <?php
 
-declare(strict_types=1);
 
 /**
  * Cards do dashboard principal: mantenha em sincronia com os links em
