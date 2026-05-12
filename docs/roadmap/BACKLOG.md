@@ -43,6 +43,22 @@ Estes existem na intenção do PRD desde o início:
 
 ---
 
+## Inbox WhatsApp — lembretes de URL (Open Graph)
+
+A tabela **`reminders`** e o modelo já existem; campos `url_title`, `url_description`, `url_image` estão no schema para metadados de página (ver [docs/whatsapp/SPEC.md](../whatsapp/SPEC.md)). O **fluxo de enriquecimento** ainda não foi ligado ao pipeline.
+
+### Escopo
+
+- Ao criar/persistir lembrete do tipo **URL** (a partir do fluxo WhatsApp ou hub), despachar um **job assíncrono** que busca título/descrição/imagem (Open Graph ou fallback HTML razoável), com timeout e tratamento de falha (site bloqueado, sem OG, etc.).
+- Preencher `url_title` / `url_description` / `url_image` sem bloquear a requisição do webhook.
+- Fila sugerida: `default` (ou fila leve dedicada se o volume crescer).
+
+### Referência de implementação
+
+- Nome usado no desenho original do índice técnico: **`EnriquecerUrlLembrete`** — ainda **não** há classe com esse nome no repositório; ao implementar, registrar o job real na [SPEC do WhatsApp](../whatsapp/SPEC.md) (tabela de jobs) e remover este bloco do BACKLOG.
+
+---
+
 ## Permissões por grupo (dashboard multi-admin)
 
 Hoje só o `super_admin` existe (Raphael). O alvo é permitir que o pai (ou outros) tenham acesso filtrado no dashboard.

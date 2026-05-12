@@ -68,7 +68,7 @@ Configuração em `config/horizon.php`. Workers em containers dedicados (`raphae
 
 | Fila | Uso |
 |------|-----|
-| `default` | Jobs gerais (`VerificarStatusFaturas`, `EnriquecerUrlLembrete`, `RecalculateCommentScoreJob`). |
+| `default` | Jobs gerais (`VerificarStatusFaturas`, `RecalculateCommentScoreJob`). |
 | `scraping` | Playwright (`ScrapeConta`, `ScrapeThreadsUrlJob`, `ScrapeThreadsKeywordJob`) — timeout longo (120s). |
 | `notifications` | Envios WhatsApp e digests (`NotificarVencimento`, `SendAlbumContributionDigestJob`). |
 | `ai` | Classificação IA (`ProcessPersonal/Contact/GroupWhatsAppMessage`, `ClassifyCommentsJob`, `ReprocessMessageLogAnalysisJob`, `DispatchPendingThreadsClassificationJob`). |

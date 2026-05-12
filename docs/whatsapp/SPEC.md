@@ -131,7 +131,8 @@ Observação: no payload de metadados, `metadata.analysis.status` pode aparecer 
 | `ProcessContactWhatsAppMessage` | `ai` | Webhook contato monitorado. |
 | `ProcessGroupWhatsAppMessage` | `ai` | Webhook grupo monitorado. |
 | `ReprocessMessageLogAnalysisJob` | `ai` | Reprocessamento manual no hub de monitored-sources. |
-| `EnriquecerUrlLembrete` | `default` | Após salvar lembrete de URL (Open Graph). |
+
+Enriquecimento automático de lembretes de URL (Open Graph) via job dedicado **não está implementado** — tabela `reminders` e modelo existem; fluxo a definir. Intenção e escopo: [BACKLOG](../roadmap/BACKLOG.md) (secção *Inbox WhatsApp — lembretes de URL (Open Graph)*).
 
 Padrão para todos: `$tries = 3`, `failed()` implementado, logs estruturados.
 

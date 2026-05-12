@@ -32,7 +32,7 @@ timestamps
 Links nomeados para lista controlada.
 
 ```
-id, event_id (FK), label,
+id, event_id (FK), name,
 token (unique),
 expires_at (nullable),
 revoked_at (nullable),
@@ -44,15 +44,16 @@ timestamps
 
 ```
 id, event_id (FK), referral_link_id (FK nullable),
-email,
+name, email, phone (nullable),
+photo_path (nullable),
+birth_year (nullable),
+custom_data (json),              -- campos extras do formulário (schema dinâmico)
 status,                          -- pending_email | confirmed | cancelled | blocked
 consent_terms_at,
 invite_sent_at,
 email_confirmation_token (unique nullable),
 email_confirmed_at,
 checked_in_at,
-photo_path,                      -- disco local, events/guests/...
-data (json),                     -- dados do form do convidado
 timestamps
 
 UNIQUE: (event_id, email)
