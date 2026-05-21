@@ -147,6 +147,7 @@ final class EventPublicConfigService
                     'totalCapacity' => $event->capacity,
                     'requiresRef' => $event->requires_ref,
                     'requiresTurnstile' => $event->requires_turnstile,
+                    'requiresPhoto' => $event->requires_photo,
                 ],
                 'form' => null,
                 'ref_block' => $refBlock,
@@ -225,6 +226,7 @@ final class EventPublicConfigService
                 'totalCapacity' => $event->capacity,
                 'requiresRef' => $event->requires_ref,
                 'requiresTurnstile' => $event->requires_turnstile,
+                'requiresPhoto' => $event->requires_photo,
             ],
             'form' => [
                 'fields' => $this->mergeFormFields($event),
@@ -252,17 +254,24 @@ final class EventPublicConfigService
      */
     private function mergeFormFields(Event $event): array
     {
+        $fields = self::DEFAULT_FORM_FIELDS;
+
         $custom = $event->guest_form_schema_json;
-        if (! is_array($custom) || $custom === []) {
-            return self::DEFAULT_FORM_FIELDS;
+        if (is_array($custom) && $custom !== []) {
+            // MVP: if schema provides full fields array use it.
+            if (isset($custom['fields']) && is_array($custom['fields'])) {
+                $fields = $custom['fields'];
+            }
         }
 
-        // MVP: if schema provides full fields array use it; else merge keys by name.
-        if (isset($custom['fields']) && is_array($custom['fields'])) {
-            return $custom['fields'];
+        if (! $event->requires_photo) {
+            $fields = array_map(fn (array $field): array => match ($field['name'] ?? '') {
+                'photo' => array_merge($field, ['enabled' => false]),
+                default => $field,
+            }, $fields);
         }
 
-        return self::DEFAULT_FORM_FIELDS;
+        return $fields;
     }
 
     /**
