@@ -3,19 +3,27 @@
 
 namespace App\Services\Events;
 
-use SimpleSoftwareIO\QrCode\Facades\QrCode;
+use chillerlan\QRCode\QRCode;
+use chillerlan\QRCode\QROptions;
 
 final class EventQrCodeService
 {
     /**
-     * Data URI (SVG) for {@code <img src="...">} and DomPDF.
+     * Data URI (PNG) for {@code <img src="...">} and DomPDF.
      *
-     * Nota: {@code simple-qrcode} usa Imagick para PNG; SVG evita exigir a extensão imagick no PHP.
+     * Gera PNG via GD (sem Imagick) para compatibilidade com leitores de e-mail.
      */
     public function qrImageDataUri(string $payload): string
     {
-        $svg = QrCode::format('svg')->size(280)->margin(1)->generate($payload);
+        $options = new QROptions([
+            'outputType' => QRCode::OUTPUT_IMAGE_PNG,
+            'eccLevel' => QRCode::ECC_L,
+            'scale' => 10,
+            'imageBase64' => true,
+        ]);
 
-        return 'data:image/svg+xml;base64,'.base64_encode((string) $svg);
+        $qrcode = new QRCode($options);
+
+        return $qrcode->render($payload);
     }
 }
