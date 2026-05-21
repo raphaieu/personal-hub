@@ -31,6 +31,8 @@ final class HubPage extends Component
 
     public bool $formRequiresTurnstile = true;
 
+    public bool $formRequiresPhoto = true;
+
     public bool $formRegistrationOpen = true;
 
     public string $formClosedMessage = '';
@@ -57,6 +59,7 @@ final class HubPage extends Component
         $this->formCapacity = $event->capacity;
         $this->formRequiresRef = $event->requires_ref;
         $this->formRequiresTurnstile = $event->requires_turnstile;
+        $this->formRequiresPhoto = $event->requires_photo;
         $this->formRegistrationOpen = $event->registration_open;
         $this->formClosedMessage = (string) ($event->closed_message ?? '');
         $this->formInviteTemplateKey = (string) ($event->invite_template_key ?? '');
@@ -87,6 +90,7 @@ final class HubPage extends Component
             'capacity' => $this->formCapacity,
             'requires_ref' => $this->formRequiresRef,
             'requires_turnstile' => $this->formRequiresTurnstile,
+            'requires_photo' => $this->formRequiresPhoto,
             'registration_open' => $this->formRegistrationOpen,
             'closed_message' => $this->formClosedMessage !== '' ? $this->formClosedMessage : null,
             'invite_template_key' => $this->formInviteTemplateKey !== '' ? $this->formInviteTemplateKey : null,
@@ -131,6 +135,7 @@ final class HubPage extends Component
             'formCapacity' => ['nullable', 'integer', 'min:1', 'max:100000'],
             'formRequiresRef' => ['boolean'],
             'formRequiresTurnstile' => ['boolean'],
+            'formRequiresPhoto' => ['boolean'],
             'formRegistrationOpen' => ['boolean'],
             'formClosedMessage' => ['nullable', 'string', 'max:2000'],
             'formInviteTemplateKey' => ['nullable', 'string', 'max:64', 'regex:/^[a-z0-9]+(?:_[a-z0-9]+)*$/'],
@@ -148,6 +153,7 @@ final class HubPage extends Component
         $this->formCapacity = null;
         $this->formRequiresRef = false;
         $this->formRequiresTurnstile = true;
+        $this->formRequiresPhoto = true;
         $this->formRegistrationOpen = true;
         $this->formClosedMessage = '';
         $this->formInviteTemplateKey = '';

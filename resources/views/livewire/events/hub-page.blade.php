@@ -67,6 +67,10 @@
                             Turnstile no formulário público
                         </label>
                         <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                            <input wire:model.boolean="formRequiresPhoto" type="checkbox" class="rounded border-gray-300">
+                            Exige foto do convidado
+                        </label>
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-700">
                             <input wire:model.boolean="formRegistrationOpen" type="checkbox" class="rounded border-gray-300">
                             Inscrições abertas
                         </label>
