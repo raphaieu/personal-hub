@@ -28,6 +28,7 @@ final class EventFactory extends Factory
             'capacity' => null,
             'requires_ref' => false,
             'requires_turnstile' => false,
+            'requires_photo' => true,
             'registration_open' => true,
             'guest_form_schema_json' => null,
             'invite_template_key' => null,

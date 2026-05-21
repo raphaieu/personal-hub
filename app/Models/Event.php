@@ -23,6 +23,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'capacity',
     'requires_ref',
     'requires_turnstile',
+    'requires_photo',
     'registration_open',
     'guest_form_schema_json',
     'invite_template_key',
@@ -77,6 +78,7 @@ class Event extends Model
             'capacity' => 'integer',
             'requires_ref' => 'boolean',
             'requires_turnstile' => 'boolean',
+            'requires_photo' => 'boolean',
             'registration_open' => 'boolean',
             'guest_form_schema_json' => 'array',
         ];
