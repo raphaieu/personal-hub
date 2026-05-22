@@ -6,6 +6,7 @@ use App\Http\Controllers\Albums\AlbumHubMediaController;
 use App\Http\Controllers\Albums\AlbumMediaController;
 use App\Http\Controllers\Albums\AlbumViewerController;
 use App\Http\Controllers\Events\GuestEmailConfirmationController;
+use App\Http\Controllers\Events\GuestQrCodeController;
 use App\Http\Controllers\IaraController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ThreadsCommentVoteController;
@@ -40,6 +41,10 @@ Route::get('/oportunidades', ThreadsOpportunitiesController::class)->name('threa
 Route::get('/events/guest/confirm/{token}', GuestEmailConfirmationController::class)
     ->middleware('throttle:60,1')
     ->name('events.guest.confirm');
+
+Route::get('/events/qr/{guest}', GuestQrCodeController::class)
+    ->middleware('throttle:120,1')
+    ->name('events.guest.qr');
 
 Route::post('/oportunidades/votos/{comment}', [ThreadsCommentVoteController::class, 'store'])
     ->middleware('throttle:120,1')
