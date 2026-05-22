@@ -52,7 +52,7 @@
                             <span style="display:block;font-size:13px;margin-top:4px;opacity:0.8;color:#9c6c59;">Vilas do Atlântico</span>
                         </div>
                         <div style="background:#ffffff;padding:12px;margin:20px auto;width:150px;border-radius:12px;border:1px solid rgba(228,117,154,0.2);text-align:center;box-shadow:0 4px 12px rgba(0,0,0,0.05);">
-                            <img src="{{ $qrDataUri }}" width="140" height="140" alt="QR Code check-in" style="display:block;margin:0 auto;border-radius:8px;">
+                            <img src="{{ $qrUrl }}" width="140" height="140" alt="QR Code check-in" style="display:block;margin:0 auto;border-radius:8px;">
                         </div>
                         <div style="margin-top:12px;border-top:none;">
                             <span style="display:block;font-size:11px;text-transform:uppercase;color:#e4759a;letter-spacing:1px;font-weight:600;">Convidado Especial</span>

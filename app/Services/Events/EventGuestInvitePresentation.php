@@ -14,7 +14,7 @@ final class EventGuestInvitePresentation
     ) {}
 
     /**
-     * @return array{guest: Guest, checkInUrl: string, qrDataUri: string}
+     * @return array{guest: Guest, checkInUrl: string, qrDataUri: string, qrUrl: string}
      */
     public function viewData(Guest $guest): array
     {
@@ -26,6 +26,7 @@ final class EventGuestInvitePresentation
             'guest' => $guest,
             'checkInUrl' => $checkInUrl,
             'qrDataUri' => $this->qrCodes->qrImageDataUri($checkInUrl),
+            'qrUrl' => route('events.guest.qr', $guest),
         ];
     }
 
