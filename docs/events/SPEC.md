@@ -18,9 +18,10 @@ starts_at, ends_at, timezone,
 capacity (nullable),
 requires_ref (bool),
 requires_turnstile (bool),
+requires_photo (bool),           -- default true; se false, campo photo fica disabled no schema
 registration_open (bool),
 guest_form_schema_json (json),   -- schema do formulário do convidado
-invite_template_key,
+invite_template_key,             -- chave para custom templates (mail/pdf) em mail|pdf/events/custom/{key}
 closed_message,
 terms_url, privacy_url,
 album_id (FK nullable → albums),
