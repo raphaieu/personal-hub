@@ -34,6 +34,25 @@ Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *chan
 
 ---
 
+## 2026-05-21
+
+### Changed
+
+- **Foto do convidado opcional (admin):** checkbox "Exige foto do convidado" no hub ao lado de Turnstile/referral/inscrições. Coluna `requires_photo` (`boolean`, default `true`) em `events`. Quando desligado, `EventPublicConfigService::mergeFormFields()` seta `enabled: false` no campo photo do schema; API `/config` expõe `requiresPhoto`.
+- **QR code agora é PNG servido por rota própria:** pacote `simplesoftwareio/simple-qrcode` removido, substituído por `chillerlan/php-qrcode` (gera PNG via GD, sem Imagick). `GET /events/qr/{guest}` (`GuestQrCodeController`) retorna a imagem PNG com cache de 24h. Emails custom usam `{{ $qrUrl }}` em vez de data URI; PDFs continuam com `{{ $qrDataUri }}` (DomPDF aceita data URI).
+
+### Added
+
+- **Páginas de confirmação de e-mail com tema escuro:** layout `layouts/events-confirm.blade.php` (fundo `#0a0a0f`, accent `#6c5ce7`, Inter/Outfit, orbs ambientais, glass card). 4 views refeitas: `email-confirmed-success`, `email-already-confirmed`, `email-confirm-invalid`, `email-confirm-capacity`. Renderizadas por `GuestEmailConfirmationController`.
+- **Templates customizados de e-mail e PDF:** `mail/events/custom/liz1ano.blade.php` (tabela, tema Liz: rosa `#e4759a`, florais, borboletas, "Vem brincar no meu jardim!") e `pdf/events/custom/liz1ano.blade.php` (DomPDF, DejaVu Serif, mesmo tema). Resolução automática via `invite_template_key` em `EventGuestInvitePresentation` e `EventTicketPdfService`. Variáveis disponíveis: `$guest`, `$checkInUrl`, `$qrDataUri`, `$qrUrl`.
+- **Rota pública de QR code:** `GET /events/qr/{guest}` (throttle 120/min), retorna `image/png` com cache de 24h.
+
+### Fixed
+
+- **QR code não renderizava no Gmail:** data URI PNG inline não é suportado pelo Gmail. Solução: QR code servido via rota HTTP pública como PNG real. `chillerlan/php-qrcode` (GD) substitui `simplesoftwareio/simple-qrcode` (Imagick). Templates `liz1ano` e `villa40` atualizados para `{{ $qrUrl }}`.
+
+---
+
 ## 2026-05-10
 
 ### Added
