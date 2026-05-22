@@ -39,7 +39,7 @@
                             <span style="font-weight:bold;font-size:15px;color:#E2C275;">Kasa Azul, Pedra do Sal</span>
                         </div>
                         <div style="background:#F4F4F4;padding:12px;margin:16px auto;width:150px;border-radius:10px;text-align:center;">
-                            <img src="{{ $qrDataUri }}" width="150" height="150" alt="QR Code check-in" style="display:block;margin:0 auto;">
+                            <img src="{{ $qrUrl }}" width="150" height="150" alt="QR Code check-in" style="display:block;margin:0 auto;">
                         </div>
                         <div style="margin-top:8px;">
                             <span style="display:block;font-size:10px;text-transform:uppercase;color:#F4F4F4;">Convidado</span>
