@@ -101,6 +101,10 @@ Versões abaixo refletem o **ambiente de desenvolvimento local** atual. Produç�
 
 Para detalhes, ler a SPEC do módulo. Aqui ficam só os ganchos críticos.
 
+### Eventos — QR code
+
+QR codes de check-in são servidos como PNG via rota pública `GET /events/qr/{guest}` (`GuestQrCodeController`). Usa `chillerlan/php-qrcode` (GD, sem Imagick). Emails custom referenciam `{{ $qrUrl }}`; PDFs (DomPDF) usam `{{ $qrDataUri }}` (data URI). Cache de 24h. Templates em `resources/views/{mail,pdf}/events/custom/{key}.blade.php`, resolvidos por `invite_template_key`.
+
 ### Evolution API
 
 A Evolution roda na stack Docker do hub (serviço dedicado). URL base em `EVOLUTION_URL`, instância `raphael`, key `EVOLUTION_API_KEY`. Webhook do Laravel: `POST /webhook/whatsapp`. Detalhes (eventos habilitados, formato do body, grupo notas solo, auth do webhook) em [docs/whatsapp/SPEC.md](docs/whatsapp/SPEC.md).

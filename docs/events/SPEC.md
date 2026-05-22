@@ -81,8 +81,8 @@ CORS, rate limits e Turnstile controlados via `EVENTS_*` no `.env`.
 `GET /events/guest/confirm/{token}` — pública, sem autenticação.
 
 - Atualiza `guests.email_confirmed_at` e `status = confirmed`.
-- Gera **PDF do ingresso** (DomPDF, view em `resources/views/pdf/events/*`) com **QR code SVG** (simple-qrcode, sem Imagick) apontando para o `checkin_token` do convidado.
-- Envia `GuestTicketMail` com o PDF anexado.
+- Gera **PDF do ingresso** (DomPDF, view em `resources/views/pdf/events/*`) com **QR code PNG** (data URI via `chillerlan/php-qrcode`, GD sem Imagick) apontando para URL de check-in do convidado.
+- Envia `GuestTicketMail` com o PDF anexado e QR code referenciado via URL pública `GET /events/qr/{guest}` no corpo do email.
 
 ### 3. Convite via hub (opcional)
 
@@ -118,12 +118,14 @@ Componentes Livewire em `App\Livewire\Events\*`.
 
 PDFs gerados sob demanda. Templates em `resources/views/pdf/events/*`.
 
+Templates de email em `resources/views/mail/events/*` — custom templates em `custom/{key}.blade.php` resolvidos por `invite_template_key`. Variáveis disponíveis: `$guest`, `$checkInUrl`, `$qrDataUri` (data URI para PDF), `$qrUrl` (URL pública para email).
+
 ---
 
 ## Pacotes envolvidos
 
 - `barryvdh/laravel-dompdf` — geração de PDF.
-- `simplesoftwareio/simple-qrcode` — QR em SVG (sem dependência de Imagick).
+- `chillerlan/php-qrcode` — QR em PNG via GD (sem Imagick). Servido via rota `GET /events/qr/{guest}` para compatibilidade com leitores de e-mail.
 - `html5-qrcode` (npm) — leitor de QR no browser.
 
 ---
