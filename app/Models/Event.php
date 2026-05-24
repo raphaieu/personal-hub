@@ -1,6 +1,5 @@
 <?php
 
-
 namespace App\Models;
 
 use App\Enums\Events\EventStatus;
@@ -31,6 +30,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'terms_url',
     'privacy_url',
     'album_id',
+    'requires_payment',
+    'ticket_amount_cents',
+    'mercado_pago_account_id',
 ])]
 class Event extends Model
 {
@@ -69,6 +71,14 @@ class Event extends Model
         return $this->hasMany(ReferralLink::class);
     }
 
+    /**
+     * @return BelongsTo<MercadoPagoAccount, $this>
+     */
+    public function mercadoPagoAccount(): BelongsTo
+    {
+        return $this->belongsTo(MercadoPagoAccount::class);
+    }
+
     protected function casts(): array
     {
         return [
@@ -81,7 +91,26 @@ class Event extends Model
             'requires_photo' => 'boolean',
             'registration_open' => 'boolean',
             'guest_form_schema_json' => 'array',
+            'requires_payment' => 'boolean',
+            'ticket_amount_cents' => 'integer',
         ];
+    }
+
+    public function reservedGuestsCount(): int
+    {
+        return $this->guests()
+            ->whereIn('status', [
+                GuestStatus::Confirmed,
+                GuestStatus::PendingPayment,
+            ])
+            ->count();
+    }
+
+    public function occupancyCount(): int
+    {
+        return $this->requires_payment
+            ? $this->reservedGuestsCount()
+            : $this->confirmedGuestsCount();
     }
 
     public function isEnded(): bool

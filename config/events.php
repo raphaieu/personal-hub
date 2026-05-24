@@ -1,6 +1,5 @@
 <?php
 
-
 return [
 
     'frontend_url' => rtrim((string) env('EVENTS_FRONTEND_URL', 'https://events.raphael-martins.com'), '/'),

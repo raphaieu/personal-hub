@@ -1,13 +1,14 @@
 <?php
 
-
 namespace App\Services\Events;
 
+use App\DTO\Events\EventRegistrationResult;
 use App\Enums\Events\GuestStatus;
 use App\Mail\Events\GuestInterestConfirmationMail;
 use App\Models\Event;
 use App\Models\Guest;
 use App\Models\ReferralLink;
+use App\Services\Events\MercadoPago\MercadoPagoCheckoutService;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;

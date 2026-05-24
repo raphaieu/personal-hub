@@ -1,6 +1,5 @@
 <?php
 
-
 namespace App\Models;
 
 use App\Enums\Events\GuestStatus;
@@ -9,6 +8,7 @@ use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 #[Fillable([
     'event_id',
@@ -25,6 +25,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'email_confirmation_token',
     'email_confirmed_at',
     'checked_in_at',
+    'payment_return_token',
+    'payment_expires_at',
 ])]
 class Guest extends Model
 {
@@ -47,6 +49,14 @@ class Guest extends Model
         return $this->belongsTo(ReferralLink::class);
     }
 
+    /**
+     * @return HasOne<GuestPayment, $this>
+     */
+    public function payment(): HasOne
+    {
+        return $this->hasOne(GuestPayment::class);
+    }
+
     protected function casts(): array
     {
         return [
@@ -57,6 +67,7 @@ class Guest extends Model
             'invite_sent_at' => 'datetime',
             'email_confirmed_at' => 'datetime',
             'checked_in_at' => 'datetime',
+            'payment_expires_at' => 'datetime',
         ];
     }
 }

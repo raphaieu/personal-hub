@@ -1,6 +1,5 @@
 <?php
 
-
 namespace App\Services\Events;
 
 use App\Enums\Events\EventStatus;

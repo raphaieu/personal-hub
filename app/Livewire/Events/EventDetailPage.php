@@ -1,6 +1,5 @@
 <?php
 
-
 namespace App\Livewire\Events;
 
 use App\Enums\Events\GuestStatus;
