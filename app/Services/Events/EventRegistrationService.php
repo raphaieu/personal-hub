@@ -23,17 +23,22 @@ final class EventRegistrationService
     public function __construct(
         private readonly EventPublicConfigService $configService,
         private readonly TurnstileVerifier $turnstileVerifier,
+        private readonly MercadoPagoCheckoutService $checkoutService,
     ) {}
 
     /**
      * @throws ValidationException
      */
-    public function createFromPublicRequest(Event $event, Request $request): Guest
+    public function createFromPublicRequest(Event $event, Request $request): EventRegistrationResult
     {
         if ($event->requires_turnstile && ! $this->turnstileVerifier->verify((string) $request->header('X-Turnstile-Token'))) {
             throw ValidationException::withMessages([
                 'turnstile' => ['Validação anti-bot falhou. Atualize a página e tente novamente.'],
             ]);
+        }
+
+        if ($event->requires_payment) {
+            $this->assertPaymentConfigured($event);
         }
 
         $fields = $this->configService->resolvedFormFields($event);
@@ -73,17 +78,20 @@ final class EventRegistrationService
             $referralLinkId = $link->id;
         }
 
-        $guest = DB::transaction(function () use ($event, $validated, $email, $referralLinkId, $request, $fields): Guest {
+        $requiresPayment = (bool) $event->requires_payment;
+        $reservationMinutes = (int) config('events.payment_reservation_minutes', 15);
+
+        $guest = DB::transaction(function () use ($event, $validated, $email, $referralLinkId, $request, $fields, $requiresPayment, $reservationMinutes): Guest {
             $event->refresh();
 
-            if ($event->capacity !== null && $event->confirmedGuestsCount() >= $event->capacity) {
+            if ($event->capacity !== null && $event->occupancyCount() >= $event->capacity) {
                 throw new HttpResponseException(response()->json([
                     'success' => false,
                     'message' => 'Infelizmente todas as vagas foram preenchidas.',
                 ], 409));
             }
 
-            $guest = Guest::query()->create([
+            $guestAttributes = [
                 'event_id' => $event->id,
                 'referral_link_id' => $referralLinkId,
                 'name' => $validated['name'],
@@ -91,10 +99,20 @@ final class EventRegistrationService
                 'phone' => isset($validated['phone']) ? (string) $validated['phone'] : null,
                 'birth_year' => isset($validated['birth_year']) ? (int) $validated['birth_year'] : null,
                 'custom_data' => null,
-                'status' => GuestStatus::PendingEmail,
-                'email_confirmation_token' => Str::random(64),
                 'consent_terms_at' => now(),
-            ]);
+            ];
+
+            if ($requiresPayment) {
+                $guestAttributes['status'] = GuestStatus::PendingPayment;
+                $guestAttributes['payment_return_token'] = Str::random(64);
+                $guestAttributes['payment_expires_at'] = now()->addMinutes($reservationMinutes);
+                $guestAttributes['email_confirmation_token'] = null;
+            } else {
+                $guestAttributes['status'] = GuestStatus::PendingEmail;
+                $guestAttributes['email_confirmation_token'] = Str::random(64);
+            }
+
+            $guest = Guest::query()->create($guestAttributes);
 
             $photoField = $this->firstEnabledField($fields, 'photo');
             if ($photoField !== null && ($photoField['enabled'] ?? false)) {
@@ -122,11 +140,47 @@ final class EventRegistrationService
             return $guest->fresh();
         });
 
-        $guest->loadMissing('event');
+        $guest->loadMissing('event.mercadoPagoAccount');
+        $event->loadMissing('mercadoPagoAccount');
+
+        if ($requiresPayment) {
+            $checkoutUrl = $this->checkoutService->createCheckout($guest, $event);
+
+            return new EventRegistrationResult(
+                guest: $guest,
+                flow: 'checkout',
+                checkoutUrl: $checkoutUrl,
+            );
+        }
 
         Mail::to($guest->email)->queue(new GuestInterestConfirmationMail($guest));
 
-        return $guest;
+        return new EventRegistrationResult(
+            guest: $guest,
+            flow: 'email_confirmation',
+        );
+    }
+
+    private function assertPaymentConfigured(Event $event): void
+    {
+        if ($event->ticket_amount_cents === null || $event->ticket_amount_cents <= 0) {
+            throw ValidationException::withMessages([
+                'payment' => ['Este evento não possui valor de ingresso configurado.'],
+            ]);
+        }
+
+        $account = $event->mercadoPagoAccount;
+        if ($account === null) {
+            throw ValidationException::withMessages([
+                'payment' => ['Este evento não possui conta Mercado Pago configurada.'],
+            ]);
+        }
+
+        if ($account->owner_id !== $event->owner_id) {
+            throw ValidationException::withMessages([
+                'payment' => ['Conta Mercado Pago inválida para este evento.'],
+            ]);
+        }
     }
 
     /**

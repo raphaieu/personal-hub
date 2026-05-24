@@ -113,7 +113,29 @@ final class EventPublicConfigService
             ];
         }
 
+        $data['payment'] = $this->paymentBlock($event);
+
         return $data;
+    }
+
+    /**
+     * @return array{required: bool, amount: ?float, currency: string}
+     */
+    private function paymentBlock(Event $event): array
+    {
+        if (! $event->requires_payment || $event->ticket_amount_cents === null) {
+            return [
+                'required' => false,
+                'amount' => null,
+                'currency' => 'BRL',
+            ];
+        }
+
+        return [
+            'required' => true,
+            'amount' => round($event->ticket_amount_cents / 100, 2),
+            'currency' => 'BRL',
+        ];
     }
 
     private function publicStatus(Event $event): string
@@ -231,7 +253,9 @@ final class EventPublicConfigService
                 'fields' => $this->mergeFormFields($event),
                 'termsUrl' => $termsUrl,
                 'privacyUrl' => $privacyUrl,
-                'submitLabel' => 'Confirmar presença',
+                'submitLabel' => $event->requires_payment
+                    ? 'Pagar e confirmar presença'
+                    : 'Confirmar presença',
             ],
             'ref_block' => $refBlock,
         ];
@@ -243,7 +267,7 @@ final class EventPublicConfigService
             return null;
         }
 
-        $used = $event->confirmedGuestsCount();
+        $used = $event->occupancyCount();
 
         return max(0, $event->capacity - $used);
     }

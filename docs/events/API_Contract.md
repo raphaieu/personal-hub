@@ -167,6 +167,11 @@ Retorna tudo que o frontend precisa para renderizar o formulário e controlar a 
       "privacyUrl": "https://events.raphael-martins.com/privacidade",
       "submitLabel": "Confirmar presença"
     },
+    "payment": {
+      "required": false,
+      "amount": null,
+      "currency": "BRL"
+    },
     "ref": {
       "valid": true,
       "name": "Lista do João",
@@ -300,17 +305,32 @@ Submete o formulário de cadastro do convidado. Usa `multipart/form-data` por ca
 | `birth_year` | `number` | Condicional | Ano de nascimento (4 dígitos) |
 | `consent_terms` | `boolean` | Sim | Aceite dos termos de uso e privacidade |
 
-#### Response `201` — Sucesso
+#### Response `201` — Sucesso (fluxo gratuito — confirmação por e-mail)
 
 ```json
 {
   "success": true,
+  "flow": "email_confirmation",
   "message": "Recebemos sua inscrição! Enviamos um e-mail para seu@email.com com um link para confirmar seu interesse e receber o ingresso. Verifique caixa de entrada e spam."
 }
 ```
 
+#### Response `201` — Sucesso (fluxo pago — Checkout Pro)
+
+```json
+{
+  "success": true,
+  "flow": "checkout",
+  "checkoutUrl": "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=...",
+  "message": "Redirecionando para o pagamento..."
+}
+```
+
 > [!NOTE]
-> O frontend não recebe `guestId` nem dados internos na resposta JSON. O fluxo de confirmação de interesse e envio do ingresso (PDF) é por e-mail (link no backend Laravel, fora deste contrato JSON). Isso simplifica o frontend estático e evita expor IDs na API pública.
+> O frontend deve redirecionar para `checkoutUrl` quando `flow === "checkout"`. Após o pagamento, o Mercado Pago redireciona para `GET /events/payment/return/{token}` no Hub (polling). O ingresso é enviado por e-mail após aprovação (webhook).
+
+> [!NOTE]
+> O frontend não recebe `guestId` na API pública. No fluxo gratuito, a confirmação de interesse é por e-mail (`GET /events/guest/confirm/{token}`).
 
 #### Response `422` — Erro de validação
 

@@ -58,7 +58,7 @@ final class PublicEventController extends Controller
         }
 
         try {
-            $guest = $this->registrationService->createFromPublicRequest($event, $request);
+            $result = $this->registrationService->createFromPublicRequest($event, $request);
         } catch (ValidationException $exception) {
             return response()->json([
                 'success' => false,
@@ -67,9 +67,19 @@ final class PublicEventController extends Controller
             ], 422);
         }
 
+        if ($result->isCheckout()) {
+            return response()->json([
+                'success' => true,
+                'flow' => 'checkout',
+                'checkoutUrl' => $result->checkoutUrl,
+                'message' => 'Redirecionando para o pagamento...',
+            ], 201);
+        }
+
         return response()->json([
             'success' => true,
-            'message' => 'Recebemos sua inscrição! Enviamos um e-mail para '.$guest->email.' com um link para confirmar seu interesse e receber o ingresso. Verifique caixa de entrada e spam.',
+            'flow' => 'email_confirmation',
+            'message' => 'Recebemos sua inscrição! Enviamos um e-mail para '.$result->guest->email.' com um link para confirmar seu interesse e receber o ingresso. Verifique caixa de entrada e spam.',
         ], 201);
     }
 }
