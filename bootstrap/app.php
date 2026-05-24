@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\ValidateIaraAccess;
+use App\Jobs\Events\ExpireUnpaidEventGuestsJob;
 use App\Jobs\NotificarVencimento;
 use App\Jobs\ScrapeConta;
 use App\Jobs\VerificarStatusFaturas;
@@ -20,6 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->trustProxies(at: '*'); // confiar no proxy do aaPanel
         $middleware->validateCsrfTokens(except: [
             'webhook/whatsapp',
+            'webhooks/mercadopago',
             'iara',
         ]);
 
@@ -39,6 +41,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         // Resíduos em storage/app/private (album-ingest, livewire-tmp) — ver SPEC álbuns §5.
         $schedule->command('albums:prune-local-staging')->weeklyOn(1, '3:30');
+        $schedule->job(new ExpireUnpaidEventGuestsJob)->everyFifteenMinutes();
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         //

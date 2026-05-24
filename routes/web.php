@@ -7,11 +7,14 @@ use App\Http\Controllers\Albums\AlbumMediaController;
 use App\Http\Controllers\Albums\AlbumViewerController;
 use App\Http\Controllers\Events\GuestEmailConfirmationController;
 use App\Http\Controllers\Events\GuestQrCodeController;
+use App\Http\Controllers\Events\PaymentReturnController;
+use App\Http\Controllers\Events\PaymentStatusController;
 use App\Http\Controllers\IaraController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ThreadsCommentVoteController;
 use App\Http\Controllers\ThreadsOpportunitiesController;
 use App\Http\Controllers\Utilities\UtilityInvoicePdfController;
+use App\Http\Controllers\Webhook\MercadoPagoWebhookController;
 use App\Http\Controllers\Webhook\WhatsAppWebhookController;
 use App\Livewire\Albums\AlbumDetailPage;
 use App\Livewire\Albums\HubPage as AlbumsHubPage;
@@ -27,6 +30,10 @@ use Illuminate\Support\Facades\Route;
 Route::post('/webhook/whatsapp', WhatsAppWebhookController::class)
     ->middleware('throttle:300,1')
     ->name('webhook.whatsapp');
+
+Route::post('/webhooks/mercadopago', MercadoPagoWebhookController::class)
+    ->middleware('throttle:300,1')
+    ->name('webhook.mercadopago');
 
 Route::post('/iara', IaraController::class)
     ->middleware(['iara.access', 'throttle:30,1'])
@@ -45,6 +52,14 @@ Route::get('/events/guest/confirm/{token}', GuestEmailConfirmationController::cl
 Route::get('/events/qr/{guest}', GuestQrCodeController::class)
     ->middleware('throttle:120,1')
     ->name('events.guest.qr');
+
+Route::get('/events/payment/return/{token}', PaymentReturnController::class)
+    ->middleware('throttle:60,1')
+    ->name('events.payment.return');
+
+Route::get('/events/payment/status/{token}', PaymentStatusController::class)
+    ->middleware('throttle:120,1')
+    ->name('events.payment.status');
 
 Route::post('/oportunidades/votos/{comment}', [ThreadsCommentVoteController::class, 'store'])
     ->middleware('throttle:120,1')
