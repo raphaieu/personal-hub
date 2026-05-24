@@ -8,37 +8,29 @@ Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *chan
 
 ## [Unreleased]
 
-### Added
-
-- **Eventos — pagamento Mercado Pago (Checkout Pro):** contas MP por organizador (`mercado_pago_accounts`, access token criptografado); evento com `requires_payment`, `ticket_amount_cents` e conta vinculada; registro público retorna `flow: checkout` + `checkoutUrl` (PIX/cartão, sem boleto); webhook `POST /webhooks/mercadopago`; páginas `GET /events/payment/return/{token}` (polling + countdown 15 min) e `GET /events/payment/status/{token}`; job `ExpireUnpaidEventGuestsJob` a cada 15 min; status `pending_payment`; pacote `mercadopago/dx-php`. Admin: painel de contas MP e campos de pagamento no hub de eventos.
-
 ### Pendente
 
 - **Álbuns de mídia — Fase F:** upload ZIP, tags, watermark on-the-fly, thumbnail/transcode de vídeo (FFmpeg), download ZIP do álbum. Ver [docs/album/SPEC.md](docs/album/SPEC.md) (seção *Fase F — backlog*) e [docs/roadmap/BACKLOG.md](docs/roadmap/BACKLOG.md).
 
-### Changed
+---
 
-- **Documentação reorganizada (2026-05-11):** raiz enxuta (`README.md`, `PRD.md`, `SPEC.md`, `LLM.md`) e SPECs por módulo em `docs/<modulo>/SPEC.md` (`core`, `whatsapp`, `utilities`, `threads`, `events`, `album`, `operations`). Backlog único em `docs/roadmap/BACKLOG.md` (renomeado de `docs/v2.md`). Mapa em `docs/README.md`. SPEC dos álbuns dividida em entrada canônica (`docs/album/SPEC.md`) + detalhamento histórico (`docs/album/IMPLEMENTATION.md`, antigo `SPEC_media_albums.md`). SPEC de eventos consolidada em `docs/events/SPEC.md` (antigo `SPEC_events_v1.md` removido; `BRIEFING.md` e `API_Contract.md` mantidos como referência estendida).
+## 2026-05-24
 
-### Added
-
-- **Eventos — fluxo completo de ingresso e portaria:** registro público cria convidado `pending_email` + token; `GuestInterestConfirmationMail` com link `GET /events/guest/confirm/{token}`; após confirmação, `GuestTicketMail` com **PDF** (DomPDF: `pdf/events/*`) e QR (**SVG** via `simple-qrcode`, sem Imagick). `GuestInviteMail` com mesmo PDF no convite do hub. Colunas `guests.email_confirmation_token`, `email_confirmed_at`, `checked_in_at`. Portaria: `GET /events-checkin` (Livewire `EventCheckInPage`, layout dedicado mobile-first, leitor **html5-qrcode**, manifest `public/manifest-events-checkin.json`). Pacotes: `barryvdh/laravel-dompdf`, `simplesoftwareio/simple-qrcode`; npm `html5-qrcode` (chunk via `resources/js/events-checkin.js`). Documentação: [docs/events/SPEC.md](docs/events/SPEC.md).
-
-### Fixed
-
-- **Playwright Embasa:** modais `section.blk-modal` que interceptavam o clique na matrícula (`span.matricula`) — fechamento de overlays (`dismissEmbasaBlockingModals`) e seleção com escopo no modal + `force` quando necessário (`playwright/src/embasa-scraper.js`).
+*Commits diretos na `main` (pagamento de ingressos).*
 
 ### Added
 
-- **Dashboard hub:** página `GET /dashboard` redesenhada com **cards** (ícone SVG, título, descrição, link) para Dashboard, Chat IA, Threads Hub, Profiles IA, Fontes monitoradas, Utilidades e Álbuns. Dados em **`config/hub_dashboard.php`**; ícones em **`resources/views/components/hub/dashboard-icon.blade.php`**. Menu superior mantido; documentado em [LLM.md](LLM.md), [SPEC.md](SPEC.md) (*Dashboard principal*), [PRD.md](PRD.md) (F7), [README.md](README.md). Teste: `tests/Feature/DashboardHubCardsTest.php`.
+- **Eventos — pagamento Mercado Pago (Checkout Pro):** contas MP por organizador (`mercado_pago_accounts`, access token criptografado); evento com `requires_payment`, `ticket_amount_cents` e conta vinculada; registro público retorna `flow: checkout` + `checkoutUrl` (PIX/cartão, sem boleto); webhook `POST /webhooks/mercadopago`; páginas `GET /events/payment/return/{token}` (polling + countdown 15 min) e `GET /events/payment/status/{token}`; job `ExpireUnpaidEventGuestsJob` a cada 15 min; status `pending_payment`; pacote `mercadopago/dx-php`. Admin: painel de contas MP e campos de pagamento no hub de eventos.
 
 ### Changed
 
-- Navegação: rótulo **Albums** → **Álbuns** no menu (desktop e responsivo).
+- **Eventos — pagamento:** expiração da reserva de vaga só no Hub (`payment_expires_at` + job); a Preference do MP não envia `expiration_date` (evita link de checkout expirado no sandbox antes do job).
 
 ---
 
 ## 2026-05-21
+
+*Commits diretos na `main` (QR PNG, templates, foto opcional).*
 
 ### Changed
 
@@ -57,11 +49,24 @@ Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *chan
 
 ---
 
+## 2026-05-11
+
+*Commit na `main` (reorganização de documentação).*
+
+### Changed
+
+- **Documentação reorganizada:** raiz enxuta (`README.md`, `PRD.md`, `SPEC.md`, `LLM.md`) e SPECs por módulo em `docs/<modulo>/SPEC.md` (`core`, `whatsapp`, `utilities`, `threads`, `events`, `album`, `operations`). Backlog único em `docs/roadmap/BACKLOG.md` (renomeado de `docs/v2.md`). Mapa em `docs/README.md`. SPEC dos álbuns dividida em entrada canônica (`docs/album/SPEC.md`) + detalhamento histórico (`docs/album/IMPLEMENTATION.md`). SPEC de eventos consolidada em `docs/events/SPEC.md` (antigo `SPEC_events_v1.md` removido; `BRIEFING.md` e `API_Contract.md` mantidos como referência estendida).
+
+---
+
 ## 2026-05-10
+
+*PR [#4](https://github.com/raphaieu/personal-hub/pull/4) `feature/album`, PR [#5](https://github.com/raphaieu/personal-hub/pull/5) `feature/events` — merges na `main`.*
 
 ### Added
 
-- **Eventos (MVP v1 — baseline):** schema `events`, `referral_links`, `guests`; hub `GET /hub/events`, `GET /hub/events/{event}`; API `GET|POST /api/v1/events/{slug}/config|register`, CORS, rate limits, Turnstile (`EVENTS_*`). Evoluções posteriores (confirmação de e-mail, PDF, QR, `/events-checkin`) estão descritas em [docs/events/SPEC.md](docs/events/SPEC.md) e no item **[Unreleased]** acima.
+- **Eventos (v1 — PR #5):** schema `events`, `referral_links`, `guests`; hub `GET /hub/events`, `GET /hub/events/{event}`; API `GET|POST /api/v1/events/{slug}/config|register`, CORS, rate limits, Turnstile (`EVENTS_*`). Fluxo `pending_email` → confirmação por e-mail → `GuestTicketMail` com PDF (DomPDF) e QR; `GuestInviteMail` no hub. Portaria `GET /events-checkin` (Livewire, **html5-qrcode**, manifest PWA). Pacotes: `barryvdh/laravel-dompdf`, `simplesoftwareio/simple-qrcode`, npm `html5-qrcode`. Documentação: [docs/events/SPEC.md](docs/events/SPEC.md). Evoluções de QR PNG e pagamento MP: ver **2026-05-21** e **2026-05-24**.
+- **Dashboard hub (PR #4):** página `GET /dashboard` com **cards** (ícone SVG, título, descrição, link). Dados em **`config/hub_dashboard.php`**; ícones em **`resources/views/components/hub/dashboard-icon.blade.php`**. Teste: `tests/Feature/DashboardHubCardsTest.php`.
 - **Docker (PHP-FPM):** `docker/php/zz-uploads.ini` copiado no `Dockerfile` — `max_file_uploads`, `upload_max_filesize`, `post_max_size`, `memory_limit`, tempos de execução alinhados a uploads em lote de álbuns. Requer **rebuild** da imagem `raphael-hub:latest` após alterar o arquivo.
 - **Docker (Nginx do Compose):** `client_max_body_size` elevado em `docker/nginx/default.conf` para acompanhar `post_max_size` do PHP.
 - **Docker (runtime fase F):** pacotes **`ffmpeg`** e **`zip`** (CLI) na imagem PHP; extensão PHP **`zip`** já existia — preparação para ZIP/FFmpeg em álbuns sem mudar o código da Fase F ainda.
@@ -70,9 +75,14 @@ Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *chan
 
 - **`.env.example`:** comentário no bloco `ALBUMS_*` apontando `docker/php/zz-uploads.ini`, `docker/nginx/default.conf`, rebuild da imagem e necessidade de alinhar **`client_max_body_size`** no Nginx do **host** (aaPanel), se aplicável.
 
+### Changed
+
+- Navegação: rótulo **Albums** → **Álbuns** no menu (desktop e responsivo) — PR #4.
+
 ### Fixed
 
 - **Playwright Embasa (`playwright/src/embasa-scraper.js`):** quando a 2ª via exibe *“A Matrícula informada não possui débitos”* (sem contas em aberto), o scraper deixa de falhar e passa a extrair faturas do carrossel **MINHAS CONTAS** na **`/home`** (referência a partir do título mês/ano, vencimento, consumo, valor total, status). **`pdf_path`** permanece ausente se não houver fatura pendente para baixar — o Laravel continua atualizando `invoices` sem PDF.
+- **Playwright Embasa — modais:** `section.blk-modal` que interceptavam o clique na matrícula — `dismissEmbasaBlockingModals` e clique com escopo/`force` quando necessário (PR #4).
 
 ### Operação
 
