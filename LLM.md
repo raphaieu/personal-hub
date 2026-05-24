@@ -70,8 +70,9 @@ Versões abaixo refletem o **ambiente de desenvolvimento local** atual. Produç�
 
 ### Credenciais e segurança
 
-- **Nunca** salvar CPF, senha ou API key no banco.
+- **Nunca** salvar CPF, senha ou API key no banco (texto plano).
 - Credenciais das concessionárias vêm exclusivamente do `.env`.
+- **Exceção — Mercado Pago (eventos):** `access_token` em `mercado_pago_accounts` com cast `encrypted` (uma conta por organizador, vinculada ao evento). Nunca expor na API pública `/api/v1/events`.
 - Campo de credenciais em `utility_accounts` (se existir) é apenas referência (qual ENV var usar).
 - JIDs de grupo (`WHATSAPP_GRUPO_CASA_JID`, `WHATSAPP_NOTAS_GRUPO_JID`) no `.env`, nunca hardcoded.
 
