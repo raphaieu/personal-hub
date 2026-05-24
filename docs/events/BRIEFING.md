@@ -659,10 +659,20 @@ Documento template inicial é aceitável pro MVP, mas vale revisão por advogado
 - [ ] Webhook de email (Resend) para tracking de bounce/complaint
 - [ ] Multi-evento por organizador com templates salvos
 
+### Pagamentos — MVP (implementado)
+
+- [x] Checkout Pro Mercado Pago (PIX + cartão, sem boleto)
+- [x] Contas MP por organizador (`mercado_pago_accounts`, token criptografado)
+- [x] Preço único por evento no admin (`ticket_amount_cents`)
+- [x] Webhook + return URL com polling e countdown 15 min
+- [x] Guest apagado se pagamento recusado ou expirado (nova inscrição)
+
 ### v2 (Backlog para evolução futura)
 
 - [ ] Limite de eventos por organizador (anti-abuso)
-- [ ] Sistema de pagamento de ingresso (Mercado Pago)
+- [ ] Lotes de ingresso (1º lote, 2º lote) com preço e janela de venda
+- [ ] Cupons de desconto (% ou valor fixo, limite de uso)
+- [ ] Snapshot de preço dinâmico por inscrição
 - [ ] Acompanhantes (+1)
 - [ ] Categorias de ingresso
 - [ ] Múltiplos co-organizadores com login próprio

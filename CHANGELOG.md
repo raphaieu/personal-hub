@@ -8,6 +8,10 @@ Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *chan
 
 ## [Unreleased]
 
+### Added
+
+- **Eventos — pagamento Mercado Pago (Checkout Pro):** contas MP por organizador (`mercado_pago_accounts`, access token criptografado); evento com `requires_payment`, `ticket_amount_cents` e conta vinculada; registro público retorna `flow: checkout` + `checkoutUrl` (PIX/cartão, sem boleto); webhook `POST /webhooks/mercadopago`; páginas `GET /events/payment/return/{token}` (polling + countdown 15 min) e `GET /events/payment/status/{token}`; job `ExpireUnpaidEventGuestsJob` a cada 15 min; status `pending_payment`; pacote `mercadopago/dx-php`. Admin: painel de contas MP e campos de pagamento no hub de eventos.
+
 ### Pendente
 
 - **Álbuns de mídia — Fase F:** upload ZIP, tags, watermark on-the-fly, thumbnail/transcode de vídeo (FFmpeg), download ZIP do álbum. Ver [docs/album/SPEC.md](docs/album/SPEC.md) (seção *Fase F — backlog*) e [docs/roadmap/BACKLOG.md](docs/roadmap/BACKLOG.md).

@@ -25,6 +25,35 @@ invite_template_key,             -- chave para custom templates (mail/pdf) em ma
 closed_message,
 terms_url, privacy_url,
 album_id (FK nullable → albums),
+requires_payment (bool),
+ticket_amount_cents (unsigned, nullable),
+mercado_pago_account_id (FK nullable → mercado_pago_accounts),
+timestamps
+```
+
+### `mercado_pago_accounts`
+
+Contas Mercado Pago reutilizáveis por organizador (`owner_id`).
+
+```
+id, owner_id (FK → users),
+label, public_key,
+access_token (encrypted),
+environment,                     -- sandbox | production
+timestamps
+```
+
+### `guest_payments`
+
+Snapshot 1:1 do pagamento no MVP.
+
+```
+id, guest_id (FK unique), mercado_pago_account_id (FK),
+preference_id, payment_id (unique nullable),
+status,                          -- pending | approved | rejected | refunded | expired
+amount_cents, currency,
+mp_last_payload (json),
+paid_at,
 timestamps
 ```
 
@@ -49,11 +78,13 @@ name, email, phone (nullable),
 photo_path (nullable),
 birth_year (nullable),
 custom_data (json),              -- campos extras do formulário (schema dinâmico)
-status,                          -- pending_email | confirmed | cancelled | blocked
+status,                          -- pending_email | pending_payment | confirmed | cancelled | blocked
 consent_terms_at,
 invite_sent_at,
 email_confirmation_token (unique nullable),
 email_confirmed_at,
+payment_return_token (unique nullable),
+payment_expires_at,
 checked_in_at,
 timestamps
 
@@ -73,6 +104,17 @@ UNIQUE: (event_id, email)
 - Cria `guest` com `status = pending_email`.
 - Gera `email_confirmation_token`.
 - Envia `GuestInterestConfirmationMail` com link `GET /events/guest/confirm/{token}`.
+
+**Fluxo pago** (`requires_payment = true`):
+
+- Cria `guest` com `status = pending_payment`, `payment_return_token`, `payment_expires_at` (+15 min, configurável).
+- Cria Preference no Mercado Pago (Checkout Pro; PIX + cartão; **sem boleto**; sem `expiration_date` na Preference — expiração só via job no Hub).
+- Resposta API: `flow: checkout`, `checkoutUrl` — **não** envia e-mail de interesse.
+- Webhook `POST /webhooks/mercadopago` confirma pagamento → `GuestTicketMail`.
+- Return URL: `GET /events/payment/return/{token}` com polling em `GET /events/payment/status/{token}`.
+- Job `ExpireUnpaidEventGuestsJob` (a cada 15 min): consulta MP; se não aprovado, **apaga** o guest (nova inscrição do zero).
+
+Capacidade: `pending_payment` conta em `Event::reservedGuestsCount()`; check-in só `confirmed`.
 
 CORS, rate limits e Turnstile controlados via `EVENTS_*` no `.env`.
 
@@ -113,7 +155,7 @@ Componentes Livewire em `App\Livewire\Events\*`.
 | Classe | Quando |
 |--------|--------|
 | `GuestInterestConfirmationMail` | Após `POST /register`. Link de confirmação. |
-| `GuestTicketMail` | Após confirmação por e-mail. PDF anexado. |
+| `GuestTicketMail` | Após confirmação por e-mail **ou** pagamento aprovado. PDF anexado. |
 | `GuestInviteMail` | Convite direto pelo hub. PDF anexado. |
 
 PDFs gerados sob demanda. Templates em `resources/views/pdf/events/*`.
@@ -127,18 +169,23 @@ Templates de email em `resources/views/mail/events/*` — custom templates em `c
 - `barryvdh/laravel-dompdf` — geração de PDF.
 - `chillerlan/php-qrcode` — QR em PNG via GD (sem Imagick). Servido via rota `GET /events/qr/{guest}` para compatibilidade com leitores de e-mail.
 - `html5-qrcode` (npm) — leitor de QR no browser.
+- `mercadopago/dx-php` — Checkout Pro / Payments API.
 
 ---
 
 ## Variáveis de ambiente
 
 ```env
-EVENTS_CORS_ALLOWED_ORIGINS=
-EVENTS_RATE_LIMIT_PER_MINUTE=
-EVENTS_TURNSTILE_SECRET=
-EVENTS_TURNSTILE_SITE_KEY=
-EVENTS_PUBLIC_BASE_URL=          # base para links de confirmação
+EVENTS_FRONTEND_URL=             # landing PHP (botão voltar ao evento)
+EVENTS_HUB_PUBLIC_URL=           # default APP_URL — back_urls e webhook MP
+EVENTS_PAYMENT_RESERVATION_MINUTES=15
+EVENTS_PAYMENT_POLL_INTERVAL_SECONDS=2
+EVENTS_CORS_ORIGINS=
+EVENTS_TURNSTILE_SECRET_KEY=
+EVENTS_TURNSTILE_ENABLED=true
 ```
+
+Webhook a cadastrar no painel Mercado Pago: `{EVENTS_HUB_PUBLIC_URL}/webhooks/mercadopago`
 
 ---
 

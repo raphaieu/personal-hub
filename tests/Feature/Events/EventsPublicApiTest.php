@@ -1,6 +1,5 @@
 <?php
 
-
 namespace Tests\Feature\Events;
 
 use App\Enums\Events\EventStatus;
@@ -58,7 +57,8 @@ final class EventsPublicApiTest extends TestCase
         ], ['Accept' => 'application/json']);
 
         $response->assertCreated()
-            ->assertJsonPath('success', true);
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('flow', 'email_confirmation');
 
         $this->assertDatabaseHas('guests', [
             'event_id' => $event->id,

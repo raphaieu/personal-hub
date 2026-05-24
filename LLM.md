@@ -102,6 +102,10 @@ Versões abaixo refletem o **ambiente de desenvolvimento local** atual. Produç�
 
 Para detalhes, ler a SPEC do módulo. Aqui ficam só os ganchos críticos.
 
+### Eventos — pagamento (Mercado Pago)
+
+Checkout Pro via `MercadoPagoCheckoutService` (Preference API). Evento pago: guest `pending_payment` → redirect MP → webhook confirma → `GuestTicketMail` (sem e-mail de interesse). Return URL com polling: `GET /events/payment/return/{token}`, status JSON `GET /events/payment/status/{token}`. Webhook: `POST /webhooks/mercadopago` (CSRF exempt). Job `ExpireUnpaidEventGuestsJob` a cada 15 min. Config: `config/events.php` (`hub_public_url`, `payment_reservation_minutes`). Ver [docs/events/SPEC.md](docs/events/SPEC.md).
+
 ### Eventos — QR code
 
 QR codes de check-in são servidos como PNG via rota pública `GET /events/qr/{guest}` (`GuestQrCodeController`). Usa `chillerlan/php-qrcode` (GD, sem Imagick). Emails custom referenciam `{{ $qrUrl }}`; PDFs (DomPDF) usam `{{ $qrDataUri }}` (data URI). Cache de 24h. Templates em `resources/views/{mail,pdf}/events/custom/{key}.blade.php`, resolvidos por `invite_template_key`.
