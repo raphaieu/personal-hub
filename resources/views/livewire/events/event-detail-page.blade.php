@@ -22,6 +22,12 @@
                     <code class="text-xs bg-gray-100 px-1 rounded">{{ $publicRegistrationUrl }}</code>
                 </p>
                 <p class="text-xs text-gray-500">API: <code class="bg-gray-100 px-1 rounded">GET {{ url('/api/v1/events/'.$event->slug.'/config') }}</code></p>
+                @if ($requiresPayment)
+                    <p class="text-xs text-gray-500 mt-2">
+                        Pagamento: R$ {{ number_format(($event->ticket_amount_cents ?? 0) / 100, 2, ',', '.') }} —
+                        Webhook MP: <code class="bg-gray-100 px-1 rounded break-all">{{ $webhookUrl }}</code>
+                    </p>
+                @endif
             </div>
 
             <div class="bg-white shadow-sm sm:rounded-lg p-4 sm:p-6 space-y-4">
@@ -103,6 +109,9 @@
                             <th class="px-3 py-2 text-left font-medium text-gray-600">Nome</th>
                             <th class="px-3 py-2 text-left font-medium text-gray-600">E-mail</th>
                             <th class="px-3 py-2 text-left font-medium text-gray-600">Status</th>
+                            @if ($requiresPayment)
+                                <th class="px-3 py-2 text-left font-medium text-gray-600">Pagamento</th>
+                            @endif
                             <th class="px-3 py-2 text-left font-medium text-gray-600">Convite</th>
                             <th class="px-3 py-2"></th>
                         </tr>
@@ -113,6 +122,14 @@
                                 <td class="px-3 py-2 font-medium text-gray-900">{{ $guest->name }}</td>
                                 <td class="px-3 py-2 text-gray-600">{{ $guest->email }}</td>
                                 <td class="px-3 py-2">{{ $guest->status->value }}</td>
+                                @if ($requiresPayment)
+                                    <td class="px-3 py-2 text-xs text-gray-500">
+                                        {{ $guest->payment?->status?->value ?? '—' }}
+                                        @if ($guest->payment?->payment_id)
+                                            <span class="block text-[10px] text-gray-400">#{{ $guest->payment->payment_id }}</span>
+                                        @endif
+                                    </td>
+                                @endif
                                 <td class="px-3 py-2 text-xs text-gray-500">{{ $guest->invite_sent_at?->format('d/m/Y H:i') ?? '—' }}</td>
                                 <td class="px-3 py-2 text-right space-x-2 whitespace-nowrap">
                                     <button type="button" wire:click="sendInvite('{{ $guest->id }}')" class="text-indigo-600 hover:text-indigo-800 text-xs font-semibold uppercase">Enviar convite</button>
@@ -122,7 +139,7 @@
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="5" class="px-3 py-6 text-center text-gray-500">Nenhum convidado cadastrado.</td>
+                                <td colspan="{{ $requiresPayment ? 6 : 5 }}" class="px-3 py-6 text-center text-gray-500">Nenhum convidado cadastrado.</td>
                             </tr>
                         @endforelse
                     </tbody>

@@ -162,6 +162,7 @@ final class EventDetailPage extends Component
     {
         $guests = Guest::query()
             ->where('event_id', $this->event->id)
+            ->with('payment')
             ->orderBy('email')
             ->get();
 
@@ -174,6 +175,8 @@ final class EventDetailPage extends Component
             'guests' => $guests,
             'referrals' => $referrals,
             'publicRegistrationUrl' => rtrim((string) config('events.frontend_url'), '/').'/'.$this->event->slug,
+            'webhookUrl' => rtrim((string) config('events.hub_public_url'), '/').'/webhooks/mercadopago',
+            'requiresPayment' => (bool) $this->event->requires_payment,
         ]);
     }
 }

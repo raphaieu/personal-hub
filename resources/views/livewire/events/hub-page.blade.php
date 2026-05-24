@@ -74,7 +74,28 @@
                             <input wire:model.boolean="formRegistrationOpen" type="checkbox" class="rounded border-gray-300">
                             Inscrições abertas
                         </label>
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-700">
+                            <input wire:model.boolean="formRequiresPayment" type="checkbox" class="rounded border-gray-300">
+                            Exige pagamento (Mercado Pago)
+                        </label>
                     </div>
+                    @if ($formRequiresPayment)
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Valor do ingresso (R$)</label>
+                            <input wire:model="formTicketAmount" type="text" inputmode="decimal" class="w-full rounded-md border-gray-300 text-sm" placeholder="20.00">
+                            @error('formTicketAmount') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                        </div>
+                        <div class="md:col-span-2">
+                            <label class="block text-xs font-medium text-gray-600 mb-1">Conta Mercado Pago</label>
+                            <select wire:model="formMercadoPagoAccountId" class="w-full rounded-md border-gray-300 text-sm">
+                                <option value="">Selecione…</option>
+                                @foreach ($mercadoPagoAccounts as $mpAccount)
+                                    <option value="{{ $mpAccount->id }}">{{ $mpAccount->label }} ({{ $mpAccount->environment->value }})</option>
+                                @endforeach
+                            </select>
+                            @error('formMercadoPagoAccountId') <p class="text-xs text-red-600 mt-1">{{ $message }}</p> @enderror
+                        </div>
+                    @endif
                     <div class="md:col-span-6">
                         <label class="block text-xs font-medium text-gray-600 mb-1">Mensagem quando fechado (opcional)</label>
                         <textarea wire:model="formClosedMessage" rows="2" class="w-full rounded-md border-gray-300 text-sm"></textarea>
@@ -98,6 +119,8 @@
                     </div>
                 </form>
             </div>
+
+            <livewire:events.mercado-pago-accounts-panel />
 
             <div class="bg-white shadow-sm sm:rounded-lg overflow-hidden">
                 <table class="min-w-full divide-y divide-gray-200 text-sm">

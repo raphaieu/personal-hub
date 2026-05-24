@@ -1,10 +1,10 @@
 <?php
 
-
 namespace App\Livewire\Events;
 
 use App\Enums\Events\EventStatus;
 use App\Models\Event;
+use App\Models\MercadoPagoAccount;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
@@ -39,6 +39,12 @@ final class HubPage extends Component
 
     public string $formInviteTemplateKey = '';
 
+    public bool $formRequiresPayment = false;
+
+    public string $formTicketAmount = '';
+
+    public ?string $formMercadoPagoAccountId = null;
+
     public function startCreate(): void
     {
         $this->editingId = null;
@@ -63,6 +69,11 @@ final class HubPage extends Component
         $this->formRegistrationOpen = $event->registration_open;
         $this->formClosedMessage = (string) ($event->closed_message ?? '');
         $this->formInviteTemplateKey = (string) ($event->invite_template_key ?? '');
+        $this->formRequiresPayment = (bool) $event->requires_payment;
+        $this->formTicketAmount = $event->ticket_amount_cents !== null
+            ? number_format($event->ticket_amount_cents / 100, 2, '.', '')
+            : '';
+        $this->formMercadoPagoAccountId = $event->mercado_pago_account_id;
         $this->resetValidation();
     }
 
@@ -82,6 +93,12 @@ final class HubPage extends Component
     {
         $this->validate($this->rules());
 
+        $ticketAmountCents = null;
+        if ($this->formRequiresPayment) {
+            $normalized = str_replace(',', '.', trim($this->formTicketAmount));
+            $ticketAmountCents = (int) round(((float) $normalized) * 100);
+        }
+
         $payload = [
             'title' => $this->formTitle,
             'slug' => $this->formSlug,
@@ -96,6 +113,9 @@ final class HubPage extends Component
             'invite_template_key' => $this->formInviteTemplateKey !== '' ? $this->formInviteTemplateKey : null,
             'starts_at' => $this->formStartsAt !== '' ? $this->formStartsAt : null,
             'ends_at' => $this->formEndsAt !== '' ? $this->formEndsAt : null,
+            'requires_payment' => $this->formRequiresPayment,
+            'ticket_amount_cents' => $this->formRequiresPayment ? $ticketAmountCents : null,
+            'mercado_pago_account_id' => $this->formRequiresPayment ? $this->formMercadoPagoAccountId : null,
         ];
 
         if ($this->editingId !== null) {
@@ -139,6 +159,20 @@ final class HubPage extends Component
             'formRegistrationOpen' => ['boolean'],
             'formClosedMessage' => ['nullable', 'string', 'max:2000'],
             'formInviteTemplateKey' => ['nullable', 'string', 'max:64', 'regex:/^[a-z0-9]+(?:_[a-z0-9]+)*$/'],
+            'formRequiresPayment' => ['boolean'],
+            'formTicketAmount' => [
+                Rule::requiredIf($this->formRequiresPayment),
+                'nullable',
+                'numeric',
+                'min:0.01',
+                'max:99999.99',
+            ],
+            'formMercadoPagoAccountId' => [
+                Rule::requiredIf($this->formRequiresPayment),
+                'nullable',
+                'uuid',
+                Rule::exists('mercado_pago_accounts', 'id')->where(fn ($q) => $q->where('owner_id', auth()->id())),
+            ],
         ];
     }
 
@@ -157,6 +191,9 @@ final class HubPage extends Component
         $this->formRegistrationOpen = true;
         $this->formClosedMessage = '';
         $this->formInviteTemplateKey = '';
+        $this->formRequiresPayment = false;
+        $this->formTicketAmount = '';
+        $this->formMercadoPagoAccountId = null;
     }
 
     public function render()
@@ -167,8 +204,14 @@ final class HubPage extends Component
             ->orderByDesc('created_at')
             ->get();
 
+        $mercadoPagoAccounts = MercadoPagoAccount::query()
+            ->where('owner_id', auth()->id())
+            ->orderBy('label')
+            ->get();
+
         return view('livewire.events.hub-page', [
             'events' => $events,
+            'mercadoPagoAccounts' => $mercadoPagoAccounts,
         ]);
     }
 }
