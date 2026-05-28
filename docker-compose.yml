@@ -54,7 +54,7 @@ services:
     image: nginx:alpine
     container_name: raphael-nginx
     ports:
-      - "8082:80" # aaPanel faz proxy desse para api.raphael-martins.com
+      - "8082:80" # aaPanel faz proxy desse para hub.raphael-martins.com
     volumes:
       - .:/var/www/html:ro
       - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro

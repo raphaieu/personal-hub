@@ -15,7 +15,7 @@ Tudo sobre infraestrutura, deploy, Docker, Playwright em runtime, dev local e li
 
 ## Domínios
 
-- `api.raphael-martins.com` — API/hub principal. Proxy aaPanel → `raphael-nginx:80` (porta host 8082).
+- `hub.raphael-martins.com` — API/hub principal. Proxy aaPanel → `raphael-nginx:80` (porta host 8082).
 - `files.raphael-martins.com` — MinIO público (proxy para `raphael-minio` API 9000).
 - `evo.raphael-martins.com` — Evolution API (instância `raphael`).
 - `dev.raphael-martins.com` — Cloudflare Tunnel para webhooks/testes externos em dev.
@@ -191,7 +191,7 @@ Quando Postgres 17, Nginx, Redis 7, Mailpit (e opcionalmente MySQL 8.4 para outr
 |----------|----------|------------------|
 | `APP_ENV` | `production` | `local` |
 | `APP_DEBUG` | `false` | `true` |
-| `APP_URL` | `https://api.raphael-martins.com` | `http://hub.test` ou `https://hub.test` |
+| `APP_URL` | `https://hub.raphael-martins.com` | `http://hub.test` ou `https://hub.test` |
 | `LOG_LEVEL` | `error` ou `warning` | `debug` |
 | `SESSION_ENCRYPT` | `true` | `false` em HTTP puro |
 | `DB_HOST` | `raphael-postgres` | `127.0.0.1` se a porta Postgres estiver publicada |

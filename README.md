@@ -39,7 +39,7 @@ Cada módulo tem SPEC dedicada com schema, contratos, endpoints e fluxos.
 
 ## Ambientes
 
-- **Produção:** `https://api.raphael-martins.com` — deploy automatizado via GitHub Actions, `deploy.sh` na VPS com rebuild seletivo.
+- **Produção:** `https://hub.raphael-martins.com` — deploy automatizado via GitHub Actions, `deploy.sh` na VPS com rebuild seletivo.
 - **MinIO público:** `https://files.raphael-martins.com` (proxy para o `raphael-minio`).
 - **Dev local:** `http://hub.test` (vhost com infra externa) ou `http://localhost:8082` (compose do repo).
 - **Tunnel dev:** `https://dev.raphael-martins.com` para webhooks e testes externos.

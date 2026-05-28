@@ -221,4 +221,4 @@ echo "--- Docker prune ---"
 docker image prune -f || true
 docker builder prune -af || true
 
-echo "Deploy concluído! https://api.raphael-martins.com"
+echo "Deploy concluído! https://hub.raphael-martins.com"

@@ -72,7 +72,7 @@ timestamps
 
 ### Endpoint
 
-`POST /webhook/whatsapp` → produção `https://api.raphael-martins.com/webhook/whatsapp`.
+`POST /webhook/whatsapp` → produção `https://hub.raphael-martins.com/webhook/whatsapp`.
 
 Na instância Evolution, habilitar pelo menos `MESSAGES_UPSERT` (e opcionalmente `SEND_MESSAGE` para redundância). O backend normaliza nomes (`MESSAGES_UPSERT` → `messages.upsert`, `SEND_MESSAGE` → `send.message`) em `EvolutionWebhookPayloadNormalizer`.
 

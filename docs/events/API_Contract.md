@@ -4,10 +4,10 @@
 
 ---
 
-> Contrato de comunicação entre o frontend estático em `events.raphael-martins.com` e a API em `api.raphael-martins.com`.
+> Contrato de comunicação entre o frontend estático em `events.raphael-martins.com` e a API em `hub.raphael-martins.com`.
 
 **Versão:** 1.0 (draft)
-**Base URL:** `https://api.raphael-martins.com/api/v1`
+**Base URL:** `https://hub.raphael-martins.com/api/v1`
 **Content-Type padrão:** `application/json` (exceto upload de arquivos)
 
 ---

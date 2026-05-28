@@ -163,7 +163,7 @@ Detalhes operacionais completos em [docs/operations/SPEC.md](docs/operations/SPE
 ### Horizon
 
 - Prefix Redis: `raphael_horizon:`.
-- Acesso: `https://api.raphael-martins.com/horizon` (mesmo middleware do hub).
+- Acesso: `https://hub.raphael-martins.com/horizon` (mesmo middleware do hub).
 - Protegido por e-mail em `HORIZON_AUTH_EMAILS`.
 - Publicar assets: `php artisan horizon:publish`.
 - Filas em `config/horizon.php`.
@@ -186,7 +186,7 @@ Detalhes operacionais completos em [docs/operations/SPEC.md](docs/operations/SPE
 
 ## `.env.example` — fonte da verdade por ambiente
 
-O `.env.example` está **calibrado para produção** (Docker VPS: `APP_URL=https://api.raphael-martins.com`, `DB_HOST=raphael-postgres`, `REDIS_HOST=raphael-redis`, `QUEUE_CONNECTION=redis`, `APP_DEBUG=false`). Cada bloco tem comentários com sobrescritos para dev local. Tabela completa de overrides em [docs/operations/SPEC.md](docs/operations/SPEC.md).
+O `.env.example` está **calibrado para produção** (Docker VPS: `APP_URL=https://hub.raphael-martins.com`, `DB_HOST=raphael-postgres`, `REDIS_HOST=raphael-redis`, `QUEUE_CONNECTION=redis`, `APP_DEBUG=false`). Cada bloco tem comentários com sobrescritos para dev local. Tabela completa de overrides em [docs/operations/SPEC.md](docs/operations/SPEC.md).
 
 ---
 
