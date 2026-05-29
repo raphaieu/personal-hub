@@ -14,6 +14,17 @@ Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *chan
 
 ---
 
+## 2026-05-28
+
+*Commits diretos na `main` (domínio público do hub e ajustes no checkout de eventos).*
+
+### Changed
+
+- **Domínio público do hub:** referências versionadas de produção migradas de `api.raphael-martins.com` para `hub.raphael-martins.com` em `.env.example`, documentação, contrato da API de eventos, webhook Evolution, gateway Iara e mensagens/scripts operacionais.
+- **Eventos — Mercado Pago:** item da Preference do Checkout Pro agora envia `items.description` montado no backend como `Ingresso para {nome do evento}`, sem exigir novo campo no frontend.
+
+---
+
 ## 2026-05-24
 
 *Commits diretos na `main` (pagamento de ingressos).*

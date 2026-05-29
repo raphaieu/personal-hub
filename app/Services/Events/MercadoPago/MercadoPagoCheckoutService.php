@@ -30,6 +30,7 @@ class MercadoPagoCheckoutService
             'items' => [
                 [
                     'title' => $event->title,
+                    'description' => $this->itemDescription($event),
                     'quantity' => 1,
                     'unit_price' => round($amountCents / 100, 2),
                     'currency_id' => 'BRL',
@@ -109,5 +110,10 @@ class MercadoPagoCheckoutService
         $token = (string) $guest->payment_return_token;
 
         return $hubUrl.'/events/payment/return/'.$token;
+    }
+
+    private function itemDescription(Event $event): string
+    {
+        return 'Ingresso para '.trim($event->title);
     }
 }
