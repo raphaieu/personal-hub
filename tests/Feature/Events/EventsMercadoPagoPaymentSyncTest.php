@@ -5,7 +5,7 @@ namespace Tests\Feature\Events;
 use App\Enums\Events\EventStatus;
 use App\Enums\Events\GuestPaymentStatus;
 use App\Enums\Events\GuestStatus;
-use App\Mail\Events\GuestTicketMail;
+use App\Jobs\Events\SendGuestTicketEmailJob;
 use App\Models\Event;
 use App\Models\Guest;
 use App\Models\GuestPayment;
@@ -13,7 +13,7 @@ use App\Models\MercadoPagoAccount;
 use App\Models\User;
 use App\Services\Events\MercadoPago\MercadoPagoPaymentSyncService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Queue;
 use MercadoPago\Resources\Payment;
 use Tests\TestCase;
 
@@ -24,7 +24,7 @@ final class EventsMercadoPagoPaymentSyncTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Mail::fake();
+        Queue::fake();
     }
 
     public function test_apply_approved_payment_confirms_guest(): void
@@ -61,7 +61,7 @@ final class EventsMercadoPagoPaymentSyncTest extends TestCase
 
         $guest->refresh();
         $this->assertSame(GuestStatus::Confirmed, $guest->status);
-        Mail::assertQueued(GuestTicketMail::class);
+        Queue::assertPushed(SendGuestTicketEmailJob::class);
     }
 
     public function test_apply_rejected_payment_deletes_guest(): void

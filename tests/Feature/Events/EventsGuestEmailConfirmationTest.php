@@ -5,12 +5,12 @@ namespace Tests\Feature\Events;
 
 use App\Enums\Events\EventStatus;
 use App\Enums\Events\GuestStatus;
-use App\Mail\Events\GuestTicketMail;
+use App\Jobs\Events\SendGuestTicketEmailJob;
 use App\Models\Event;
 use App\Models\Guest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 final class EventsGuestEmailConfirmationTest extends TestCase
@@ -20,10 +20,10 @@ final class EventsGuestEmailConfirmationTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Mail::fake();
+        Queue::fake();
     }
 
-    public function test_confirm_token_confirms_guest_and_queues_ticket_mail(): void
+    public function test_confirm_token_confirms_guest_and_queues_ticket_email_job(): void
     {
         $user = User::factory()->create();
         $event = Event::factory()->for($user, 'owner')->create([
@@ -49,10 +49,10 @@ final class EventsGuestEmailConfirmationTest extends TestCase
         $this->assertNotNull($guest->email_confirmed_at);
         $this->assertNull($guest->email_confirmation_token);
 
-        Mail::assertQueued(GuestTicketMail::class);
+        Queue::assertPushed(SendGuestTicketEmailJob::class, fn (SendGuestTicketEmailJob $job): bool => $job->guestId === $guest->id);
     }
 
-    public function test_confirm_when_already_confirmed_with_same_token_shows_message_without_extra_mail(): void
+    public function test_confirm_when_already_confirmed_with_same_token_shows_message_without_extra_job(): void
     {
         $user = User::factory()->create();
         $event = Event::factory()->for($user, 'owner')->create([
@@ -69,6 +69,6 @@ final class EventsGuestEmailConfirmationTest extends TestCase
 
         $response->assertOk();
 
-        Mail::assertNothingOutgoing();
+        Queue::assertNothingPushed();
     }
 }

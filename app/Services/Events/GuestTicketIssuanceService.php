@@ -4,11 +4,10 @@ namespace App\Services\Events;
 
 use App\Enums\Events\GuestStatus;
 use App\Enums\Events\GuestTicketIssuanceResult;
-use App\Mail\Events\GuestTicketMail;
+use App\Jobs\Events\SendGuestTicketEmailJob;
 use App\Models\Event;
 use App\Models\Guest;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Mail;
 
 final class GuestTicketIssuanceService
 {
@@ -52,8 +51,13 @@ final class GuestTicketIssuanceService
             return GuestTicketIssuanceResult::GuestNotFound;
         }
 
-        Mail::to($guest->email)->queue(new GuestTicketMail($guest));
+        $this->queueTicketEmail($guest);
 
         return GuestTicketIssuanceResult::Confirmed;
+    }
+
+    public function queueTicketEmail(Guest $guest): void
+    {
+        SendGuestTicketEmailJob::dispatch($guest->id);
     }
 }

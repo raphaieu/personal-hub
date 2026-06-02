@@ -7,14 +7,13 @@ use App\Models\Guest;
 use App\Services\Events\EventGuestInvitePresentation;
 use App\Services\Events\EventTicketPdfService;
 use Illuminate\Bus\Queueable;
-use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Mail\Mailable;
 use Illuminate\Mail\Mailables\Attachment;
 use Illuminate\Mail\Mailables\Content;
 use Illuminate\Mail\Mailables\Envelope;
 use Illuminate\Queue\SerializesModels;
 
-final class GuestTicketMail extends Mailable implements ShouldQueue
+final class GuestTicketMail extends Mailable
 {
     use Queueable;
     use SerializesModels;
@@ -22,7 +21,6 @@ final class GuestTicketMail extends Mailable implements ShouldQueue
     public function __construct(public Guest $guest)
     {
         $this->guest->loadMissing('event');
-        $this->onQueue('notifications');
     }
 
     public function envelope(): Envelope
