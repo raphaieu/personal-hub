@@ -30,6 +30,7 @@ final class EventFactory extends Factory
             'requires_turnstile' => false,
             'requires_photo' => true,
             'registration_open' => true,
+            'skip_email_confirmation' => false,
             'guest_form_schema_json' => null,
             'invite_template_key' => null,
             'closed_message' => null,
