@@ -14,6 +14,23 @@ Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *chan
 
 ---
 
+## 2026-06-02
+
+*Confirmação de convidados mais rápida e opção de pular e-mail de interesse.*
+
+### Added
+
+- **Eventos — pular confirmação por e-mail:** coluna `events.skip_email_confirmation` (default `false`); checkbox no hub *“Pular confirmação por e-mail (enviar ingresso na hora)”* (desabilitado quando o evento exige pagamento). API `GET /config` expõe `registration.requiresEmailConfirmation`; `POST /register` em evento grátis com skip cria guest `confirmed`, enfileira ingresso e responde `flow: ticket_sent`.
+- **Eventos — job de ingresso:** `SendGuestTicketEmailJob` (fila `notifications`) gera o PDF (DomPDF) e envia `GuestTicketMail`; usado após confirmação por link, pagamento aprovado e registro com skip.
+
+### Changed
+
+- **Eventos — confirmação por link assíncrona:** `GET /events/guest/confirm/{token}` confirma o convidado no banco e responde a página HTML imediatamente; preparo do PDF e envio do e-mail passam para `SendGuestTicketEmailJob` (antes o `GuestTicketMail` ia para a fila no mesmo request, o que podia travar a página com fila `sync` ou PDF pesado). Texto de sucesso: “Estamos enviando o ingresso…”.
+- **Eventos — `GuestTicketMail`:** deixa de implementar `ShouldQueue` (uma única fila via job dedicado).
+- **Documentação:** [docs/events/SPEC.md](docs/events/SPEC.md) atualizado com `requiresEmailConfirmation`, `ticket_sent` e fluxo do job.
+
+---
+
 ## 2026-05-28
 
 *Commits diretos na `main` (domínio público do hub e ajustes no checkout de eventos).*

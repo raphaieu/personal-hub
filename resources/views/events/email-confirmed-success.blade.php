@@ -15,7 +15,7 @@
     Sua presença em <strong>{{ $guest->event->title }}</strong> está confirmada.
 </p>
 <p style="margin-top: 0.75rem; font-size: 0.85rem;">
-    Enviamos o ingresso em PDF para <strong>{{ $guest->email }}</strong>.<br>
-    Verifique sua caixa de entrada (e a pasta de spam).
+    Estamos enviando o ingresso em PDF para <strong>{{ $guest->email }}</strong>.<br>
+    Deve chegar em instantes — verifique a caixa de entrada e o spam.
 </p>
 @endsection

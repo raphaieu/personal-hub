@@ -101,9 +101,10 @@ UNIQUE: (event_id, email)
 
 `POST /api/v1/events/{slug}/register` — body com dados do convidado validados contra o schema, opcional `ref` (token do `referral_link`) e Turnstile token.
 
-- Cria `guest` com `status = pending_email`.
-- Gera `email_confirmation_token`.
-- Envia `GuestInterestConfirmationMail` com link `GET /events/guest/confirm/{token}`.
+- Cria `guest` com `status = pending_email` (padrão) ou `confirmed` se `skip_email_confirmation = true`.
+- Gera `email_confirmation_token` (exceto skip).
+- Envia `GuestInterestConfirmationMail` com link `GET /events/guest/confirm/{token}` **ou**, com skip, enfileira `SendGuestTicketEmailJob` e responde `flow: ticket_sent`.
+- Config expõe `registration.requiresEmailConfirmation` para a landing.
 
 **Fluxo pago** (`requires_payment = true`):
 
@@ -122,9 +123,8 @@ CORS, rate limits e Turnstile controlados via `EVENTS_*` no `.env`.
 
 `GET /events/guest/confirm/{token}` — pública, sem autenticação.
 
-- Atualiza `guests.email_confirmed_at` e `status = confirmed`.
-- Gera **PDF do ingresso** (DomPDF, view em `resources/views/pdf/events/*`) com **QR code PNG** (data URI via `chillerlan/php-qrcode`, GD sem Imagick) apontando para URL de check-in do convidado.
-- Envia `GuestTicketMail` com o PDF anexado e QR code referenciado via URL pública `GET /events/qr/{guest}` no corpo do email.
+- Atualiza `guests.email_confirmed_at` e `status = confirmed` (resposta HTML imediata).
+- Enfileira `SendGuestTicketEmailJob` (fila `notifications`), que gera o PDF (DomPDF) e envia `GuestTicketMail` com anexo e QR (`GET /events/qr/{guest}` no corpo do e-mail).
 
 ### 3. Convite via hub (opcional)
 
