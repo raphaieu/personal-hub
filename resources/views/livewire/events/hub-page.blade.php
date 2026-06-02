@@ -78,6 +78,10 @@
                             <input wire:model.boolean="formRequiresPayment" type="checkbox" class="rounded border-gray-300">
                             Exige pagamento (Mercado Pago)
                         </label>
+                        <label class="inline-flex items-center gap-2 text-sm text-gray-700 @if($formRequiresPayment) opacity-50 @endif" title="@if($formRequiresPayment) Indisponível com pagamento — o ingresso é enviado após o pagamento. @endif">
+                            <input wire:model.boolean="formSkipEmailConfirmation" type="checkbox" class="rounded border-gray-300" @disabled($formRequiresPayment)>
+                            Pular confirmação por e-mail (enviar ingresso na hora)
+                        </label>
                     </div>
                     @if ($formRequiresPayment)
                         <div class="md:col-span-2">

@@ -35,6 +35,8 @@ final class HubPage extends Component
 
     public bool $formRegistrationOpen = true;
 
+    public bool $formSkipEmailConfirmation = false;
+
     public string $formClosedMessage = '';
 
     public string $formInviteTemplateKey = '';
@@ -67,6 +69,7 @@ final class HubPage extends Component
         $this->formRequiresTurnstile = $event->requires_turnstile;
         $this->formRequiresPhoto = $event->requires_photo;
         $this->formRegistrationOpen = $event->registration_open;
+        $this->formSkipEmailConfirmation = (bool) $event->skip_email_confirmation;
         $this->formClosedMessage = (string) ($event->closed_message ?? '');
         $this->formInviteTemplateKey = (string) ($event->invite_template_key ?? '');
         $this->formRequiresPayment = (bool) $event->requires_payment;
@@ -86,6 +89,13 @@ final class HubPage extends Component
     {
         if ($this->editingId === null) {
             $this->formSlug = Str::slug($value);
+        }
+    }
+
+    public function updatedFormRequiresPayment(bool $value): void
+    {
+        if ($value) {
+            $this->formSkipEmailConfirmation = false;
         }
     }
 
@@ -109,6 +119,7 @@ final class HubPage extends Component
             'requires_turnstile' => $this->formRequiresTurnstile,
             'requires_photo' => $this->formRequiresPhoto,
             'registration_open' => $this->formRegistrationOpen,
+            'skip_email_confirmation' => $this->formRequiresPayment ? false : $this->formSkipEmailConfirmation,
             'closed_message' => $this->formClosedMessage !== '' ? $this->formClosedMessage : null,
             'invite_template_key' => $this->formInviteTemplateKey !== '' ? $this->formInviteTemplateKey : null,
             'starts_at' => $this->formStartsAt !== '' ? $this->formStartsAt : null,
@@ -157,6 +168,7 @@ final class HubPage extends Component
             'formRequiresTurnstile' => ['boolean'],
             'formRequiresPhoto' => ['boolean'],
             'formRegistrationOpen' => ['boolean'],
+            'formSkipEmailConfirmation' => ['boolean'],
             'formClosedMessage' => ['nullable', 'string', 'max:2000'],
             'formInviteTemplateKey' => ['nullable', 'string', 'max:64', 'regex:/^[a-z0-9]+(?:_[a-z0-9]+)*$/'],
             'formRequiresPayment' => ['boolean'],
@@ -189,6 +201,7 @@ final class HubPage extends Component
         $this->formRequiresTurnstile = true;
         $this->formRequiresPhoto = true;
         $this->formRegistrationOpen = true;
+        $this->formSkipEmailConfirmation = false;
         $this->formClosedMessage = '';
         $this->formInviteTemplateKey = '';
         $this->formRequiresPayment = false;
