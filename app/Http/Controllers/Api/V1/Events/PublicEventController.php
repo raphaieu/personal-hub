@@ -76,6 +76,14 @@ final class PublicEventController extends Controller
             ], 201);
         }
 
+        if ($result->flow === 'ticket_sent') {
+            return response()->json([
+                'success' => true,
+                'flow' => 'ticket_sent',
+                'message' => 'Inscrição confirmada! Estamos enviando o ingresso em PDF para '.$result->guest->email.'. Verifique caixa de entrada e spam.',
+            ], 201);
+        }
+
         return response()->json([
             'success' => true,
             'flow' => 'email_confirmation',

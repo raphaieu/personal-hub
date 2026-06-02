@@ -130,4 +130,9 @@ class Event extends Model
             ->where('status', GuestStatus::Confirmed)
             ->count();
     }
+
+    public function requiresEmailConfirmation(): bool
+    {
+        return ! $this->requires_payment && ! $this->skip_email_confirmation;
+    }
 }

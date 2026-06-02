@@ -24,6 +24,7 @@ final class EventRegistrationService
         private readonly EventPublicConfigService $configService,
         private readonly TurnstileVerifier $turnstileVerifier,
         private readonly MercadoPagoCheckoutService $checkoutService,
+        private readonly GuestTicketIssuanceService $ticketIssuanceService,
     ) {}
 
     /**
@@ -79,9 +80,10 @@ final class EventRegistrationService
         }
 
         $requiresPayment = (bool) $event->requires_payment;
+        $skipEmailConfirmation = ! $requiresPayment && (bool) $event->skip_email_confirmation;
         $reservationMinutes = (int) config('events.payment_reservation_minutes', 15);
 
-        $guest = DB::transaction(function () use ($event, $validated, $email, $referralLinkId, $request, $fields, $requiresPayment, $reservationMinutes): Guest {
+        $guest = DB::transaction(function () use ($event, $validated, $email, $referralLinkId, $request, $fields, $requiresPayment, $skipEmailConfirmation, $reservationMinutes): Guest {
             $event->refresh();
 
             if ($event->capacity !== null && $event->occupancyCount() >= $event->capacity) {
@@ -106,6 +108,10 @@ final class EventRegistrationService
                 $guestAttributes['status'] = GuestStatus::PendingPayment;
                 $guestAttributes['payment_return_token'] = Str::random(64);
                 $guestAttributes['payment_expires_at'] = now()->addMinutes($reservationMinutes);
+                $guestAttributes['email_confirmation_token'] = null;
+            } elseif ($skipEmailConfirmation) {
+                $guestAttributes['status'] = GuestStatus::Confirmed;
+                $guestAttributes['email_confirmed_at'] = now();
                 $guestAttributes['email_confirmation_token'] = null;
             } else {
                 $guestAttributes['status'] = GuestStatus::PendingEmail;
@@ -150,6 +156,15 @@ final class EventRegistrationService
                 guest: $guest,
                 flow: 'checkout',
                 checkoutUrl: $checkoutUrl,
+            );
+        }
+
+        if ($skipEmailConfirmation) {
+            $this->ticketIssuanceService->queueTicketEmail($guest);
+
+            return new EventRegistrationResult(
+                guest: $guest,
+                flow: 'ticket_sent',
             );
         }
 
