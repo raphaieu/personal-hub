@@ -53,7 +53,7 @@
                     </td>
                     <td style="text-align:right;width:50%;">
                         <span class="label">Hora</span>
-                        <span class="value">16h30</span>
+                        <span class="value">17h</span>
                     </td>
                 </tr>
                 <tr>

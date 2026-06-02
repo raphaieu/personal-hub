@@ -42,7 +42,7 @@
                                 </td>
                                 <td style="width:50%;text-align:right;padding:15px 0;border-top:1px solid rgba(156,108,89,0.1);">
                                     <span style="display:block;font-size:11px;text-transform:uppercase;color:#e4759a;letter-spacing:1px;font-weight:600;">Hora</span>
-                                    <span style="font-family:'Playfair Display',Georgia,serif;font-weight:bold;font-size:18px;color:#9c6c59;">16h30</span>
+                                    <span style="font-family:'Playfair Display',Georgia,serif;font-weight:bold;font-size:18px;color:#9c6c59;">17h</span>
                                 </td>
                             </tr>
                         </table>
