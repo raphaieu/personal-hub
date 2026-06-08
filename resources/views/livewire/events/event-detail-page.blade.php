@@ -103,47 +103,60 @@
                     </div>
                 </form>
 
-                <table class="min-w-full divide-y divide-gray-200 text-sm mt-6">
-                    <thead class="bg-gray-50">
-                        <tr>
-                            <th class="px-3 py-2 text-left font-medium text-gray-600">Nome</th>
-                            <th class="px-3 py-2 text-left font-medium text-gray-600">E-mail</th>
-                            <th class="px-3 py-2 text-left font-medium text-gray-600">Status</th>
-                            @if ($requiresPayment)
-                                <th class="px-3 py-2 text-left font-medium text-gray-600">Pagamento</th>
-                            @endif
-                            <th class="px-3 py-2 text-left font-medium text-gray-600">Convite</th>
-                            <th class="px-3 py-2"></th>
-                        </tr>
-                    </thead>
-                    <tbody class="divide-y divide-gray-100">
-                        @forelse ($guests as $guest)
-                            <tr wire:key="guest-{{ $guest->id }}">
-                                <td class="px-3 py-2 font-medium text-gray-900">{{ $guest->name }}</td>
-                                <td class="px-3 py-2 text-gray-600">{{ $guest->email }}</td>
-                                <td class="px-3 py-2">{{ $guest->status->value }}</td>
-                                @if ($requiresPayment)
-                                    <td class="px-3 py-2 text-xs text-gray-500">
-                                        {{ $guest->payment?->status?->value ?? '—' }}
-                                        @if ($guest->payment?->payment_id)
-                                            <span class="block text-[10px] text-gray-400">#{{ $guest->payment->payment_id }}</span>
-                                        @endif
-                                    </td>
-                                @endif
-                                <td class="px-3 py-2 text-xs text-gray-500">{{ $guest->invite_sent_at?->format('d/m/Y H:i') ?? '—' }}</td>
-                                <td class="px-3 py-2 text-right space-x-2 whitespace-nowrap">
-                                    <button type="button" wire:click="sendInvite('{{ $guest->id }}')" class="text-indigo-600 hover:text-indigo-800 text-xs font-semibold uppercase">Enviar convite</button>
-                                    <button type="button" wire:click="startEditGuest('{{ $guest->id }}')" class="text-gray-600 hover:text-gray-900 text-xs font-semibold uppercase">Editar</button>
-                                    <button type="button" wire:click="deleteGuest('{{ $guest->id }}')" wire:confirm="Remover este convidado?" class="text-red-600 hover:text-red-800 text-xs font-semibold uppercase">Excluir</button>
-                                </td>
-                            </tr>
-                        @empty
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-6">
+                    <p class="text-sm text-gray-600">{{ $guests->count() }} convidado{{ $guests->count() === 1 ? '' : 's' }}</p>
+                    <a href="{{ route('events.hub.guests.export', $event) }}" class="inline-flex items-center justify-center px-4 py-2 bg-white border border-gray-300 rounded-md font-semibold text-xs text-gray-700 uppercase hover:bg-gray-50">
+                        Exportar Excel
+                    </a>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead class="bg-gray-50">
                             <tr>
-                                <td colspan="{{ $requiresPayment ? 6 : 5 }}" class="px-3 py-6 text-center text-gray-500">Nenhum convidado cadastrado.</td>
+                                <th class="px-3 py-2 text-left font-medium text-gray-600">#</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-600">Cadastro</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-600">Nome</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-600">E-mail</th>
+                                <th class="px-3 py-2 text-left font-medium text-gray-600">Situação</th>
+                                @if ($requiresPayment)
+                                    <th class="px-3 py-2 text-left font-medium text-gray-600">Pagamento</th>
+                                @endif
+                                <th class="px-3 py-2 text-left font-medium text-gray-600">Convite</th>
+                                <th class="px-3 py-2"></th>
                             </tr>
-                        @endforelse
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100">
+                            @forelse ($guests as $guest)
+                                <tr wire:key="guest-{{ $guest->id }}">
+                                    <td class="px-3 py-2 text-gray-500">{{ $loop->iteration }}</td>
+                                    <td class="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{{ $guest->created_at?->timezone($event->timezone ?? config('app.timezone'))->format('d/m/Y H:i') ?? '—' }}</td>
+                                    <td class="px-3 py-2 font-medium text-gray-900">{{ $guest->name }}</td>
+                                    <td class="px-3 py-2 text-gray-600">{{ $guest->email }}</td>
+                                    <td class="px-3 py-2">{{ $guest->status->value }}</td>
+                                    @if ($requiresPayment)
+                                        <td class="px-3 py-2 text-xs text-gray-500">
+                                            {{ $guest->payment?->status?->value ?? '—' }}
+                                            @if ($guest->payment?->payment_id)
+                                                <span class="block text-[10px] text-gray-400">#{{ $guest->payment->payment_id }}</span>
+                                            @endif
+                                        </td>
+                                    @endif
+                                    <td class="px-3 py-2 text-xs text-gray-500 whitespace-nowrap">{{ $guest->invite_sent_at?->timezone($event->timezone ?? config('app.timezone'))->format('d/m/Y H:i') ?? '—' }}</td>
+                                    <td class="px-3 py-2 text-right space-x-2 whitespace-nowrap">
+                                        <button type="button" wire:click="sendInvite('{{ $guest->id }}')" class="text-indigo-600 hover:text-indigo-800 text-xs font-semibold uppercase">Enviar convite</button>
+                                        <button type="button" wire:click="startEditGuest('{{ $guest->id }}')" class="text-gray-600 hover:text-gray-900 text-xs font-semibold uppercase">Editar</button>
+                                        <button type="button" wire:click="deleteGuest('{{ $guest->id }}')" wire:confirm="Remover este convidado?" class="text-red-600 hover:text-red-800 text-xs font-semibold uppercase">Excluir</button>
+                                    </td>
+                                </tr>
+                            @empty
+                                <tr>
+                                    <td colspan="{{ $requiresPayment ? 8 : 7 }}" class="px-3 py-6 text-center text-gray-500">Nenhum convidado cadastrado.</td>
+                                </tr>
+                            @endforelse
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>

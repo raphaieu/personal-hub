@@ -163,7 +163,8 @@ final class EventDetailPage extends Component
         $guests = Guest::query()
             ->where('event_id', $this->event->id)
             ->with('payment')
-            ->orderBy('email')
+            ->orderBy('created_at')
+            ->orderBy('id')
             ->get();
 
         $referrals = ReferralLink::query()

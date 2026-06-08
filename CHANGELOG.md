@@ -8,6 +8,14 @@ Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *chan
 
 ## [Unreleased]
 
+### Added
+
+- **Eventos — exportação de convidados:** botão *Exportar Excel* na lista de convidados baixa um CSV UTF-8 compatível com Excel, com todos os dados do cadastro: identificação, contato, situação, datas de cadastro/aceite/convite/confirmação/check-in, referral, campos personalizados e dados de pagamento quando houver.
+
+### Changed
+
+- **Eventos — lista de convidados:** ordenação passa de alfabética para data de cadastro; tabela exibe numeração sequencial, total de convidados e coluna `Cadastro` com data/hora no fuso do evento.
+
 ### Pendente
 
 - **Álbuns de mídia — Fase F:** upload ZIP, tags, watermark on-the-fly, thumbnail/transcode de vídeo (FFmpeg), download ZIP do álbum. Ver [docs/album/SPEC.md](docs/album/SPEC.md) (seção *Fase F — backlog*) e [docs/roadmap/BACKLOG.md](docs/roadmap/BACKLOG.md).

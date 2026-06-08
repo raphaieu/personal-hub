@@ -5,6 +5,7 @@ use App\Http\Controllers\Albums\AlbumContributionController;
 use App\Http\Controllers\Albums\AlbumHubMediaController;
 use App\Http\Controllers\Albums\AlbumMediaController;
 use App\Http\Controllers\Albums\AlbumViewerController;
+use App\Http\Controllers\Events\EventGuestsExportController;
 use App\Http\Controllers\Events\GuestEmailConfirmationController;
 use App\Http\Controllers\Events\GuestQrCodeController;
 use App\Http\Controllers\Events\PaymentReturnController;
@@ -100,6 +101,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/hub/utilities', UtilitiesHubPage::class)->name('utilities.hub');
     Route::get('/hub/events', EventsHubPage::class)->name('events.hub');
     Route::get('/hub/events/{event}', EventDetailPage::class)->name('events.hub.show');
+    Route::get('/hub/events/{event}/guests/export', EventGuestsExportController::class)
+        ->name('events.hub.guests.export');
     Route::get('/events-checkin', EventCheckInPage::class)
         ->name('events.checkin.show');
     Route::get('/hub/albums', AlbumsHubPage::class)->name('albums.hub');
