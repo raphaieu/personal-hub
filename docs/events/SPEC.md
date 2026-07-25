@@ -4,6 +4,11 @@ Hub `/hub/events`, API pública para landing externa, fluxo de dupla confirmaç�
 
 Esta SPEC é a entrada canônica do módulo. [BRIEFING.md](BRIEFING.md) mantém a visão longa de produto e ADRs históricas; [API_Contract.md](API_Contract.md) detalha o contrato HTTP linha-a-linha.
 
+> **Plataforma self-service (M0+):** o módulo virou backend SaaS multi-tenant — qualquer
+> usuário registrado via API cria e publica suas landing pages (tema/conteúdo por evento,
+> gerados por IA a partir de flyer em versão posterior). Ver seção "Plataforma self-service"
+> abaixo e a SPEC do front (`events.raphael-martins.com/SPEC.md`).
+
 ---
 
 ## Banco
@@ -21,6 +26,11 @@ requires_turnstile (bool),
 requires_photo (bool),           -- default true; se false, campo photo fica disabled no schema
 registration_open (bool),
 guest_form_schema_json (json),   -- schema do formulário do convidado
+theme_json (jsonb nullable),     -- tema visual da landing (colors/fonts/mode/customCss)
+content_json (jsonb nullable),   -- conteúdo das seções da landing (hero/info/rules/faq/...)
+flyer_path (string nullable),    -- flyer original enviado pelo organizador (S3)
+og_image_path (string nullable), -- OG image derivada do flyer (S3, pública)
+published_at (timestamp nullable),
 invite_template_key,             -- chave para custom templates (mail/pdf) em mail|pdf/events/custom/{key}
 closed_message,
 terms_url, privacy_url,
@@ -147,6 +157,66 @@ Rota autenticada `GET /events-checkin` (`event.checkin`), componente Livewire `E
 - `GET /hub/events/{event}` — detalhe do evento, gestão de `referral_links`, `guests`, envio de convites.
 
 Componentes Livewire em `App\Livewire\Events\*`.
+
+---
+
+## Plataforma self-service (API autenticada)
+
+Backend SaaS multi-tenant do front `events.raphael-martins.com` (Nuxt). O front consome
+estes endpoints via Nitro (BFF) com token Sanctum em cookie httpOnly — o browser nunca
+fala direto com o hub autenticado.
+
+### Auth (`/api/v1/auth/*`)
+
+| Endpoint | Descrição |
+|----------|-----------|
+| `POST /auth/register` | Cria conta (Turnstile), envia verificação, retorna token Sanctum (30d, ability `events:*`). |
+| `POST /auth/login` | Retorna token. Rate limit `auth` (5/min por IP, configurável via `EVENTS_RATE_LIMIT_MAX`). |
+| `POST /auth/logout` (auth) | Revoga o token atual. |
+| `GET /me` (auth) | Dados do usuário autenticado. |
+| `POST /auth/email/verify/resend` (auth) | Reenvia e-mail de verificação (throttle 6/min). |
+| `GET /auth/email/verify/{id}/{hash}` (signed) | Link do e-mail — marca verificado e redireciona para `{EVENTS_FRONTEND_URL}/auth/verified`. |
+
+`User` implementa `MustVerifyEmail`; publicar evento exige e-mail verificado.
+
+### Organizador (`/api/v1/me/*`, auth Sanctum)
+
+| Endpoint | Descrição |
+|----------|-----------|
+| `GET /me/events` | Eventos do dono (paginado, com contadores). |
+| `POST /me/events` | Cria rascunho (slug auto do título, único, sem reservados). |
+| `GET /me/events/{event}` | Detalhe completo (tema, conteúdo, contadores, `publicUrl`). |
+| `PATCH /me/events/{event}` | Update parcial: campos, flags, `theme` (com sanitização de `customCss`), `content` (seções validadas). Slug congela após publicar. |
+| `POST /me/events/{event}/publish` | Publica: exige e-mail verificado, `starts_at`, e respeita `limits.max_published_events`. Abre inscrições. |
+| `POST /me/events/{event}/archive` | Arquiva e fecha inscrições. |
+| `GET /me/limits` | Limites da conta gratuita e uso atual. |
+
+Tenancy: `EventPolicy` (owner-only; `super_admin` bypassa via `before`). A portaria
+(`/events-checkin`) exige a ability `checkIn` da policy — corrigido o acesso aberto anterior.
+
+### Tema, conteúdo e assets
+
+- `theme_json`: `colors` (hex), `fonts` (allowlist `events.allowed_fonts`), `mode`,
+  `borderRadius`, `customCss` (sanitizado por `ThemeService`: sem `@import`, `javascript:`,
+  `position:fixed/sticky`, seletores globais, `url()` externa — exceto Google Fonts).
+- `content_json`: seções fixas (`hero`, `info`, `countdown`, `rules`, `about`, `form`,
+  `album`, `faq`) com `enabled` + campos validados no `UpdateEventRequest`.
+- Config pública (`GET /events/{slug}/config`) expõe `theme` (merge default+evento),
+  `content` e `og` (`image` do S3, `themeColor`).
+- Tema padrão da plataforma em `config/events.php` (`default_theme`).
+- Fotos de convidado agora no disco `EVENTS_GUEST_PHOTOS_DISK` (default `s3`/MinIO),
+  servidas por URL assinada temporária (`Guest::photoTemporaryUrl()`, 15 min) na portaria.
+  Migração one-off das fotos antigas: `php artisan events:migrate-guest-photos [--dry-run]`.
+- `guests.custom_data`: campos custom do schema do formulário agora **persistem**
+  (antes gravavam sempre `null`).
+
+### Limites da conta gratuita (`config/events.php → limits`)
+
+`max_published_events` (3), `max_guests_per_event` (500), `max_referral_links_per_event` (10),
+`max_flyer_jobs_per_day` (5) — configuráveis via `EVENTS_MAX_*`. Enforcement progressivo
+por milestone; `max_published_events` já aplicado no publish.
+
+---
 
 ---
 

@@ -16,10 +16,17 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 final class EventRegistrationService
 {
+    /**
+     * Campos do schema com coluna própria na tabela guests — todo o resto
+     * habilitado no schema é persistido em custom_data.
+     */
+    private const NATIVE_GUEST_FIELDS = ['name', 'email', 'phone', 'birth_year', 'photo', 'consent_terms'];
+
     public function __construct(
         private readonly EventPublicConfigService $configService,
         private readonly TurnstileVerifier $turnstileVerifier,
@@ -100,7 +107,7 @@ final class EventRegistrationService
                 'email' => $email,
                 'phone' => isset($validated['phone']) ? (string) $validated['phone'] : null,
                 'birth_year' => isset($validated['birth_year']) ? (int) $validated['birth_year'] : null,
-                'custom_data' => null,
+                'custom_data' => $this->extractCustomData($fields, $validated),
                 'consent_terms_at' => now(),
             ];
 
@@ -134,7 +141,7 @@ final class EventRegistrationService
 
                 if ($file !== null && $file->isValid()) {
                     $dir = "events/guests/{$guest->id}";
-                    $path = $file->store($dir, 'local');
+                    $path = $file->store($dir, (string) config('events.guest_photos_disk', 's3'));
                     $guest->forceFill(['photo_path' => $path])->save();
                 }
             }
@@ -233,11 +240,61 @@ final class EventRegistrationService
                     'image',
                     'max:5120',
                 ])),
-                default => null,
+                default => $rules[$name] = $this->customFieldRules($field, $suffix),
             };
         }
 
         return $rules;
+    }
+
+    /**
+     * Regras para campos custom do schema (valores persistidos em custom_data).
+     *
+     * @param  array<string, mixed>  $field
+     * @return array<int, mixed>
+     */
+    private function customFieldRules(array $field, string $suffix): array
+    {
+        return match ((string) ($field['type'] ?? 'text')) {
+            'number' => array_values(array_filter([
+                $suffix,
+                'integer',
+                isset($field['min']) ? 'min:'.(int) $field['min'] : null,
+                isset($field['max']) ? 'max:'.(int) $field['max'] : null,
+            ])),
+            'email' => [$suffix, 'email', 'max:255'],
+            'tel' => [$suffix, 'string', 'max:32'],
+            'textarea' => [$suffix, 'string', 'max:'.(int) ($field['maxLength'] ?? 2000)],
+            'select' => [$suffix, 'string', Rule::in(array_map('strval', (array) ($field['options'] ?? [])))],
+            default => [$suffix, 'string', 'max:'.(int) ($field['maxLength'] ?? 255)],
+        };
+    }
+
+    /**
+     * Extrai do payload validado os campos custom do schema (não nativos).
+     *
+     * @param  array<int, array<string, mixed>>  $fields
+     * @param  array<string, mixed>  $validated
+     * @return array<string, mixed>|null
+     */
+    private function extractCustomData(array $fields, array $validated): ?array
+    {
+        $custom = [];
+
+        foreach ($fields as $field) {
+            $name = (string) ($field['name'] ?? '');
+            if ($name === '' || in_array($name, self::NATIVE_GUEST_FIELDS, true)) {
+                continue;
+            }
+            if (! ($field['enabled'] ?? false)) {
+                continue;
+            }
+            if (array_key_exists($name, $validated)) {
+                $custom[$name] = $validated[$name];
+            }
+        }
+
+        return $custom !== [] ? $custom : null;
     }
 
     /**

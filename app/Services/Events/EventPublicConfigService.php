@@ -6,6 +6,8 @@ use App\Enums\Events\EventStatus;
 use App\Models\Event;
 use App\Models\ReferralLink;
 use Carbon\CarbonInterface;
+use Illuminate\Support\Facades\Storage;
+use Throwable;
 
 final class EventPublicConfigService
 {
@@ -115,7 +117,45 @@ final class EventPublicConfigService
 
         $data['payment'] = $this->paymentBlock($event);
 
+        // Tema e conteúdo das seções da landing (plataforma self-service)
+        $data['theme'] = $this->themeBlock($event);
+        $data['content'] = $event->content_json;
+        $data['og'] = $this->ogBlock($event);
+
         return $data;
+    }
+
+    /**
+     * Tema efetivo da landing: padrão da plataforma mesclado com o do evento.
+     *
+     * @return array<string, mixed>
+     */
+    private function themeBlock(Event $event): array
+    {
+        return array_replace_recursive(
+            (array) config('events.default_theme', []),
+            $event->theme_json ?? [],
+        );
+    }
+
+    /**
+     * @return array{image: ?string, themeColor: string}
+     */
+    private function ogBlock(Event $event): array
+    {
+        $image = null;
+        if ($event->og_image_path !== null) {
+            try {
+                $image = Storage::disk('s3')->url($event->og_image_path);
+            } catch (Throwable) {
+                $image = null;
+            }
+        }
+
+        return [
+            'image' => $image,
+            'themeColor' => $this->themeBlock($event)['colors']['background'] ?? '#0a0a0f',
+        ];
     }
 
     /**

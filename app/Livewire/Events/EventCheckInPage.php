@@ -1,11 +1,11 @@
 <?php
 
-
 namespace App\Livewire\Events;
 
 use App\Enums\Events\GuestStatus;
 use App\Models\Guest;
 use Illuminate\Contracts\View\View;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Layout;
 use Livewire\Component;
@@ -75,6 +75,13 @@ final class EventCheckInPage extends Component
             return;
         }
 
+        // Revalida tenancy — a propriedade pública é re-hidratada do cliente.
+        if (Gate::denies('checkIn', $guest->event)) {
+            $this->notice = 'Você não tem permissão para operar o check-in deste evento.';
+
+            return;
+        }
+
         if ($guest->status !== GuestStatus::Confirmed) {
             $this->notice = 'Este convidado não está confirmado para o evento.';
 
@@ -119,10 +126,19 @@ final class EventCheckInPage extends Component
             ->with('event')
             ->first();
 
-        $this->guestModel = $guest;
-
         if ($guest === null) {
             $this->notice = 'Ingresso não encontrado ou inválido.';
+
+            return;
         }
+
+        // Portaria restrita ao dono do evento (ou super admin) — tenancy da plataforma.
+        if (Gate::denies('checkIn', $guest->event)) {
+            $this->notice = 'Você não tem permissão para operar o check-in deste evento.';
+
+            return;
+        }
+
+        $this->guestModel = $guest;
     }
 }

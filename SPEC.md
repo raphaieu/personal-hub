@@ -96,10 +96,16 @@ Detalhes da lógica de cada job em [docs/utilities/SPEC.md](docs/utilities/SPEC.
 
 ## Autenticação
 
-- Laravel Breeze (Blade stack), sem registro público.
+- Laravel Breeze (Blade stack) para o hub web. Registro público de usuários acontece
+  **somente via API** (`POST /api/v1/auth/register`) — plataforma de eventos self-service.
+- **Sanctum** para a API da plataforma de eventos (`/api/v1/auth/*`, `/api/v1/me/*`) —
+  token Bearer (30d), emitido no register/login, revogado no logout.
+- `User` implementa `MustVerifyEmail`: verificação obrigatória para **publicar eventos**;
+  link assinado aponta para a API (`/api/v1/auth/email/verify/{id}/{hash}`) e redireciona ao front.
 - Login restrito por e-mail listado em `HORIZON_AUTH_EMAILS`.
 - Horizon (`/horizon`) protegido pelo mesmo middleware.
 - Dashboard hub (`/dashboard`) e todos os hubs internos (`/hub/*`) exigem autenticação.
+- Tenancy de eventos via `EventPolicy` (owner-only; `super_admin` bypassa) — inclui portaria.
 
 ---
 

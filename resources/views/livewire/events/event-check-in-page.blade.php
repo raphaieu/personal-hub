@@ -67,8 +67,20 @@
                     </div>
                     <div class="rounded-2xl border border-neutral-800 bg-neutral-900/80 p-4">
                         <p class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Convidado</p>
-                        <p class="mt-1 text-2xl font-bold tracking-tight text-white">{{ $guestModel->name }}</p>
-                        <p class="mt-2 truncate text-sm text-neutral-400">{{ $guestModel->email }}</p>
+                        @php($photoUrl = $guestModel->photoTemporaryUrl())
+                        <div class="mt-1 flex items-center gap-4">
+                            @if ($photoUrl)
+                                <img
+                                    src="{{ $photoUrl }}"
+                                    alt="Foto de {{ $guestModel->name }}"
+                                    class="h-20 w-20 shrink-0 rounded-xl border border-neutral-700 object-cover"
+                                >
+                            @endif
+                            <div class="min-w-0">
+                                <p class="text-2xl font-bold tracking-tight text-white">{{ $guestModel->name }}</p>
+                                <p class="mt-2 truncate text-sm text-neutral-400">{{ $guestModel->email }}</p>
+                            </div>
+                        </div>
                     </div>
                     <div class="flex flex-wrap gap-3 text-xs text-neutral-400">
                         <span class="rounded-full bg-neutral-800 px-2.5 py-1 font-medium text-neutral-200">

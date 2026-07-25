@@ -9,6 +9,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Facades\Storage;
+use Throwable;
 
 #[Fillable([
     'event_id',
@@ -69,5 +71,26 @@ class Guest extends Model
             'checked_in_at' => 'datetime',
             'payment_expires_at' => 'datetime',
         ];
+    }
+
+    /**
+     * URL assinada temporária da foto do convidado (MinIO/S3) para exibição
+     * na portaria e no admin. Retorna null quando indisponível (ex.: driver fake).
+     */
+    public function photoTemporaryUrl(): ?string
+    {
+        if ($this->photo_path === null) {
+            return null;
+        }
+
+        try {
+            return Storage::disk((string) config('events.guest_photos_disk', 's3'))
+                ->temporaryUrl(
+                    $this->photo_path,
+                    now()->addMinutes((int) config('events.guest_photo_url_minutes', 15)),
+                );
+        } catch (Throwable) {
+            return null;
+        }
     }
 }
