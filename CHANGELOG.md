@@ -8,6 +8,38 @@ Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *chan
 
 ## [Unreleased]
 
+### Pendente
+
+- **Álbuns de mídia — Fase F:** upload ZIP, tags, watermark on-the-fly, thumbnail/transcode de vídeo (FFmpeg), download ZIP do álbum. Ver [docs/album/SPEC.md](docs/album/SPEC.md) (seção *Fase F — backlog*) e [docs/roadmap/BACKLOG.md](docs/roadmap/BACKLOG.md).
+
+---
+
+## 2026-07-25
+
+*API self-service de eventos (auth Sanctum, tenancy, tema/conteúdo e limites).*
+
+### Added
+
+- **Eventos — plataforma self-service (API):** backend multi-tenant para o front `events.raphael-martins.com`. Auth Sanctum em `/api/v1/auth/*` (`register`/`login`/`logout`/`me`/verificação de e-mail com `MustVerifyEmail`); CRUD do organizador em `/api/v1/me/events` (criar rascunho, detalhe, update parcial, publish, archive) e `GET /me/limits`. Token Bearer 30d (`events:*`); publicar exige e-mail verificado.
+- **Eventos — tema e conteúdo por evento:** colunas `theme_json`, `content_json`, `flyer_path`, `og_image_path`, `published_at`. Tema com `customCss` sanitizado (`ThemeService`); seções de conteúdo validadas; config pública `/config` expõe `theme`, `content` e `og`. Defaults e limites em `config/events.php` (`EVENTS_MAX_*`, `EVENTS_RATE_LIMIT_MAX`).
+- **Eventos — fotos de convidado no MinIO:** disco `EVENTS_GUEST_PHOTOS_DISK` (default `s3`); URL assinada temporária na portaria (`Guest::photoTemporaryUrl()`); comando one-off `php artisan events:migrate-guest-photos [--dry-run]`.
+- **CI de testes:** workflow GitHub Actions (`.github/workflows/tests.yml`); `phpunit.xml` força sqlite em memória para isolamento real dos Feature tests.
+- **Documentação:** [docs/events/SPEC.md](docs/events/SPEC.md) (seção *Plataforma self-service*) e [SPEC.md](SPEC.md) (auth Sanctum + registro só via API).
+
+### Changed
+
+- **Eventos — tenancy e portaria:** `EventPolicy` owner-only (`super_admin` bypassa); check-in `/events-checkin` passa a exigir a ability `checkIn` (antes acesso aberto a autenticados).
+
+### Fixed
+
+- **Eventos — `guests.custom_data`:** campos custom do schema do formulário passam a persistir (antes gravavam sempre `null`).
+
+---
+
+## 2026-06-08
+
+*Lista e exportação de convidados no hub.*
+
 ### Added
 
 - **Eventos — exportação de convidados:** botão *Exportar Excel* na lista de convidados baixa um CSV UTF-8 compatível com Excel, com todos os dados do cadastro: identificação, contato, situação, datas de cadastro/aceite/convite/confirmação/check-in, referral, campos personalizados e dados de pagamento quando houver.
@@ -15,10 +47,6 @@ Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *chan
 ### Changed
 
 - **Eventos — lista de convidados:** ordenação passa de alfabética para data de cadastro; tabela exibe numeração sequencial, total de convidados e coluna `Cadastro` com data/hora no fuso do evento.
-
-### Pendente
-
-- **Álbuns de mídia — Fase F:** upload ZIP, tags, watermark on-the-fly, thumbnail/transcode de vídeo (FFmpeg), download ZIP do álbum. Ver [docs/album/SPEC.md](docs/album/SPEC.md) (seção *Fase F — backlog*) e [docs/roadmap/BACKLOG.md](docs/roadmap/BACKLOG.md).
 
 ---
 

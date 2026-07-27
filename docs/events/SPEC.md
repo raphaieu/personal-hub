@@ -214,7 +214,37 @@ Tenancy: `EventPolicy` (owner-only; `super_admin` bypassa via `before`). A porta
 
 `max_published_events` (3), `max_guests_per_event` (500), `max_referral_links_per_event` (10),
 `max_flyer_jobs_per_day` (5) — configuráveis via `EVENTS_MAX_*`. Enforcement progressivo
-por milestone; `max_published_events` já aplicado no publish.
+por milestone; `max_published_events` já aplicado no publish; `max_flyer_jobs_per_day`
+já aplicado no upload de flyer.
+
+### Flyer → IA (M2)
+
+Criação de evento a partir do flyer com extração automática de dados e tema:
+
+| Endpoint | Descrição |
+|----------|-----------|
+| `POST /me/events/flyer-draft` (auth, multipart) | Upload do flyer (≤10MB, jpeg/png/webp) → evento draft com `ai_status=pending` + `ProcessEventFlyerJob` na fila `ai`. Throttle `events-flyer` (10/dia). |
+| `GET /me/events/{event}/ai-status` (auth) | Polling: `{ aiStatus, done }` — `done` quando `ready` ou `failed`. |
+
+**`EventFlyerService`** orquestra o processamento:
+
+1. **og:image sempre** — crop central 1200×630 WebP via GD → `events/flyers/{id}/og.webp`
+   no S3 com visibility `public` (o bucket precisa de policy de leitura anônima para
+   `events/flyers/*` — ver nota MinIO no LLM.md).
+2. **Extração IA best-effort** — `AiRouterService::completeWithVision()` (cadeia
+   Groq → Anthropic → OpenAI, **sem Ollama**; `AiTask::EventFlyerExtraction`) com o flyer
+   em base64. Prompt pede JSON estrito (título, datas, local, headline, até 6 regras com
+   ícones da allowlist, paleta hex, fontes da allowlist, modo). Validação rigorosa:
+   regex de cores, allowlists, ranges; datas no passado sobem de ano até ficarem futuras
+   (flyer sem ano); ícone/fonte inválidos caem no default.
+3. **Aplicação** — preenche `title`, `starts_at`, `theme_json`, `content_json` e regenera
+   o slug temporário (`evento-*`) a partir do título. Estado final em `ai_status`:
+   `ready` (proposta aplicada) ou `failed` (front segue para edição manual — fallback §5
+   da spec da plataforma; og:image permanece).
+
+**Nota operacional:** workers do Horizon não recarregam código — após mudanças em
+services/jobs em dev, `docker compose restart horizon` (o `deploy.sh` já faz
+`horizon:terminate` em produção).
 
 ---
 

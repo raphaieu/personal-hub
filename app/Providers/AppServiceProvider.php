@@ -2,8 +2,10 @@
 
 namespace App\Providers;
 
+use App\Contracts\AiVisionServiceInterface;
 use App\Contracts\ThreadsScraperClientInterface;
 use App\Contracts\UtilityScraperClientInterface;
+use App\Services\AiRouterService;
 use App\Services\Threads\ThreadsPlaywrightService;
 use App\Services\Utilities\UtilityPlaywrightService;
 use Illuminate\Auth\Notifications\VerifyEmail;
@@ -22,6 +24,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->app->bind(ThreadsScraperClientInterface::class, ThreadsPlaywrightService::class);
         $this->app->bind(UtilityScraperClientInterface::class, UtilityPlaywrightService::class);
+        $this->app->bind(AiVisionServiceInterface::class, AiRouterService::class);
     }
 
     /**
@@ -41,6 +44,10 @@ class AppServiceProvider extends ServiceProvider
         });
 
         RateLimiter::for('auth', fn (Request $request) => Limit::perMinute($registerMax)->by($request->ip()));
+
+        // Upload de flyer: rede de segurança técnica (o limite de negócio — 5/dia —
+        // é enforced no EventFlyerService com 422 amigável).
+        RateLimiter::for('events-flyer', fn (Request $request) => Limit::perDay(10)->by($request->user()?->id ?: $request->ip()));
 
         // Link de verificação aponta para a API (usuários se registram pelo front Nuxt);
         // o endpoint valida e redireciona de volta para o front.

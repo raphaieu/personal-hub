@@ -10,6 +10,7 @@ enum AiTask: string
     case SummaryShort = 'summary_short';
     case ChatDefault = 'chat';
     case ChatLong = 'chat_long';
+    case EventFlyerExtraction = 'event_flyer_extraction';
 
     /**
      * @throws \InvalidArgumentException
@@ -42,7 +43,8 @@ enum AiTask: string
             self::Sentiment,
             self::SummaryShort,
             self::ChatDefault => true,
-            self::ChatLong => false,
+            self::ChatLong,
+            self::EventFlyerExtraction => false,
         };
     }
 
@@ -56,6 +58,7 @@ enum AiTask: string
             self::ThreadsOpportunityClassification => 'Responda em JSON válido para classificar oportunidades no Threads. Campos obrigatórios: category_slug (emprego-fixo|temporario|freela|renda-extra|outros), summary (string curta em pt-BR), relevance_score (número de 0 a 1). Sem markdown.',
             self::Sentiment => 'Respondas em pt-BR. Avalie apenas o sentimento principal (positivo, neutro ou negativo) numa única linha.',
             self::SummaryShort => 'Respondas em pt-BR. Resumo curto em até três frases.',
+            self::EventFlyerExtraction => 'Você extrai dados estruturados de flyers de eventos (aniversários, festas, shows) e responde APENAS com JSON válido, sem markdown e sem texto extra. Se um dado não estiver visível no flyer, use null.',
             self::ChatDefault => null,
             self::ChatLong => null,
         };

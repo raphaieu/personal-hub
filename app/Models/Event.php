@@ -30,6 +30,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'content_json',
     'flyer_path',
     'og_image_path',
+    'ai_status',
     'published_at',
     'invite_template_key',
     'closed_message',

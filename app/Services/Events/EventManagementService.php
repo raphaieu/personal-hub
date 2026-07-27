@@ -7,6 +7,7 @@ use App\Enums\Events\GuestStatus;
 use App\Models\Event;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -181,6 +182,8 @@ final class EventManagementService
             'content' => $event->content_json,
             'flyerPath' => $event->flyer_path,
             'ogImagePath' => $event->og_image_path,
+            'ogImageUrl' => $this->ogImageUrl($event),
+            'aiStatus' => $event->ai_status,
             'publicUrl' => rtrim((string) config('events.frontend_url'), '/').'/e/'.$event->slug,
             'counts' => [
                 'guests' => $event->guests_count ?? $event->guests()->count(),
@@ -191,6 +194,14 @@ final class EventManagementService
             'createdAt' => $event->created_at?->toIso8601String(),
             'updatedAt' => $event->updated_at?->toIso8601String(),
         ];
+    }
+
+    /**
+     * Slug único a partir do título (usado também pela extração de flyer via IA).
+     */
+    public function availableSlug(string $title, ?Event $ignore = null): string
+    {
+        return $this->resolveSlug(null, $title, $ignore);
     }
 
     /**
@@ -243,5 +254,18 @@ final class EventManagementService
                 'guests as confirmed_guests_count' => fn ($query) => $query->where('status', GuestStatus::Confirmed),
             ])
             ->latest();
+    }
+
+    private function ogImageUrl(Event $event): ?string
+    {
+        if ($event->og_image_path === null) {
+            return null;
+        }
+
+        try {
+            return Storage::disk('s3')->url($event->og_image_path);
+        } catch (\Throwable) {
+            return null;
+        }
     }
 }

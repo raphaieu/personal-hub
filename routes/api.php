@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\V1\Auth\AuthController;
 use App\Http\Controllers\Api\V1\Auth\EmailVerificationController;
 use App\Http\Controllers\Api\V1\Events\PublicEventController;
 use App\Http\Controllers\Api\V1\Me\EventController;
+use App\Http\Controllers\Api\V1\Me\FlyerController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
@@ -42,9 +43,12 @@ Route::prefix('v1')->group(function (): void {
 
         Route::get('me/events', [EventController::class, 'index']);
         Route::post('me/events', [EventController::class, 'store']);
+        Route::post('me/events/flyer-draft', [FlyerController::class, 'store'])
+            ->middleware('throttle:events-flyer');
         Route::get('me/events/{event}', [EventController::class, 'show']);
         Route::patch('me/events/{event}', [EventController::class, 'update']);
         Route::post('me/events/{event}/publish', [EventController::class, 'publish']);
         Route::post('me/events/{event}/archive', [EventController::class, 'archive']);
+        Route::get('me/events/{event}/ai-status', [FlyerController::class, 'status']);
     });
 });

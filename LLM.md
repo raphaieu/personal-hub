@@ -123,10 +123,17 @@ A Evolution roda na stack Docker do hub (serviço dedicado). URL base em `EVOLUT
 
 - Endpoint público: `https://files.raphael-martins.com`.
 - Dentro do Compose o Laravel usa hostname do serviço (`AWS_ENDPOINT=http://minio:9000`).
-- Bucket: `pessoal` (criar se não existir).
+- Bucket: `pessoal` em produção / `raphael-hub` em dev (criar se não existir).
 - `AWS_USE_PATH_STYLE_ENDPOINT=true` é **obrigatório**.
 - Path padrão dos PDFs: `faturas/{embasa|coelba}/{referencia_sanitizada}_{timestamp}.pdf`.
 - Laravel usa `Storage::disk('s3')`.
+- **Policy de leitura anônima**: o prefixo `events/flyers/*` precisa de policy pública
+  (`s3:GetObject` para `*`) — og:images de eventos são servidas direto do bucket.
+  Fotos de convidado (`events/guests/*`) ficam fora da policy: só URL assinada.
+  Aplicar via `putBucketPolicy` (ver histórico git) ou `mc anonymous set download`.
+- **`AWS_URL` em dev**: `http://localhost:19000/{bucket}` para `Storage::url()` gerar
+  URLs acessíveis do host (o endpoint `minio:9000` só existe dentro do Compose).
+  Container exporta env no `up` — mudou `.env`, recrie: `up -d --force-recreate app horizon`.
 
 ### NeuronAI
 

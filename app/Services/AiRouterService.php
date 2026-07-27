@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Contracts\AiVisionServiceInterface;
 use App\Data\AiCompletionResult;
 use App\Enums\AiTask;
 use App\Support\ServiceApiKeys;
@@ -22,7 +23,7 @@ use NeuronAI\Providers\OpenAI\OpenAI;
 use NeuronAI\Providers\OpenAILike;
 use Throwable;
 
-final class AiRouterService
+final class AiRouterService implements AiVisionServiceInterface
 {
     public function __construct(
         private readonly OllamaService $ollama,
@@ -103,6 +104,78 @@ final class AiRouterService
             );
         }
 
+        return $this->runSteps($steps, $task, $expectJson);
+    }
+
+    /**
+     * Cadeia com fallback para prompts com imagem (visão) — sem Ollama, pois a
+     * extração exige modelos de visão fortes. Ordem: Groq → Anthropic → OpenAI.
+     *
+     * @param  list<array{data: string, mime: string}>  $images  Base64 cru (sem prefixo data:)
+     */
+    public function completeWithVision(
+        string $userPrompt,
+        AiTask $task,
+        array $images,
+        ?string $systemPromptOverride = null,
+        bool $expectJson = false,
+    ): AiCompletionResult {
+        $system = $systemPromptOverride ?? $task->systemPrompt();
+        $userMessage = $this->buildUserMessage($userPrompt, $images);
+
+        /** @var list<array{provider: string, model: string, call: callable(): AssistantMessage}> $steps */
+        $steps = [];
+
+        $groq = $this->groqProvider();
+        if ($groq !== null) {
+            $steps[] = [
+                'provider' => 'groq',
+                'model' => (string) config('services.groq.model'),
+                'call' => fn (): AssistantMessage => $this->invokeProvider($groq, $system, $userMessage),
+            ];
+        }
+
+        $anthropic = $this->anthropicProvider();
+        if ($anthropic !== null) {
+            $steps[] = [
+                'provider' => 'anthropic',
+                'model' => (string) config('services.anthropic.model'),
+                'call' => fn (): AssistantMessage => $this->invokeProvider($anthropic, $system, $userMessage),
+            ];
+        }
+
+        $openai = $this->openAiProvider();
+        if ($openai !== null) {
+            $steps[] = [
+                'provider' => 'openai',
+                'model' => (string) config('services.openai.model'),
+                'call' => fn (): AssistantMessage => $this->invokeProvider($openai, $system, $userMessage),
+            ];
+        }
+
+        if ($steps === []) {
+            return new AiCompletionResult(
+                success: false,
+                text: '',
+                provider: '',
+                model: '',
+                latencyMs: 0,
+                fallbackUsed: false,
+                errorType: 'no_provider',
+                errorDetail: 'Nenhum provedor de visão configurado (Groq/Anthropic/OpenAI).',
+            );
+        }
+
+        return $this->runSteps($steps, $task, $expectJson);
+    }
+
+    /**
+     * Executa a cadeia de provedores com fallback, timeouts e logs padronizados.
+     *
+     * @param  list<array{provider: string, model: string, call: callable(): AssistantMessage}>  $steps
+     */
+    private function runSteps(array $steps, AiTask $task, bool $expectJson): AiCompletionResult
+    {
         $fallbackUsed = false;
         $lastError = null;
         $lastErrorType = null;
