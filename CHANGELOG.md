@@ -14,6 +14,19 @@ Entradas datadas até **2026-05-08** foram consolidadas a partir do antigo *chan
 
 ---
 
+## 2026-07-27
+
+*Criação de evento via flyer com extração IA (M2).*
+
+### Added
+
+- **Eventos — flyer → draft com IA:** `POST /me/events/flyer-draft` (multipart ≤10MB) cria rascunho e enfileira `ProcessEventFlyerJob` (fila `ai`); `GET /me/events/{event}/ai-status` para polling. Coluna `events.ai_status` (`pending`/`processing`/`ready`/`failed`); payload expõe `aiStatus`/`ogImageUrl`.
+- **Eventos — `EventFlyerService`:** gera og:image 1200×630 WebP sempre; extração IA best-effort (título, datas, local, headline, regras, paleta, fontes) com validação por allowlists e ajuste de ano em data passada; em `failed` o front segue no fluxo manual (og:image permanece).
+- **IA — visão:** `AiRouterService::completeWithVision` (Groq → Anthropic → OpenAI, sem Ollama) via `AiVisionServiceInterface`; task `AiTask::EventFlyerExtraction`. Limite `max_flyer_jobs_per_day` (5) + throttle técnico.
+- **Documentação:** [docs/events/SPEC.md](docs/events/SPEC.md) (seção *Flyer → IA*) e nota operacional de restart do Horizon em [LLM.md](LLM.md).
+
+---
+
 ## 2026-07-25
 
 *API self-service de eventos (auth Sanctum, tenancy, tema/conteúdo e limites).*
