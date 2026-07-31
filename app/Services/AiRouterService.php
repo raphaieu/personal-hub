@@ -126,14 +126,8 @@ final class AiRouterService implements AiVisionServiceInterface
         /** @var list<array{provider: string, model: string, call: callable(): AssistantMessage}> $steps */
         $steps = [];
 
-        $groq = $this->groqProvider();
-        if ($groq !== null) {
-            $steps[] = [
-                'provider' => 'groq',
-                'model' => (string) config('services.groq.model'),
-                'call' => fn (): AssistantMessage => $this->invokeProvider($groq, $system, $userMessage),
-            ];
-        }
+        // Groq não tem modelo de visão compatível com o formato de content blocks do NeuronAI
+        // $groq = $this->groqProvider();
 
         $anthropic = $this->anthropicProvider();
         if ($anthropic !== null) {
@@ -162,7 +156,7 @@ final class AiRouterService implements AiVisionServiceInterface
                 latencyMs: 0,
                 fallbackUsed: false,
                 errorType: 'no_provider',
-                errorDetail: 'Nenhum provedor de visão configurado (Groq/Anthropic/OpenAI).',
+                errorDetail: 'Nenhum provedor de visão configurado (Anthropic/OpenAI).',
             );
         }
 

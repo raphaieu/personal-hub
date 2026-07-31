@@ -32,6 +32,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Em dev local com proxy reverso (Nginx → artisan serve), força URLs
+        // geradas pelo Laravel a usarem APP_URL (evita redirects pra 127.0.0.1:8010).
+        if ($this->app->environment('local', 'testing') && ($appUrl = config('app.url'))) {
+            URL::forceRootUrl($appUrl);
+        }
+
         // Limites configuráveis — em testes, EVENTS_RATE_LIMIT_MAX folga o throttle (mesmo IP).
         $registerMax = (int) env('EVENTS_RATE_LIMIT_MAX', 5);
 

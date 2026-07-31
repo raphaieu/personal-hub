@@ -120,7 +120,14 @@ final class EventFlyerService
             throw new \RuntimeException('Flyer não encontrado no storage.');
         }
 
-        $mime = Storage::disk(self::STORAGE_DISK)->mimeType($event->flyer_path) ?: 'image/jpeg';
+        // Inferir mime type da extensão do arquivo (evita falha do Storage::mimeType no S3/MinIO)
+        $ext = strtolower(pathinfo((string) $event->flyer_path, PATHINFO_EXTENSION));
+        $mime = match ($ext) {
+            'jpg', 'jpeg' => 'image/jpeg',
+            'png'  => 'image/png',
+            'webp' => 'image/webp',
+            default => 'image/jpeg',
+        };
 
         $result = $this->aiVision->completeWithVision(
             $this->extractionPrompt(),
