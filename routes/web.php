@@ -19,6 +19,8 @@ use App\Http\Controllers\Webhook\MercadoPagoWebhookController;
 use App\Http\Controllers\Webhook\WhatsAppWebhookController;
 use App\Livewire\Albums\AlbumDetailPage;
 use App\Livewire\Albums\HubPage as AlbumsHubPage;
+use App\Livewire\Analyses\DetailPage as AnalysisDetailPage;
+use App\Livewire\Analyses\HubPage as AnalysesHubPage;
 use App\Livewire\AnalysisProfiles\HubPage as AnalysisProfilesHubPage;
 use App\Livewire\Events\EventCheckInPage;
 use App\Livewire\Events\EventDetailPage;
@@ -96,6 +98,8 @@ Route::get('/dashboard', function () {
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/chat', [AiChatController::class, 'index'])->name('chat');
     Route::get('/hub/threads', ThreadsHubPage::class)->name('threads.hub');
+    Route::get('/hub/analyses', AnalysesHubPage::class)->name('analyses.hub');
+    Route::get('/hub/analyses/{messageLog}', AnalysisDetailPage::class)->name('analyses.show');
     Route::get('/hub/analysis-profiles', AnalysisProfilesHubPage::class)->name('analysis-profiles.hub');
     Route::get('/hub/monitored-sources', MonitoredSourcesHubPage::class)->name('monitored-sources.hub');
     Route::get('/hub/utilities', UtilitiesHubPage::class)->name('utilities.hub');

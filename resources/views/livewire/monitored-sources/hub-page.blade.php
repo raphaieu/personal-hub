@@ -259,11 +259,23 @@
                                         {{ $log->body ?: 'sem texto' }}
                                     </td>
                                     <td class="px-3 py-2">
+                                        @php
+                                            $currentProfile = $log->monitoredSource?->analysisProfile;
+                                            $canReprocess = $log->monitoredSource?->is_active
+                                                && $currentProfile?->is_active
+                                                && in_array($currentProfile?->channel, [null, 'whatsapp'], true);
+                                        @endphp
+                                        <div class="mb-1 text-[11px] text-gray-500">
+                                            Perfil atual: {{ $currentProfile ? $currentProfile->name.' ('.$currentProfile->slug.')' : 'indisponível' }}
+                                        </div>
                                         <button
                                             type="button"
                                             wire:click="reprocessMessageLog({{ $log->id }})"
-                                            @disabled($log->monitored_source_id === null)
-                                            class="inline-flex items-center rounded-md px-2.5 py-1.5 text-xs font-medium {{ $log->monitored_source_id === null ? 'cursor-not-allowed bg-gray-100 text-gray-400' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' }}"
+                                            wire:confirm="Reprocessar usará o perfil atualmente vinculado à fonte e substituirá a análise anterior. Continuar?"
+                                            wire:loading.attr="disabled"
+                                            wire:target="reprocessMessageLog({{ $log->id }})"
+                                            @disabled(! $canReprocess)
+                                            class="inline-flex items-center rounded-md px-2.5 py-1.5 text-xs font-medium {{ ! $canReprocess ? 'cursor-not-allowed bg-gray-100 text-gray-400' : 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200' }}"
                                         >
                                             Reprocessar
                                         </button>

@@ -60,10 +60,19 @@ final class MonitoredSourcesHubPageTest extends TestCase
     {
         Bus::fake();
         $user = User::factory()->create();
+        $profile = AnalysisProfile::query()->create([
+            'slug' => 'whatsapp-reprocess',
+            'name' => 'WhatsApp Reprocess',
+            'channel' => 'whatsapp',
+            'analysis_type' => 'classification',
+            'system_prompt' => 'prompt whatsapp',
+            'is_active' => true,
+        ]);
         $source = MonitoredSource::query()->create([
             'kind' => 'contact',
             'identifier' => '5511999999000@s.whatsapp.net',
             'label' => 'Contato reprocesso',
+            'analysis_profile_id' => $profile->id,
             'is_active' => true,
         ]);
         $message = MessageLog::query()->create([

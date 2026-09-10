@@ -34,6 +34,12 @@ return [
             'icon' => 'profiles',
         ],
         [
+            'route' => 'analyses.hub',
+            'title' => 'Análises',
+            'description' => 'Revise mensagens do WhatsApp e os resultados estruturados da IA.',
+            'icon' => 'analyses',
+        ],
+        [
             'route' => 'monitored-sources.hub',
             'title' => 'Fontes monitoradas',
             'description' => 'WhatsApp e outras fontes com pipeline de classificação.',

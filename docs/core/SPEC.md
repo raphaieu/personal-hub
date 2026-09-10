@@ -184,6 +184,23 @@ Estes hubs servem para administrar a **camada de análise** sem precisar de SQL/
 - Profiles continuam **banco-driven** — não mover para `.env`.
 - Cobertura: `tests/Feature/Analysis/AnalysisProfilesHubPageTest.php`.
 
+### Hub de revisão de análises
+
+- Rota autenticada: `GET /hub/analyses` (`analyses.hub`); detalhe em
+  `GET /hub/analyses/{messageLog}` (`analyses.show`).
+- Componentes: `App\Livewire\Analyses\HubPage` e `App\Livewire\Analyses\DetailPage`.
+- A listagem é paginada no banco, prioriza por padrão mensagens ligadas a
+  `monitored_sources` e oferece filtros por profile persistido, source, período,
+  estado do pipeline, categoria e busca no corpo/JSON da análise.
+- O profile histórico exibido vem de `metadata.analysis.profile_slug` (com fallback
+  para `provider_meta.profile_slug`), nunca do vínculo atual da source.
+- O detalhe compara o corpo original com `metadata.analysis.raw_normalized`, trata
+  `offers` apenas quando é uma lista válida e mantém o JSON completo recolhido por
+  padrão. Conteúdo textual e JSON são sempre escapados.
+- Reprocessamento reutiliza `ReprocessMessageLogAnalysisJob`, informa o profile atual
+  e só enfileira quando source e profile estão ativos e o profile aceita WhatsApp.
+- Cobertura: `tests/Feature/Analysis/AnalysesHubPageTest.php`.
+
 ---
 
 ## Autenticação

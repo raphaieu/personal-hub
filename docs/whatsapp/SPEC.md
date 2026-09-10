@@ -138,6 +138,34 @@ Padrão para todos: `$tries = 3`, `failed()` implementado, logs estruturados.
 
 ---
 
+## Revisão das análises no hub
+
+`/hub/analyses` é a área de inspeção dos resultados persistidos em
+`message_logs`; `/hub/monitored-sources` permanece voltada à configuração e ao
+acompanhamento das fontes.
+
+- Processamento (`ai_pipeline_status`) e resultado (`category`) aparecem
+  separadamente. `classified` significa análise concluída, não aprovação editorial;
+  status nulo significa aguardando processamento, não falha.
+- A listagem usa o score já normalizado em `metadata.analysis.relevance_score`
+  (0–100 no fluxo atual). O detalhe também mostra, sem conversão, o
+  `raw_normalized.relevance_score` original (normalmente 0–1).
+- O profile histórico é identificado por `metadata.analysis.profile_slug` /
+  `profile_id`. O vínculo atual de `monitored_sources.analysis_profile_id` só é
+  mostrado no contexto de um novo reprocessamento.
+- `raw_normalized.offers` ganha apresentação especializada apenas quando contém uma
+  lista de objetos. Outros schemas, listas vazias e dados legados continuam
+  inspecionáveis pelos campos genéricos e pelo JSON completo.
+- Links retornados pela IA só são clicáveis para URLs HTTP/HTTPS válidas e abrem com
+  `noopener noreferrer`. Os valores continuam sendo apresentados como declarados
+  pelo modelo, sem validação editorial ou correção silenciosa.
+- Ao enfileirar reprocessamento, `ai_pipeline_status` volta a `null` e
+  `is_processed` a `false` (estado já definido como aguardando processamento). O
+  payload armazenado permanece visível, explicitamente rotulado como resultado
+  anterior, até ser substituído pelo job; não há histórico de versões.
+
+---
+
 ## Integração Evolution para envio
 
 `App\Services\EvolutionService`:

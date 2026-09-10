@@ -2,10 +2,12 @@
 
 namespace App\Livewire\MonitoredSources;
 
-use App\Jobs\ReprocessMessageLogAnalysisJob;
 use App\Models\AnalysisProfile;
 use App\Models\MessageLog;
 use App\Models\MonitoredSource;
+use App\Services\Analysis\MessageLogAnalysisReprocessingService;
+use DomainException;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 use Livewire\Component;
 
@@ -89,7 +91,10 @@ final class HubPage extends Component
         }
 
         $recentLogs = MessageLog::query()
-            ->with('monitoredSource:id,label,kind')
+            ->with([
+                'monitoredSource:id,label,kind,is_active,analysis_profile_id',
+                'monitoredSource.analysisProfile:id,name,slug,channel,is_active',
+            ])
             ->latest('id')
             ->limit(25)
             ->get([
@@ -211,24 +216,25 @@ final class HubPage extends Component
         session()->flash('monitored_sources_hub_notice', 'Status da fonte monitorada atualizado.');
     }
 
-    public function reprocessMessageLog(int $messageLogId): void
+    public function reprocessMessageLog(int $messageLogId, MessageLogAnalysisReprocessingService $service): void
     {
-        $message = MessageLog::query()->with('monitoredSource')->findOrFail($messageLogId);
+        $message = MessageLog::query()->findOrFail($messageLogId);
+        Gate::authorize('reprocessAnalysis', $message);
 
-        if ($message->monitored_source_id === null || $message->monitoredSource === null) {
+        try {
+            $profile = $service->enqueue($message);
+        } catch (DomainException $exception) {
             session()->flash(
                 'monitored_sources_hub_notice',
-                'Não foi possível reprocessar: mensagem sem fonte monitorada vinculada.'
+                $exception->getMessage()
             );
 
             return;
         }
 
-        ReprocessMessageLogAnalysisJob::dispatch($message->id);
-
         session()->flash(
             'monitored_sources_hub_notice',
-            "Reprocessamento enfileirado para {$message->monitoredSource->label} na fila ai."
+            "Reprocessamento enfileirado com {$profile->name} ({$profile->slug}) na fila ai."
         );
     }
 

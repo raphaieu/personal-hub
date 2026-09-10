@@ -24,6 +24,9 @@
                     <x-nav-link :href="route('analysis-profiles.hub')" :active="request()->routeIs('analysis-profiles.hub')">
                         {{ __('Profiles IA') }}
                     </x-nav-link>
+                    <x-nav-link :href="route('analyses.hub')" :active="request()->routeIs('analyses.*')">
+                        {{ __('Análises') }}
+                    </x-nav-link>
                     <x-nav-link :href="route('monitored-sources.hub')" :active="request()->routeIs('monitored-sources.hub')">
                         {{ __('Fontes Monitoradas') }}
                     </x-nav-link>
@@ -99,6 +102,9 @@
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('analysis-profiles.hub')" :active="request()->routeIs('analysis-profiles.hub')">
                 {{ __('Profiles IA') }}
+            </x-responsive-nav-link>
+            <x-responsive-nav-link :href="route('analyses.hub')" :active="request()->routeIs('analyses.*')">
+                {{ __('Análises') }}
             </x-responsive-nav-link>
             <x-responsive-nav-link :href="route('monitored-sources.hub')" :active="request()->routeIs('monitored-sources.hub')">
                 {{ __('Fontes Monitoradas') }}
